@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 
@@ -44,6 +44,48 @@ def to_delta(timestamp):
 #     keep_properties = set(["Color", "Emoji", "FullLocation", "Location", "League", "Name", "Record", "_id"])
 #     teams = utils.get_all_as_dict("teams", filter_props(keep_properties))
 #     return teams
+
+@app.get("/games/{team_id}", response_class=HTMLResponse)
+async def games_by_team(request: Request, team_id: str):
+    team = utils.get_object("team", team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="team not found")
+    
+    games = list(utils.get_all_games_for_team(team_id))
+
+    def sort_key(row):
+        _, game = row
+        return game["Season"], game["Day"]
+    games.sort(key=sort_key, reverse=True)
+
+    games_list = []
+    for game_id, game in games:
+        game["_id"] = game_id
+        game["last"] = game["EventLog"][-1]
+
+        game_timestamp = utils.id_timestamp(game_id)
+        dt = datetime.datetime.fromtimestamp(game_timestamp / 1000, tz=datetime.UTC)
+        game["time_formatted"] = dt.strftime("%Y-%m-%d %H:%M") + " UTC"
+        game["time_iso"] = dt.isoformat()
+
+        home_pitchers = []
+        away_pitchers = []
+        for evt in game["EventLog"]:
+            if evt["inning_side"] == 0:
+                if evt["pitcher"] and evt["pitcher"] not in home_pitchers:
+                    home_pitchers.append(evt["pitcher"])
+            if evt["inning_side"] == 1:
+                if evt["pitcher"] and evt["pitcher"] not in away_pitchers:
+                    away_pitchers.append(evt["pitcher"])
+
+        # game["timestamp"]
+        game["away_pitchers"] = ", ".join(away_pitchers)
+        game["home_pitchers"] = ", ".join(home_pitchers)
+        games_list.append(game)
+
+    return templates.TemplateResponse(
+        request=request, name="games.html", context={"team": team, "games": games_list}
+    )
 
 @app.get("/teams", response_class=HTMLResponse)
 async def teams(request: Request):

@@ -18,7 +18,7 @@
                         <th class="border-gray-300 p-2 font-semibold">Run Differential</th>
                         <th class="border-gray-300 p-2 font-semibold"># of players</th>
                         <th class="border-gray-300 p-2 font-semibold">Updated</th>
-                        <th class="border-gray-300 p-2 font-semibold">Current Game</th>
+                        <th class="border-gray-300 p-2 font-semibold"></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -40,13 +40,10 @@
                             <td class="border border-gray-300 p-2 text-center">{{ team['rd'] }}</td>
                             <td class="border border-gray-300 p-2 text-center">{{ team['player_count'] }}</td>
                             <td class="border border-gray-300 p-2 text-center">{{ team['last_updated'] }}</td>
-                            {% if team['game_id'] %}
+
                             <td class="border border-gray-300 p-2 text-center">
-                                <a href="https://mmolb.com/watch/{{ team['game_id'] }}" class="hover:underline">👁️ Watch</a>
+                                <a href="/games/{{ team['_id'] }}" class="hover:underline text-sm text-gray-600">(see games)</a>
                             </td>
-                            {% else %}
-                            <td class="border border-gray-300 p-2 text-center">-</td>
-                            {% endif %}
                         </tr>
                     {% endfor %}
                 </tbody>

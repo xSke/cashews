@@ -103,9 +103,11 @@ def get_all(type):
     with db() as con:
         cur = con.cursor()
         res = cur.execute("select id, objects.data, currents.last_update from currents inner join objects on objects.hash = currents.hash where type = ?", (type,))
-        for id, data_blob, last_update in res:
-            data = decode_json(data_blob)
-            yield id, data, last_update
+        all_results = res.fetchall()
+    
+    for id, data_blob, last_update in all_results:
+        data = decode_json(data_blob)
+        yield id, data, last_update
 
 def get_all_as_dict(type, map_fn=None):
     out = {}
@@ -219,6 +221,14 @@ def get_game_for_team(team_id, season, day):
             game_id, data_blob = res
             return game_id, decode_json(data_blob)
         
+
+def get_all_games_for_team(team_id):
+    with db() as con:
+        cur = con.cursor()
+        res = cur.execute("select id, objects.data from games inner join objects on objects.hash = games.hash where (home_team_id = ? or away_team_id = ?)", (team_id, team_id)).fetchall()
+    for game_id, data_blob in res:
+        yield game_id, decode_json(data_blob)
+
 def get_all_game_data(season, day):
     with db() as con:
         cur = con.cursor()

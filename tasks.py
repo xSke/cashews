@@ -1,62 +1,73 @@
 import threading, time, random
 
-def run_every(name, seconds, random_delta=60):
-    print(f"{name}: pre-sleeping")
-    time.sleep(random.random() * random_delta)
-    while True:
-        before = time.time()
-        print(f"{name}: running")
-        yield None
-        after = time.time()
-        took = after - before
-        print(f"{name}: done, took {took}")
-        remaining = seconds - took
-        while remaining < 0:
-            print("missed a round, skipping")
-            remaining += seconds
-        remaining += random.random() * random_delta + (random_delta/2)
-        print(f"{name}: sleeping for {remaining}")
-        time.sleep(remaining)
+def run_every_thread(name, interval, real_inner, random_delta=60):
+    def inner():
+        print(f"{name}: pre-sleeping")
+        time.sleep(random.random() * random_delta)
+
+        while True:
+            before = time.time()
+            print(f"{name}: running")
+
+            try:
+                real_inner()
+            except Exception as e:
+                print(e)
+
+            after = time.time()
+            took = after - before
+            print(f"{name}: done, took {took}")
+            remaining = interval - took
+            while remaining < 0:
+                print("missed a round, skipping")
+                remaining += interval
+
+            remaining += random.random() * random_delta + (random_delta/2)
+            print(f"{name}: sleeping for {remaining}")
+            time.sleep(remaining)
+
+    return inner
+
+import fetch_games
+import fetch_league
 
 def fetch_games_thread():
-    import fetch_games
-    for _ in run_every("fetch_games", 10 * 60):
-        try:
-            fetch_games.fetch_games(False)
-        except Exception as e:
-            print(e)
+    fetch_games.fetch_games(False)
 
 def fetch_new_games_thread():
-    import fetch_games
-    for _ in run_every("fetch_new_games", 2 * 60):
-        try:
-            fetch_games.fetch_games(True)
-        except Exception as e:
-            print(e)
+    fetch_games.fetch_games(True)
 
 def fetch_league_thread():
-    import fetch_league
-    for _ in run_every("fetch_league", 5 * 60):
-        try:
-            fetch_league.fetch_league()
-        except Exception as e:
-            print(e)
+    fetch_league.fetch_league()
 
 def fetch_players_thread():
-    import fetch_league
-    for _ in run_every("fetch_players", 60 * 60):
-        try:
-            fetch_league.fetch_players()
-        except Exception as e:
-            print(e)
+    fetch_league.fetch_players()
 
-threads = [
-    threading.Thread(target=fetch_games_thread),
-    threading.Thread(target=fetch_league_thread),
-    threading.Thread(target=fetch_players_thread),
-    threading.Thread(target=fetch_new_games_thread),
-]
-for t in threads:
-    t.start()
-for t in threads:
-    t.join()
+def refetch_unfinished_known_games_thread():
+    fetch_games.refetch_unfinished_known_games()
+
+def main():
+    import sys
+    arg2 = sys.argv[1] if len(sys.argv) > 1 else ""
+    if arg2 == "backfill":
+        fetch_games.backfill_game_ids()
+        return
+
+    funcs = [
+        run_every_thread("fetch_games", 3*60, fetch_games_thread),
+        run_every_thread("fetch_league", 5*60, fetch_league_thread),
+        run_every_thread("fetch_players", 90*60, fetch_players_thread),
+        run_every_thread("fetch_new_games", 3*60, fetch_new_games_thread),
+        run_every_thread("refetch_unfinished", 3*60, refetch_unfinished_known_games_thread),
+    ]
+
+    threads = []
+    for f in funcs:
+        thread = threading.Thread(target=f)
+        threads.append(thread)
+        thread.start()
+    for t in threads:
+        t.join()
+
+if __name__ == "__main__":
+    main()
