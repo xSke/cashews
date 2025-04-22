@@ -1,0 +1,57 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+  </head>
+  <body>
+    <div class="container mx-auto flex flex-col gap-4 mt-4">
+        <div class="flex flex-col">
+            <table class="border-collapse table-auto">
+                <thead class="">
+                    <tr>
+                        <th></th>
+                        <th class="border-gray-300 p-2 font-semibold">Name</th>
+                        <th class="border-gray-300 p-2 font-semibold">League</th>
+                        <th class="border-gray-300 p-2 font-semibold">Record</th>
+                        <th class="border-gray-300 p-2 font-semibold">Run Differential</th>
+                        <th class="border-gray-300 p-2 font-semibold"># of players</th>
+                        <th class="border-gray-300 p-2 font-semibold">Updated</th>
+                        <th class="border-gray-300 p-2 font-semibold">Current Game</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in teams %}
+                        <tr>
+                            <td style="background-color: #{{ team['Color'] }}" class="w-12 text-center">
+                                <div class="py-2 text-2xl">{{ team['Emoji'] }}</div>
+                            </td>
+                            <td class="border-y border-gray-300 p-2">
+                                <a href="https://mmolb.com/team/{{ team['_id'] }}" class="font-semibold hover:underline">{{ team['Location'] }} {{ team['Name'] }}</a>
+                            </td>
+
+                            <td class="border border-gray-300 p-2 text-center">
+                                <a href="https://mmolb.com/league/{{ team['League'] }}" class="hover:underline">{{ team['league_emoji'] }} {{ team['league'] }} League</a>
+                            </td>
+                            <td class="border border-gray-300 p-2 text-center">
+                                {{ team["wins"] }}-{{ team["losses"] }}
+                            </td>
+                            <td class="border border-gray-300 p-2 text-center">{{ team['rd'] }}</td>
+                            <td class="border border-gray-300 p-2 text-center">{{ team['player_count'] }}</td>
+                            <td class="border border-gray-300 p-2 text-center">{{ team['last_updated'] }}</td>
+                            {% if team['game_id'] %}
+                            <td class="border border-gray-300 p-2 text-center">
+                                <a href="https://mmolb.com/watch/{{ team['game_id'] }}" class="hover:underline">👁️ Watch</a>
+                            </td>
+                            {% else %}
+                            <td class="border border-gray-300 p-2 text-center">-</td>
+                            {% endif %}
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+  </body>
+</html>

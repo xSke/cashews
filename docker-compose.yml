@@ -1,0 +1,12 @@
+services:
+  web:
+    build: .
+    ports:
+    - 127.0.0.1:3000:80
+    volumes:
+      - ./data:/app/data
+  tasks:
+    build: .
+    volumes:
+      - ./data:/app/data
+    command: ["uv", "run", "tasks.py"]
