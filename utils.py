@@ -25,16 +25,58 @@ create table games(id text primary key, season int, day int, away_team_id text, 
 
     """
 create table locations(loc text primary key, data text);
+    """,
+    """
+create table batting_stats(
+    player_id text primary key,
+    team_id text,
+    team_name text,
+    player_name text,
+    position text,
+    pa int,
+    ab int,
+    r int,
+    x1b int,
+    x2b int,
+    x3b int,
+    hr int,
+    rbi int,
+    bb int,
+    hbp int,
+    so int,
+    cdp int,
+    gidp int,
+    go int,
+    fo int,
+    po int,
+    lo int,
+    force_outs int,
+    field_outs int,
+    fc int,
+    roe int,
+    sf int,
+    lob int,
+    sb int,
+    cs int,
+    hits int,
+    tb int,
+    ba real,
+    obp real,
+    slg real,
+    ops real
+);
     """
 ]
 
 SESSION = requests.Session()
 API = "https://mmolb.com/api"
 
+
 def db():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), DB_PATH)
     con = sqlite3.connect(path)
     return con
+
 
 def init_db():
     with db() as con:
@@ -60,17 +102,21 @@ def decode_json(data):
         data_str = data
     return json.loads(data_str)
 
+
 def encode_json(data):
     data_str = json.dumps(data, sort_keys=True)
     data_blob = data_str.encode()
     return zstd.compress(data_blob, level=3)
 
+
 def json_hash(data):
     data_str = json.dumps(data, sort_keys=True)
     return hashlib.sha256(data_str.encode()).hexdigest()
 
+
 def now():
     return int(time.time() * 1000)
+
 
 def save_new_object(type, id, data, timestamp):
     # data_str = json.dumps(data, sort_keys=True)
@@ -86,6 +132,7 @@ def save_new_object(type, id, data, timestamp):
         cur.execute("insert into currents(type, id, hash, last_update) values (?, ?, ?, ?) on conflict (type, id) do update set hash=excluded.hash, last_update=excluded.last_update where excluded.last_update > currents.last_update", (type, id, hash, timestamp))
         con.commit()
 
+
 def get_object(type, id):
     with db() as con:
         cur = con.cursor()
@@ -95,6 +142,7 @@ def get_object(type, id):
             return decode_json(data_blob)
         return None
 
+
 def get_last_update(type, id):
     with db() as con:
         cur = con.cursor()
@@ -102,6 +150,7 @@ def get_last_update(type, id):
         if res:
             return res[0]
         return None
+
 
 def get_all(type):
     with db() as con:
@@ -113,6 +162,7 @@ def get_all(type):
         data = decode_json(data_blob)
         yield id, data, last_update
 
+
 def get_all_as_dict(type, map_fn=None):
     out = {}
     for id, data, last_updated in get_all(type):
@@ -121,7 +171,8 @@ def get_all_as_dict(type, map_fn=None):
         data["_last_updated"] = last_updated
         out[id] = data
     return out
-    
+
+
 def fetch_json(url, allow_not_found=False):
     for _ in range(5):
         try:
@@ -137,6 +188,7 @@ def fetch_json(url, allow_not_found=False):
             print(f"got error {e}, retrying...")
             time.sleep(5)
     raise Exception("failed after some retries :(")
+
 
 def fetch_and_save(type, id, url, cache_interval=None, allow_not_found=False):
     timestamp = now()
@@ -154,11 +206,14 @@ def fetch_and_save(type, id, url, cache_interval=None, allow_not_found=False):
     save_new_object(type, id, data, timestamp)
     return data
 
+
 def player_name(data):
     return data["FirstName"] + " " + data["LastName"]
 
+
 def team_name(data):
     return data["Location"] + " " + data["Name"]
+
 
 def team_player_ids(team):
     if type(team["Players"]) == dict:
@@ -173,17 +228,21 @@ def id_timestamp(id):
     seconds = int(id[:8], 16)
     return seconds * 1000
 
+
 PLAYER_CACHE_INTERVAL = 90 * 60 * 1000
 TEAM_CACHE_INTERVAL = 5 * 60 * 1000
 LEAGUE_CACHE_INTERVAL = 30 * 1000
 STATE_CACHE_INTERVAL = 10 * 1000
 TIME_CACHE_INTERVAL = 1000
 
+
 def fetch_state():
     return fetch_and_save("state", "state", API + "/state", cache_interval=STATE_CACHE_INTERVAL)
 
+
 def fetch_time():
     return fetch_and_save("time", "time", API + "/time", cache_interval=TIME_CACHE_INTERVAL)
+
 
 def fetch_all_leagues():
     state = fetch_state()
@@ -192,17 +251,20 @@ def fetch_all_leagues():
         league = fetch_and_save("league", league_id, API + "/league/" + league_id, cache_interval=LEAGUE_CACHE_INTERVAL)
         yield league
 
+
 def get_league_team_ids(league_data):
     team_ids = league_data["Teams"]
     if league_data.get("SuperstarTeam"):
         team_ids.append(league_data["SuperstarTeam"])
     return team_ids
 
+
 def fetch_all_teams():
     for league in fetch_all_leagues():        
         for team_id in get_league_team_ids(league):
             team = fetch_and_save("team", team_id, API + "/team/" + team_id, cache_interval=TEAM_CACHE_INTERVAL)
             yield team
+
 
 def update_game_data(game_id):
     game_data = get_object("game", game_id)
@@ -226,6 +288,7 @@ def update_game_data(game_id):
                         (game_id, season, day, away_team_id, home_team_id, last_update, state, data_hash))
         con.commit()
 
+
 def get_game_for_team(team_id, season, day):
     with db() as con:
         cur = con.cursor()
@@ -241,6 +304,7 @@ def get_all_games_for_team(team_id):
         res = cur.execute("select id, objects.data from games inner join objects on objects.hash = games.hash where (home_team_id = ? or away_team_id = ?)", (team_id, team_id)).fetchall()
     for game_id, data_blob in res:
         yield game_id, decode_json(data_blob)
+
 
 def get_all_game_data(season, day):
     with db() as con:

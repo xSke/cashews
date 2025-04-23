@@ -1,4 +1,8 @@
 import threading, time, random
+import fetch_games
+import fetch_league
+import fetch_team_stats
+
 
 def run_every_thread(name, interval, real_inner, random_delta=60):
     def inner():
@@ -28,23 +32,26 @@ def run_every_thread(name, interval, real_inner, random_delta=60):
 
     return inner
 
-import fetch_games
-import fetch_league
 
 def fetch_games_thread():
     fetch_games.fetch_games(False)
 
+
 def fetch_new_games_thread():
     fetch_games.fetch_games(True)
+
 
 def fetch_league_thread():
     fetch_league.fetch_league()
 
+
 def fetch_players_thread():
     fetch_league.fetch_players()
 
+
 def refetch_unfinished_known_games_thread():
     fetch_games.refetch_unfinished_known_games()
+
 
 def lookup_locations_thread():
     import maps
@@ -52,6 +59,11 @@ def lookup_locations_thread():
         return
     
     maps.fill_locations()
+
+
+def fetch_team_stats_thread():
+    fetch_team_stats.fetch_team_stats()
+
 
 def main():
     import sys
