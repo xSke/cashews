@@ -25,6 +25,14 @@ create table games(id text primary key, season int, day int, away_team_id text, 
 
     """
 create table locations(loc text primary key, data text);
+    """,
+
+    """
+create table player_stats(
+    player_id text, team_id text, last_update int,
+    allowed_stolen_bases int not null default 0, allowed_stolen_bases_risp int not null default 0, appearances int not null default 0, assists int not null default 0, assists_risp int not null default 0, at_bats int not null default 0, at_bats_risp int not null default 0, batters_faced int not null default 0, batters_faced_risp int not null default 0, blown_saves int not null default 0, caught_double_play int not null default 0, caught_double_play_risp int not null default 0, caught_stealing int not null default 0, caught_stealing_risp int not null default 0, complete_games int not null default 0, double_plays int not null default 0, double_plays_risp int not null default 0, doubles int not null default 0, doubles_risp int not null default 0, earned_runs int not null default 0, earned_runs_risp int not null default 0, errors int not null default 0, errors_risp int not null default 0, field_out int not null default 0, field_out_risp int not null default 0, fielders_choice int not null default 0, fielders_choice_risp int not null default 0, flyouts int not null default 0, flyouts_risp int not null default 0, force_outs int not null default 0, force_outs_risp int not null default 0, games_finished int not null default 0, grounded_into_double_play int not null default 0, grounded_into_double_play_risp int not null default 0, groundout int not null default 0, groundout_risp int not null default 0, hit_batters int not null default 0, hit_batters_risp int not null default 0, hit_by_pitch int not null default 0, hit_by_pitch_risp int not null default 0, hits_allowed int not null default 0, hits_allowed_risp int not null default 0, home_runs int not null default 0, home_runs_allowed int not null default 0, home_runs_allowed_risp int not null default 0, home_runs_risp int not null default 0, inherited_runners int not null default 0, inherited_runners_risp int not null default 0, inherited_runs_allowed int not null default 0, inherited_runs_allowed_risp int not null default 0, left_on_base int not null default 0, left_on_base_risp int not null default 0, lineouts int not null default 0, lineouts_risp int not null default 0, losses int not null default 0, mound_visits int not null default 0, no_hitters int not null default 0, outs int not null default 0, pitches_thrown int not null default 0, pitches_thrown_risp int not null default 0, plate_appearances int not null default 0, plate_appearances_risp int not null default 0, popouts int not null default 0, popouts_risp int not null default 0, putouts int not null default 0, putouts_risp int not null default 0, quality_starts int not null default 0, reached_on_error int not null default 0, reached_on_error_risp int not null default 0, runners_caught_stealing int not null default 0, runners_caught_stealing_risp int not null default 0, runs int not null default 0, runs_batted_in int not null default 0, runs_batted_in_risp int not null default 0, runs_risp int not null default 0, sac_flies int not null default 0, sac_flies_risp int not null default 0, sacrifice_double_plays int not null default 0, sacrifice_double_plays_risp int not null default 0, saves int not null default 0, shutouts int not null default 0, singles int not null default 0, singles_risp int not null default 0, starts int not null default 0, stolen_bases int not null default 0, stolen_bases_risp int not null default 0, strikeouts int not null default 0, strikeouts_risp int not null default 0, struck_out int not null default 0, struck_out_risp int not null default 0, triples int not null default 0, triples_risp int not null default 0, unearned_runs int not null default 0, unearned_runs_risp int not null default 0, walked int not null default 0, walked_risp int not null default 0, walks int not null default 0, walks_risp int not null default 0, wins int not null default 0,
+    primary key (player_id, team_id)
+);
     """
 ]
 
@@ -38,9 +46,12 @@ def db():
 
 def init_db():
     with db() as con:
-        cur = con.cursor()
-        cur.executescript(DB_INIT)
-        con.commit()
+        try:
+            cur = con.cursor()
+            cur.executescript(DB_INIT)
+            con.commit()
+        except Exception as e:
+            print("failed to init db", e)
 
         current_version = cur.execute("select version from meta").fetchone()[0]
         for i, migration in enumerate(MIGRATIONS):
@@ -50,7 +61,6 @@ def init_db():
                 cur.execute("update meta set version = ? where version = ?", (i, current_version))
                 con.commit()
                 current_version = i
-    pass
 
     
 def decode_json(data):
@@ -224,6 +234,29 @@ def update_game_data(game_id):
                         values (?, ?, ?, ?, ?, ?, ?, ?)
                         on conflict (id) do update set season=excluded.season, day=excluded.day, away_team_id=excluded.away_team_id, home_team_id=excluded.home_team_id, last_update=excluded.last_update, state=excluded.state, hash=excluded.hash""",
                         (game_id, season, day, away_team_id, home_team_id, last_update, state, data_hash))
+        con.commit()
+
+def update_player_data(player_id):
+    player_data = get_object("player", player_id)
+    if not player_data:
+        return
+    last_update = get_last_update("player", player_id)
+
+    with db() as con:
+        cur = con.cursor()
+        for team_id, team_stats in player_data["Stats"].items():
+            for k, v in team_stats.items():
+                if type(v) != int:
+                    print(f"warn: player stat key {k} has type {type(v)} ({v})")
+                    continue
+                # pls no sql inject
+                sql = f"insert into player_stats(player_id, team_id, last_update, {k}) values (?, ?, ?, ?) on conflict (player_id, team_id) do update set last_update=excluded.last_update, {k}=excluded.{k}"
+                try:
+                    cur.execute(sql, (player_id, team_id, last_update, v))
+                except sqlite3.OperationalError as e:
+                    if "has no column named" in str(e):
+                        print(f"warn: player stat had unknown key {k} (value: {v})")
+                        continue
         con.commit()
 
 def get_game_for_team(team_id, season, day):

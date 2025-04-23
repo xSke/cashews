@@ -1,7 +1,11 @@
-import threading, time, random
+import threading, time, random, sys
+arg2 = sys.argv[1] if len(sys.argv) > 1 else ""
 
 def run_every_thread(name, interval, real_inner, random_delta=60):
     def inner():
+        if arg2 and arg2 != name:
+            print(f"{name}: skipping")
+            return
         print(f"{name}: pre-sleeping")
         time.sleep(random.random() * random_delta)
 
@@ -54,10 +58,11 @@ def lookup_locations_thread():
     maps.fill_locations()
 
 def main():
-    import sys
-    arg2 = sys.argv[1] if len(sys.argv) > 1 else ""
     if arg2 == "backfill":
         fetch_games.backfill_game_ids()
+        return
+    if arg2 == "backfill_players":
+        fetch_league.backfill_player_data()
         return
     if arg2 == "league":
         fetch_league.fetch_league()
@@ -68,6 +73,9 @@ def main():
     if arg2 == "maps":
         import maps
         maps.fill_locations()
+        return
+    if arg2 == "clones":
+        import clonecheck
         return
 
     funcs = [
