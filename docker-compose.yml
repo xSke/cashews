@@ -9,4 +9,6 @@ services:
     build: .
     volumes:
       - ./data:/app/data
+    environment:
+      - MAPS_API_KEY=${MAPS_API_KEY}
     command: ["uv", "run", "tasks.py"]

@@ -1,11 +1,12 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from . import utils
-import datetime
+import datetime, json
 app = FastAPI(docs_url=None, redoc_url=None)
-
+app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
 def filter_props(props):
@@ -45,6 +46,12 @@ def to_delta(timestamp):
 #     teams = utils.get_all_as_dict("teams", filter_props(keep_properties))
 #     return teams
 
+def formatted_and_iso(timestamp_secs):
+    dt = datetime.datetime.fromtimestamp(timestamp_secs, tz=datetime.UTC)
+    formatted = dt.strftime("%Y-%m-%d %H:%M") + " UTC"
+    iso = dt.isoformat()
+    return formatted, iso
+
 @app.get("/games/{team_id}", response_class=HTMLResponse)
 async def games_by_team(request: Request, team_id: str):
     team = utils.get_object("team", team_id)
@@ -64,9 +71,7 @@ async def games_by_team(request: Request, team_id: str):
         game["last"] = game["EventLog"][-1]
 
         game_timestamp = utils.id_timestamp(game_id)
-        dt = datetime.datetime.fromtimestamp(game_timestamp / 1000, tz=datetime.UTC)
-        game["time_formatted"] = dt.strftime("%Y-%m-%d %H:%M") + " UTC"
-        game["time_iso"] = dt.isoformat()
+        game["time_formatted"], game["time_iso"] = formatted_and_iso(game_timestamp / 1000)
 
         home_pitchers = []
         away_pitchers = []
@@ -85,6 +90,57 @@ async def games_by_team(request: Request, team_id: str):
 
     return templates.TemplateResponse(
         request=request, name="games.html", context={"team": team, "games": games_list}
+    )
+
+def get_all_locations():
+    with utils.db() as con:
+        cur = con.cursor()
+        res = cur.execute("select loc, data from locations").fetchall()
+        return {loc: json.loads(data) for loc, data in res}
+
+@app.get("/api/locations")
+async def locations():
+    return get_all_locations()
+
+@app.get("/api/playersbyteam/{team_id}")
+async def players_by_team(team_id: str):
+    team = utils.get_object("team", team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="team not found")
+
+    player_ids = utils.team_player_ids(team)
+
+    players = {}
+    for player_id in player_ids:
+        player = utils.get_object("player", player_id)
+        if not player:
+            continue
+        player["_last_update"] = utils.get_last_update("player", player_id)
+        players[player_id] = player
+    return {
+        "team": team,
+        "players": players
+    }
+
+@app.get("/api/teamlocations")
+async def teamlocations():
+    locations = get_all_locations()
+
+    teams = []
+    for team_id, team, _ in utils.get_all("team"):
+        teams.append({
+            "id": team_id,
+            "location": locations.get(team["FullLocation"]),
+            "name": utils.team_name(team),
+            "emoji": team["Emoji"],
+            "color": team["Color"]
+        })
+    return teams
+
+@app.get("/map", response_class=HTMLResponse)
+async def map(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="map.html"
     )
 
 @app.get("/teams", response_class=HTMLResponse)
@@ -129,7 +185,9 @@ async def teams(request: Request):
             team["league_emoji"] = league["Emoji"]
             team["player_count"] = len([1 for p in team["Players"] if p["PlayerID"] != "#"])
 
-            
+            team_timestamp = utils.id_timestamp(team_id)
+            team["created_formatted"], team["created_iso"] = formatted_and_iso(team_timestamp / 1000)
+
             team["last_updated"] = to_delta(team["_last_updated"])
 
             team["game_id"] = game_ids_by_team.get(team_id)

@@ -21,6 +21,10 @@ create table currents(type text, id text, hash text, last_update int, primary ke
 
     """
 create table games(id text primary key, season int, day int, away_team_id text, home_team_id text, last_update int, state text, hash text);
+    """,
+
+    """
+create table locations(loc text primary key, data text);
     """
 ]
 
@@ -155,6 +159,15 @@ def player_name(data):
 
 def team_name(data):
     return data["Location"] + " " + data["Name"]
+
+def team_player_ids(team):
+    if type(team["Players"]) == dict:
+        player_ids = [p["PlayerID"] for p in team["Players"].values()]
+    else:
+        player_ids = [p["PlayerID"] for p in team["Players"]]
+    player_ids = [p for p in player_ids if "#" not in p]
+    return player_ids
+
 
 def id_timestamp(id):
     seconds = int(id[:8], 16)

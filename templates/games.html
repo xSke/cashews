@@ -80,8 +80,11 @@
             for (const elem of document.querySelectorAll("time")) {
                 const dt = new Date(elem.getAttribute('datetime'));
                 console.log(dt);
-                const formatted = dateFns.format(dt, 'Pp (O)');
+                const formatted = dateFns.format(dt, 'Pp');
                 elem.innerText = formatted;
+                elem.setAttribute("title", dateFns.formatISO(dt))
+                elem.classList.add("underline")
+                elem.classList.add("decoration-dotted")
             }
         </script>
   </body>

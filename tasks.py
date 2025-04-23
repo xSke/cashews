@@ -12,7 +12,7 @@ def run_every_thread(name, interval, real_inner, random_delta=60):
             try:
                 real_inner()
             except Exception as e:
-                print(e)
+                print(f"!!!error!!!:", e)
 
             after = time.time()
             took = after - before
@@ -46,11 +46,28 @@ def fetch_players_thread():
 def refetch_unfinished_known_games_thread():
     fetch_games.refetch_unfinished_known_games()
 
+def lookup_locations_thread():
+    import maps
+    if not maps.get_key():
+        return
+    
+    maps.fill_locations()
+
 def main():
     import sys
     arg2 = sys.argv[1] if len(sys.argv) > 1 else ""
     if arg2 == "backfill":
         fetch_games.backfill_game_ids()
+        return
+    if arg2 == "league":
+        fetch_league.fetch_league()
+        return
+    if arg2 == "players":
+        fetch_league.fetch_players()
+        return
+    if arg2 == "maps":
+        import maps
+        maps.fill_locations()
         return
 
     funcs = [
@@ -59,6 +76,7 @@ def main():
         run_every_thread("fetch_players", 90*60, fetch_players_thread),
         run_every_thread("fetch_new_games", 3*60, fetch_new_games_thread),
         run_every_thread("refetch_unfinished", 3*60, refetch_unfinished_known_games_thread),
+        run_every_thread("lookup_locations", 30*60, lookup_locations_thread),
     ]
 
     threads = []

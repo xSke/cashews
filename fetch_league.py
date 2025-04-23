@@ -15,8 +15,8 @@ def fetch_players():
     utils.init_db()
     all_players = []
     for team in utils.fetch_all_teams():
-        player_ids = [p["PlayerID"] for p in team["Players"]]
-        player_ids = [p for p in player_ids if p != "#"]
+        player_ids = utils.team_player_ids(team)
+        print(f"got {len(player_ids)} players from team {team["_id"]}", flush=True)
         all_players += player_ids
 
     total = len(all_players)

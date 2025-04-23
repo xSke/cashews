@@ -4,6 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
   </head>
   <body>
     <div class="container mx-auto flex flex-col gap-4 mt-4">
@@ -17,7 +18,7 @@
                         <th class="border-gray-300 p-2 font-semibold">Record</th>
                         <th class="border-gray-300 p-2 font-semibold">Run Differential</th>
                         <th class="border-gray-300 p-2 font-semibold"># of players</th>
-                        <th class="border-gray-300 p-2 font-semibold">Updated</th>
+                        <th class="border-gray-300 p-2 font-semibold">Created</th>
                         <th class="border-gray-300 p-2 font-semibold"></th>
                     </tr>
                 </thead>
@@ -27,7 +28,7 @@
                             <td style="background-color: #{{ team['Color'] }}" class="w-12 text-center">
                                 <div class="py-2 text-2xl">{{ team['Emoji'] }}</div>
                             </td>
-                            <td class="border-y border-gray-300 p-2">
+                            <td class="border-y border-gray-300 p-2 px-4">
                                 <a href="https://mmolb.com/team/{{ team['_id'] }}" class="font-semibold hover:underline">{{ team['Location'] }} {{ team['Name'] }}</a>
                             </td>
 
@@ -39,8 +40,7 @@
                             </td>
                             <td class="border border-gray-300 p-2 text-center">{{ team['rd'] }}</td>
                             <td class="border border-gray-300 p-2 text-center">{{ team['player_count'] }}</td>
-                            <td class="border border-gray-300 p-2 text-center">{{ team['last_updated'] }}</td>
-
+                            <td class="border border-gray-300 p-2 text-center"><time datetime="{{ team['created_iso'] }}">{{ team['created_formatted'] }}</time></td>
                             <td class="border border-gray-300 p-2 text-center">
                                 <a href="/games/{{ team['_id'] }}" class="hover:underline text-sm text-gray-600">(see games)</a>
                             </td>
@@ -50,5 +50,17 @@
             </table>
         </div>
     </div>
+
+    <script>
+        for (const elem of document.querySelectorAll("time")) {
+            const dt = new Date(elem.getAttribute('datetime'));
+            console.log(dt);
+            const formatted = dateFns.format(dt, 'Pp');
+            elem.innerText = formatted;
+            elem.setAttribute("title", dateFns.formatISO(dt))
+            elem.classList.add("underline")
+            elem.classList.add("decoration-dotted")
+        }
+    </script>
   </body>
 </html>
