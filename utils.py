@@ -33,7 +33,7 @@ API = "https://mmolb.com/api"
 
 def db():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), DB_PATH)
-    con = sqlite3.connect(path, autocommit=False)
+    con = sqlite3.connect(path)
     return con
 
 def init_db():
