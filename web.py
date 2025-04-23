@@ -2,12 +2,21 @@ from fastapi import FastAPI, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
 
 from . import utils
 import datetime, json
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 def filter_props(props):
     def inner(obj):
@@ -40,11 +49,13 @@ def to_delta(timestamp):
 #     leagues = utils.get_all_as_dict("league", filter_props(keep_properties))
 #     return leagues
 
-# @app.get("/api/teams")
-# async def api_teams():
-#     keep_properties = set(["Color", "Emoji", "FullLocation", "Location", "League", "Name", "Record", "_id"])
-#     teams = utils.get_all_as_dict("teams", filter_props(keep_properties))
-#     return teams
+@app.get("/api/allteams")
+async def api_teams(league: str | None = None):
+    keep_properties = set(["Color", "Emoji", "FullLocation", "Location", "League", "Name", "Record", "_id"])
+    teams = utils.get_all_as_dict("team", filter_props(keep_properties))
+    if league:
+        teams = {k: v for k, v in teams.items() if v["League"] == league}
+    return teams
 
 def formatted_and_iso(timestamp_secs):
     dt = datetime.datetime.fromtimestamp(timestamp_secs, tz=datetime.UTC)

@@ -81,13 +81,49 @@
 
         function initMap(data) {
             shuffle(data); // prevent bias in team order and "randomize" visibility
+
+            const latLongCounts = {}
             for (const team of data) {
                 if (team.location) {
-                    // slight random jitter so you can always see overlapping teams
-                    const JITTER = 0.005;
-                    const latlong = [team.location.location.latitude, team.location.location.longitude];
-                    latlong[0] += (Math.random() * 2 - 1) * JITTER;
-                    latlong[1] += (Math.random() * 2 - 1) * JITTER;
+                    const latLong = [team.location.location.latitude, team.location.location.longitude];
+                    const latLongStr = JSON.stringify(latLong);
+                    latLongCounts[latLongStr] = (latLongCounts[latLongStr] || 0) + 1;
+                }
+            }
+
+            const JITTER_RADIUS = 500; // in meters
+
+            for (const key of Object.keys(latLongCounts)) {
+                if (latLongCounts[key] > 1) {
+                    L.circle(JSON.parse(key), {
+                        radius: JITTER_RADIUS,
+                        fillOpacity: 0.1,
+                        opacity: 0.5,
+                        dashArray: "10 10"
+                    }).addTo(map);
+                }
+            }
+            
+            for (const team of data) {
+                if (team.location) {
+                    const latLong = [team.location.location.latitude, team.location.location.longitude];
+                    const latLongStr = JSON.stringify(latLong);
+
+                    let jitterLatlong;
+
+                    if (latLongCounts[latLongStr] > 1) {
+                        // slight random jitter so you can always see overlapping teams
+                        const baseLatlong = L.latLng(team.location.location.latitude, team.location.location.longitude);
+                        const bounds = baseLatlong.toBounds(JITTER_RADIUS*2);
+                        const latRange = bounds.getNorth() - bounds.getSouth();
+                        const longRange = bounds.getEast() - bounds.getWest();
+
+                        do {
+                            jitterLatlong = L.latLng(bounds.getSouth() + Math.random()*latRange, bounds.getWest() + Math.random()*longRange);
+                        } while (jitterLatlong.distanceTo(baseLatlong) > JITTER_RADIUS);
+                    } else {
+                        jitterLatlong = latLong;
+                    }
 
                     var icon = L.ExtraMarkers.icon({
                         icon: "emoji",
@@ -98,7 +134,7 @@
                         markerColor: "#" + team.color,
                     });
 
-                    var marker = L.marker(latlong, {
+                    var marker = L.marker(jitterLatlong, {
                         alt: team.name,
                         icon: icon,
                     }).addTo(map)
