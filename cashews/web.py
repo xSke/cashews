@@ -83,9 +83,9 @@ async def api_games(team: str | None = None, season: int | None = None, day: int
             params.append(state)
         
         where_clause = f"where {' and '.join(filters)}" if filters else ''
-        res = cur.execute(f"select id, season, day, home_team_id, away_team_id, state, last_update from games {where_clause}", params).fetchall()
+        res = cur.execute(f"select id, season, day, home_team_id, away_team_id, home_score, away_score, state, last_update from games {where_clause}", params).fetchall()
     out = []
-    for game_id, season, day, home_team_id, away_team_id, state, last_update in res:
+    for game_id, season, day, home_team_id, away_team_id, home_score, away_score, state, last_update in res:
         # data = utils.decode_json(data_blob)
 
         # team = utils.get_object()
@@ -97,6 +97,8 @@ async def api_games(team: str | None = None, season: int | None = None, day: int
             "day": day,
             "home_team_id": home_team_id,
             "away_team_id": away_team_id,
+            "home_score": home_score,
+            "away_score": away_score,
             "last_update": last_update,
             "state": state,
             # "league_id": league
