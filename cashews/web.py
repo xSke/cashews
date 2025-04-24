@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from cashews import utils
 import datetime, json
+import pandas as pd
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -279,7 +280,7 @@ async def stats(request: Request, team_id: str):
     
 
     # all_players = utils.get_all_as_dict("player")
-    all_teams = utils.get_all_as_dict("team")
+    # all_teams = utils.get_all_as_dict("team")
 
 
     import time
@@ -287,24 +288,28 @@ async def stats(request: Request, team_id: str):
     ttl = int(time.time() // 60)
     league_agg = stats.league_agg_stats(ttl)
 
-    stats_by_player = {row["player_id"]: row for row in stats.all_player_stats()}
+    stats_by_player = pd.DataFrame({row["player_id"]: row for row in stats.all_player_stats()})
     
-    players = []
+    players_list = []
     for i, player_id in enumerate(player_ids):
         player = utils.get_object("player", player_id)
-        team_id = player["TeamID"]
-        team = all_teams.get(team_id)
 
-        player_dict = {
-            "player_id": player_id,
-            "position": player["Position"],
-            "idx": i,
-            "name": utils.player_name(player),
-            "team_name": utils.team_name(team) if team else "Null Team",
-            "team_emoji": team["Emoji"] if team else "❓",
-            "stats": stats_by_player.get(player_id, None)
-        }
-        players.append(player_dict)
+        player_ser = pd.concat([
+            pd.Series({
+                "player_id": player_id,
+                "position": player["Position"],
+                "idx": i,
+                "name": utils.player_name(player),
+                "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
+                "team_emoji": team["Emoji"] if team else "❓",  # since we're only grabbing players on a given team
+            }),
+            stats_by_player.get(player_id, None)])
+        players_list.append(player_ser)
+    players = pd.DataFrame(players_list)
+
+    batters = players.query("plate_appearances > 0")
+    pitchers = players.query("batters_faced > 0")
+
 
     def format_int(number):
         return str(number)
@@ -327,7 +332,6 @@ async def stats(request: Request, team_id: str):
         else:
             ip_str = f"{ip_whole}.{ip_remainder}"
         return ip_str
-
 
     defs = [
         ("PA", "plate_appearances", None, format_int),
