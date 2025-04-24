@@ -322,9 +322,10 @@ def insert_on_conflict_update(table, con, keys, data_iter):
 
 if __name__ == '__main__':
     if len(sys.argv) > 1 and sys.argv[1] == "update":
-        for team in utils.fetch_all_teams():
-            main(team["_id"])
-            print(f"got stats for players from team {team['_id']} {team['Name']}", flush=True)
+        all_teams = get_json("https://freecashe.ws/api/allteams")
+        for team in all_teams:
+            main(team)
+            print(f"got stats for players from team {team} {all_teams[team]['Name']}", flush=True)
 
     all_batting_data = pd.read_sql_table("batting_stats", engine)
     league_sums = all_batting_data.sum()

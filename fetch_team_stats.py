@@ -14,5 +14,6 @@ import utils
 
 
 def fetch_team_stats():
-    utils.init_db()
-    for team in utils.fetch_all_teams():
+    pass
+    # utils.init_db()
+    # for team in utils.fetch_all_teams():
