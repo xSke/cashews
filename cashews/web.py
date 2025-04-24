@@ -290,28 +290,30 @@ async def stats(request: Request, team_id: str):
     ttl = int(time.time() // 60)
     league_agg = stats.league_agg_stats(ttl)
 
-    stats_by_player = pd.DataFrame({row["player_id"]: row for row in stats.all_player_stats()})
-    
+    stats_by_player = pd.read_sql_query(stats.STATS_Q, utils.db()).set_index("player_id")
+
     players_list = []
     for i, player_id in enumerate(player_ids):
         player = utils.get_object("player", player_id)
+        try:
+            player_ser = pd.concat([
+                pd.Series({
+                    "player_id": player_id,
+                    "position": player["Position"],
+                    "idx": i,
+                    "name": utils.player_name(player),
+                    "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
+                    "team_emoji": team["Emoji"] if team else "❓",  # since we're only grabbing players on a given team
+                }),
+                stats_by_player.loc[player_id]])
+            players_list.append(player_ser)
+        except KeyError as e:
+            utils.LOG().error(f"{utils.player_name(player)} has no stats", exc_info=e)
 
-        player_ser = pd.concat([
-            pd.Series({
-                "player_id": player_id,
-                "position": player["Position"],
-                "idx": i,
-                "name": utils.player_name(player),
-                "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
-                "team_emoji": team["Emoji"] if team else "❓",  # since we're only grabbing players on a given team
-            }),
-            stats_by_player.get(player_id, None)])
-        players_list.append(player_ser)
     players = pd.DataFrame(players_list)
-
+    # print(players)
     batters = players.query("plate_appearances > 0")
     pitchers = players.query("batters_faced > 0")
-
 
     def format_int(number):
         return str(number)
@@ -335,7 +337,7 @@ async def stats(request: Request, team_id: str):
             ip_str = f"{ip_whole}.{ip_remainder}"
         return ip_str
 
-    defs = [
+    defs_b = [
         ("PA", "plate_appearances", None, format_int),
         ("BA", "ba", True, format_float3),
         ("OBP", "obp", True, format_float3),
@@ -344,7 +346,8 @@ async def stats(request: Request, team_id: str):
         ("SB", "stolen_bases", None, format_int),
         ("CS", "caught_stealing", None, format_int),
         ("SB%", "sb_success", True, format_float3),
-
+    ]
+    defs_p = [
         ("IP", "ip", None, format_ip),
         ("ERA", "era", False, format_float2),
         ("WHIP", "whip", False, format_float2),
@@ -354,9 +357,19 @@ async def stats(request: Request, team_id: str):
         ("H/9", "h9", False, format_float2),
     ]
 
-    defs2 = []
-    for name, key, up_good, formatter in defs:
-        defs2.append({
+    defs_b2 = []
+    for name, key, up_good, formatter in defs_b:
+        defs_b2.append({
+            "name": name,
+            "key": key,
+            "up_good": up_good,
+            "league_avg": league_agg[key]["avg"],
+            "league_stddev": league_agg[key]["stddev"],
+            "format": formatter
+        })
+    defs_p2 = []
+    for name, key, up_good, formatter in defs_p:
+        defs_p2.append({
             "name": name,
             "key": key,
             "up_good": up_good,
@@ -397,5 +410,7 @@ async def stats(request: Request, team_id: str):
 
     print("render start")
     return templates.TemplateResponse(
-        request=request, name="stats.html", context={"players": players, "team": team, "league": league_agg, "stat_defs": defs2, "color_stat": color_stat}
+        request=request, name="stats.html", context={"batters": batters, "pitchers": pitchers, "team": team,
+                                                     "league": league_agg, "stat_defs_b": defs_b2,
+                                                     "stat_defs_p": defs_p2, "color_stat": color_stat}
     )
