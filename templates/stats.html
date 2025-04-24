@@ -37,7 +37,7 @@
                     <!-- <td>{{ batter['team_emoji'] }} {{ batter['team_name'] }}</td> -->
 
                     {% for d in stat_defs_b %}
-                    {% if batter[d['key']] %}
+                    {% if batter[d['key']] is not none %}
                     <td data-order="{{ (batter[d['key']] | string).replace('None', '') }}">
                         <span class=" font-mono {{ color_stat(d['key'], batter[d['key']], d['league_avg'], d['league_stddev'], d['up_good'])}}">{{ d['format'](batter[d['key']]) }}
                     </td>
@@ -71,7 +71,7 @@
                     <!-- <td>{{ pitcher['team_emoji'] }} {{ pitcher['team_name'] }}</td> -->
 
                     {% for d in stat_defs_p %}
-                    {% if pitcher[d['key']] %}
+                    {% if pitcher[d['key']] is not none %}
                     <td data-order="{{ (pitcher[d['key']] | string).replace('None', '') }}">
                         <span class=" font-mono {{ color_stat(d['key'], pitcher[d['key']], d['league_avg'], d['league_stddev'], d['up_good'])}}">{{ d['format'](pitcher[d['key']]) }}
                     </td>
@@ -105,10 +105,10 @@
 
             var numbersType = $.fn.dataTable.absoluteOrderNumber( [{ value: '', position: 'bottom' }] )
 
-            const table = $("#stats_batters").DataTable({
+            const table_1 = $("#stats_batters").DataTable({
                 paging: false,
                 // order: [[0, ""]],
-                autoWidth: true, 
+                autoWidth: true,
                 columns: [
                     null,
                     null, 
@@ -124,7 +124,7 @@
                     {% endfor %}
                 ]
             });
-            const table = $("#stats_pitchers").DataTable({
+            const table_2 = $("#stats_pitchers").DataTable({
                 paging: false,
                 // order: [[0, ""]],
                 autoWidth: true,
