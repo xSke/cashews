@@ -190,9 +190,9 @@ def dot_format(in_val: float) -> str:
     return ip_str
 
 
-def main():
+def main(team_id):
     # usage: python basic_stats.py 6805f2f6c2312c04f0b4ee23
-    team_id = sys.argv[1]
+    # team_id = sys.argv[1]
     team_obj = get_json(f"https://freecashe.ws/api/playersbyteam/{team_id}")
     team_stats = pd.DataFrame(columns=["player_id", "team_id", "team_name", "player_name", "position",
                                        *batting, *pitching, *fielding])
@@ -286,7 +286,7 @@ def main():
     team_pitching_norisp['h9'] = (team_pitching_norisp['h'] / team_pitching_norisp['outs'] * 27).round(2)
     team_pitching_norisp["bb9"] = (team_pitching_norisp['bb'] / team_pitching_norisp['outs'] * 27).round(2)
     team_pitching_norisp["so9"] = (team_pitching_norisp['so'] / team_pitching_norisp['outs'] * 27).round(2)
-    team_pitching_norisp["so/bb"] = (team_pitching_norisp['so'] / team_pitching_norisp['bb']).round(2)
+    team_pitching_norisp["so_bb"] = (team_pitching_norisp['so'] / team_pitching_norisp['bb']).round(2)
 
     team_fielding_norisp = team_stats[["team_id", "team_name", "player_name", "position",
                                        *fielding_norisp, ]].copy()
@@ -302,9 +302,11 @@ def main():
     # print(team_fielding_norisp.loc[:, "player_name":])
 
     team_stats_norisp = team_batting_norisp.join(team_pitching_norisp[["ip", "era", "whip", "h9", "hr9", "so9", "bb9"]])
-    # print(team_stats_norisp)
-    # with db() as con:
-    team_batting_norisp.to_sql("batting_stats", con=engine, if_exists="append", method=insert_on_conflict_update)
+
+    team_batting_norisp[team_batting_norisp["pa"] > 0].to_sql("batting_stats", con=engine, if_exists="append",
+                                                              method=insert_on_conflict_update)
+    team_pitching_norisp[team_pitching_norisp["g"] > 0].to_sql("pitching_stats", con=engine, if_exists="append",
+                                                               method=insert_on_conflict_update)
 
 
 def insert_on_conflict_update(table, con, keys, data_iter):
@@ -319,5 +321,38 @@ def insert_on_conflict_update(table, con, keys, data_iter):
 
 
 if __name__ == '__main__':
-    main()
+    if len(sys.argv) > 1 and sys.argv[1] == "update":
+        for team in utils.fetch_all_teams():
+            main(team["_id"])
+            print(f"got stats for players from team {team['_id']} {team['Name']}", flush=True)
 
+    all_batting_data = pd.read_sql_table("batting_stats", engine)
+    league_sums = all_batting_data.sum()
+    total_ba = (league_sums["hits"]/league_sums["ab"]).round(3)
+    total_obp = ((league_sums["hits"] + league_sums["bb"] + league_sums["hbp"])/league_sums["pa"]).round(3)
+    total_slg = (league_sums["tb"]/league_sums["ab"]).round(3)
+    total_ops = total_obp + total_slg
+    print(f"League average BA:  {total_ba}\nLeague average OBP: {total_obp}\nLeague average SLG: {total_slg}\nLeague average OPS: {total_ops}")
+
+    all_pitching_data = pd.read_sql_table("pitching_stats", engine)
+    league_sums = all_pitching_data.sum()
+    total_era = (league_sums["er"]/league_sums["outs"] * 27).round(2)
+    total_whip = ((league_sums['h'] + league_sums['bb']) / league_sums['outs'] * 3).round(2)
+
+    total_hr9 = (league_sums['hr'] / league_sums['outs'] * 27).round(2)
+    total_h9 = (league_sums['h'] / league_sums['outs'] * 27).round(2)
+    total_bb9 = (league_sums['bb'] / league_sums['outs'] * 27).round(2)
+    total_so9 = (league_sums['so'] / league_sums['outs'] * 27).round(2)
+    total_so_bb = (league_sums['so'] / league_sums['bb']).round(2)
+    out_str = f"""
+League average ERA:   {total_era}
+League average WHIP:  {total_whip}
+League average H/9:   {total_h9}
+League average HR/9:  {total_hr9}
+League average SO/9:  {total_so9}
+League average BB/9:  {total_bb9}
+League average SO/BB: {total_so_bb}
+    """
+    print(out_str)
+
+    print(all_pitching_data["era"].describe())

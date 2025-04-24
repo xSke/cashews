@@ -1,7 +1,7 @@
 import threading, time, random, sys
 import fetch_games
 import fetch_league
-import fetch_team_stats
+# import fetch_team_stats
 arg2 = sys.argv[1] if len(sys.argv) > 1 else ""
 
 
@@ -65,8 +65,8 @@ def lookup_locations_thread():
     maps.fill_locations()
 
 
-def fetch_team_stats_thread():
-    fetch_team_stats.fetch_team_stats()
+# def fetch_team_stats_thread():
+#     fetch_team_stats.fetch_team_stats()
 
 
 def main():
@@ -96,7 +96,7 @@ def main():
         run_every_thread("fetch_players", 90*60, fetch_players_thread),
         run_every_thread("fetch_new_games", 3*60, fetch_new_games_thread),
         run_every_thread("refetch_unfinished", 3*60, refetch_unfinished_known_games_thread),
-        run_every_thread("lookup_locations", 30*60, lookup_locations_thread),
+        # run_every_thread("lookup_locations", 30*60, lookup_locations_thread),
     ]
 
     threads = []
@@ -106,6 +106,7 @@ def main():
         thread.start()
     for t in threads:
         t.join()
+
 
 if __name__ == "__main__":
     main()

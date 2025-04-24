@@ -22,7 +22,7 @@ def fetch_players():
     all_players = []
     for team in utils.fetch_all_teams():
         player_ids = utils.team_player_ids(team)
-        print(f"got {len(player_ids)} players from team {team["_id"]}", flush=True)
+        print(f"got {len(player_ids)} players from team {team['_id']}", flush=True)
         all_players += player_ids
 
     total = len(all_players)

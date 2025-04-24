@@ -5,3 +5,6 @@ data/
 .env
 .idea
 http_cache/
+*.png
+*.ipynb
+.ipynb_checkpoints/
