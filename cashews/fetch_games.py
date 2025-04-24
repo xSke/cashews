@@ -1,48 +1,75 @@
-import utils, datetime
+from cashews import utils
+from cashews.utils import LOG
 
 def fetch_games(new_only=False):
     utils.init_db()
 
     GAME_BY_TEAM_CACHE_INTERVAL = 10 * 60 * 1000
-    GAME_CACHE_INTERVAL = 10 * 60 * 1000
 
     time = utils.fetch_time()
     season = time["season_number"]
     day = time["season_day"]
 
 
-    for team in utils.fetch_all_teams():
-        team_id = team["_id"]
-
+    all_teams = utils.get_all_as_dict("team")
+    for team_id, team in all_teams.items():
         existing_game = utils.get_game_for_team(team_id, season, day)
         if existing_game:
             game_id, existing_data = existing_game
-            # print(existing_data.keys())
+
             if existing_data["State"] == "Complete":
-                print("already have complete game, skipping", game_id)
+                LOG().info("already have complete game, skipping: %s", game_id)
                 continue
             if new_only:
-                print("already have game, skipping")
+                # LOG().info("already have game, skipping: %s", game_id)
                 continue
         else:
             game_by_team = utils.fetch_and_save("game-by-team", team_id, utils.API + "/game-by-team/" + team_id, cache_interval=GAME_BY_TEAM_CACHE_INTERVAL, allow_not_found=True)
             if not game_by_team or ("game_id" not in game_by_team):
-                print("team did not have game today:", team_id, utils.team_name(team))
+                LOG().info("team did not have game today: %s (%s)", team_id, utils.team_name(team))
                 continue
             game_id = game_by_team["game_id"]
 
-        game = utils.fetch_and_save("game", game_id, utils.API + "/game/" + game_id, cache_interval=GAME_CACHE_INTERVAL)
-        print(f"got {game['AwayTeamName']} @ {game['HomeTeamName']}")
+        _do_refetch_game(game_id)
+        # game = utils.fetch_and_save("game", game_id, utils.API + "/game/" + game_id, cache_interval=GAME_CACHE_INTERVAL)
+        # LOG().info("got %s @ %s", game['AwayTeamName'], game['HomeTeamName'])
 
-        utils.update_game_data(game_id)
+        # utils.update_game_data(game_id)
 
 def refetch_unfinished_known_games():
-    GAME_CACHE_INTERVAL = 10 * 60 * 1000
     for game_id, data, _ in utils.get_all("game"):
         if data["State"] != "Complete":
-            new_game = utils.fetch_and_save("game", game_id, utils.API + "/game/" + game_id, cache_interval=GAME_CACHE_INTERVAL)
-            utils.update_game_data(game_id)
-            print("game", game_id, "new state", new_game["State"])
+            _do_refetch_game(game_id)
+            # new_game = utils.fetch_and_save("game", game_id, utils.API + "/game/" + game_id, cache_interval=GAME_CACHE_INTERVAL)
+            # utils.update_game_data(game_id)
+            # LOG().info("game %s got new state: %s", game_id, new_game["State"])
+
+def _do_refetch_game(game_id):
+    GAME_CACHE_INTERVAL = 5 * 60 * 1000
+
+    last_data = utils.get_object("game", game_id)
+
+    new_game = utils.fetch_and_save("game", game_id, utils.API + "/game/" + game_id, cache_interval=GAME_CACHE_INTERVAL)
+    utils.update_game_data(game_id)
+
+    # if we just completed...
+    try:
+        if last_data and last_data["State"] != "Complete" and new_game["State"] == "Complete":
+            LOG().info("game %s just completed, refetching team players", game_id)
+
+            # *don't* cache this time, we suspect the game just ended and thus stats would've been updated
+            # fetch those immediately if we can
+            _refetch_team_players(new_game, player_cache_interval=0)
+    except Exception as e:
+        LOG().error("error refetching team players", exc_info=e)         
+
+def _refetch_team_players(game_data, player_cache_interval=None):
+    team_ids = [game_data["HomeTeamID"], game_data["AwayTeamID"]]
+    for team_id in team_ids:
+        team = utils.get_object("team", team_id)
+
+        for player_id in utils.team_player_ids(team):
+            utils.fetch_player_and_update(player_id, cache_interval=player_cache_interval)
 
 def backfill_game_ids():
     import re

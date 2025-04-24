@@ -4,7 +4,7 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import utils
+from cashews import utils
 import datetime, json
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -57,6 +57,50 @@ async def api_teams(league: str | None = None):
         teams = {k: v for k, v in teams.items() if v["League"] == league}
     return teams
 
+@app.get("/api/games")
+async def api_games(team: str | None = None, season: int | None = None, day: int | None = None, state: str | None = None):
+    all_teams = utils.get_all_as_dict("team")
+    with utils.db() as con:
+        cur = con.cursor()
+
+        filters = []
+        params = []
+
+        if team:
+            filters.append("(home_team_id = ? or away_team_id = ?)")
+            params.append(team)
+            params.append(team)
+        if season is not None:
+            filters.append("season = ?")
+            params.append(season)
+        if day is not None:
+            filters.append("day = ?")
+            params.append(day)
+        if state is not None:
+            filters.append("state = ?")
+            params.append(state)
+        
+        where_clause = f"where {' and '.join(filters)}" if filters else ''
+        res = cur.execute(f"select id, season, day, home_team_id, away_team_id, state, last_update from games {where_clause}", params).fetchall()
+    out = []
+    for game_id, season, day, home_team_id, away_team_id, state, last_update in res:
+        # data = utils.decode_json(data_blob)
+
+        # team = utils.get_object()
+        league = all_teams[home_team_id]["League"]
+
+        out.append({
+            "game_id": game_id,
+            "season": season,
+            "day": day,
+            "home_team_id": home_team_id,
+            "away_team_id": away_team_id,
+            "last_update": last_update,
+            "state": state,
+            # "league_id": league
+        })
+    return out
+        
 def formatted_and_iso(timestamp_secs):
     dt = datetime.datetime.fromtimestamp(timestamp_secs, tz=datetime.UTC)
     formatted = dt.strftime("%Y-%m-%d %H:%M") + " UTC"
@@ -175,7 +219,7 @@ async def teams(request: Request):
 
     leagues = []
     all_teams = []
-    for league_id in state["LesserLeagues"]:
+    for league_id in state["GreaterLeagues"] + state["LesserLeagues"]:
         league = leagues_dict[league_id]
 
         league_teams = []
