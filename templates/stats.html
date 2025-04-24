@@ -105,7 +105,7 @@
 
             var numbersType = $.fn.dataTable.absoluteOrderNumber( [{ value: '', position: 'bottom' }] )
 
-            const table = $("#stats").DataTable({
+            const table = $("#stats_batters").DataTable({
                 paging: false,
                 // order: [[0, ""]],
                 autoWidth: true, 
@@ -113,13 +113,32 @@
                     null,
                     null, 
                     // null,
-                    {% for d in stat_defs %}
+                    {% for d in stat_defs_b %}
                     {name: "{{d['key']}}"},
                     {% endfor %}
 
                 ],
                 columnDefs: [
-                    {% for d in stat_defs %}
+                    {% for d in stat_defs_b %}
+                    {"target": "{{d['key']}}:name", "type": numbersType, "orderDataType": numbersType},
+                    {% endfor %}
+                ]
+            });
+            const table = $("#stats_pitchers").DataTable({
+                paging: false,
+                // order: [[0, ""]],
+                autoWidth: true,
+                columns: [
+                    null,
+                    null,
+                    // null,
+                    {% for d in stat_defs_p %}
+                    {name: "{{d['key']}}"},
+                    {% endfor %}
+
+                ],
+                columnDefs: [
+                    {% for d in stat_defs_p %}
                     {"target": "{{d['key']}}:name", "type": numbersType, "orderDataType": numbersType},
                     {% endfor %}
                 ]
