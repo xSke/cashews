@@ -22,7 +22,6 @@
                         <th class="">Wins</th>
                         <th class="">Losses</th>
                         <th class="">Run Diff.</th>
-                        <th class="">Player #</th>
                         <th class="" data-class-name="text-center text-nowrap" >Created</th>
                         <th class="" data-orderable="false">Links</th>
                     </tr>
@@ -46,10 +45,9 @@
                             <td class="">{{ team["wins"] }}</td>
                             <td class="">{{ team["losses"] }}</td>
                             <td class="">{{ team['rd'] }}</td>
-                            <td class="">{{ team['player_count'] }}</td>
                             <td class="" data-order="{{ team['created_iso'] }}"><time datetime="{{ team['created_iso'] }}">{{ team['created_formatted'] }}</time></td>
                             <td class="">
-                                <a href="/games/{{ team['_id'] }}" class="hover:underline text-sm text-gray-600">(see games)</a>
+                                <a href="/games/{{ team['_id'] }}" class="hover:underline text-sm text-gray-600">games</a> / <a href="/team/{{ team['_id'] }}/stats" class="hover:underline text-sm text-gray-600">stats</a>
                             </td>
                         </tr>
                     {% endfor %}
