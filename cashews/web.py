@@ -349,6 +349,15 @@ async def stats(request: Request, team_id: str):
     ]
     defs_p = [
         ("IP", "ip", None, format_ip),
+        ("G", "appearances", None, format_int),
+        ("GS", "starts", None, format_int),
+        ("W", "wins", None, format_int),
+        ("L", "losses", None, format_int),
+        ("CG", "complete_games", None, format_int),
+        ("SHO", "shutouts", None, format_int),
+        ("NH", "no_hitters", None, format_int),
+        ("SV", "saves", None, format_int),
+        ("BS", "blown_saves", None, format_int),
         ("ERA", "era", False, format_float2),
         ("WHIP", "whip", False, format_float2),
         ("HR/9", "hr9", False, format_float2),
