@@ -1,6 +1,17 @@
-import sqlite3, hashlib, json, time, requests, os
+import sqlite3, hashlib, json, time, requests, os, threading, logging
 import zstandard as zstd
-DB_PATH = "data/db.db"
+
+from cashews import DATA_DIR
+
+LOG_TLS = threading.local()
+
+def LOG() -> logging.Logger:
+    if "logger" in LOG_TLS.__dict__:
+        return LOG_TLS.logger
+    return logging.getLogger("UNKNOWN")
+
+def set_log(logger: logging.Logger):
+    LOG_TLS.logger = logger
 
 DB_INIT = """
 create table if not exists meta(
@@ -126,9 +137,19 @@ SESSION = requests.Session()
 API = "https://mmolb.com/api"
 
 
+def abbrev_hash(hash):
+    return f"{hash[:8]}.."
+
 def db():
     path = os.path.join(os.path.dirname(os.path.abspath(__file__)), DB_PATH)
     con = sqlite3.connect(path)
+    path = os.path.join(DATA_DIR, "db.db")
+
+    import sys
+    if sys.version_info >= (3, 12):
+        con = sqlite3.connect(path, autocommit=False)
+    else:
+        con = sqlite3.connect(path)
     return con
 
 
@@ -139,12 +160,18 @@ def init_db():
             cur.executescript(DB_INIT)
             con.commit()
         except Exception as e:
-            print("failed to init db", e)
+            LOG().error("failed to init db", exc_info=e)
+
+        try:
+            con.autocommit = True
+            con.execute("PRAGMA journal_mode=WAL;")
+        except Exception as e:
+            LOG().error("failed to enable wal", exc_info=e)
 
         current_version = cur.execute("select version from meta").fetchone()[0]
         for i, migration in enumerate(MIGRATIONS):
             if current_version < i:
-                print(f"running migration: {i}")
+                LOG().info("running migration: %d", i)
                 cur.executescript(migration)
                 cur.execute("update meta set version = ? where version = ?", (i, current_version))
                 con.commit()
@@ -177,16 +204,36 @@ def now():
 def save_new_object(type, id, data, timestamp):
     # data_str = json.dumps(data, sort_keys=True)
     hash = json_hash(data)
-    data_blob = encode_json(data)
+
+    has_hash_already = False
+    with db() as con:
+        cur = con.cursor()
+        if cur.execute("select 1 from objects where hash = ?", (hash,)).fetchall():
+            has_hash_already = True
+    
+    if not has_hash_already:
+        data_blob = encode_json(data)
+    else:
+        data_blob = None
 
     with db() as con:
         cur = con.cursor()
-        cur.execute("insert or ignore into objects(hash, data) values (?, ?)", (hash, data_blob))
+        if data_blob:
+            cur.execute("insert or ignore into objects(hash, data) values (?, ?)", (hash, data_blob))
         cur.execute("insert into observations(type, id, timestamp, hash) values (?, ?, ?, ?)", (type, id, timestamp, hash))
         con.commit()
 
         cur.execute("insert into currents(type, id, hash, last_update) values (?, ?, ?, ?) on conflict (type, id) do update set hash=excluded.hash, last_update=excluded.last_update where excluded.last_update > currents.last_update", (type, id, hash, timestamp))
         con.commit()
+    return hash
+
+def get_object_meta(type, id):
+    with db() as con:
+        cur = con.cursor()
+        res = cur.execute("select hash, last_update from currents where type = ? and id = ?", (type, id)).fetchone()
+        if res:
+            hash, last_update = res
+            return hash, last_update
 
 
 def get_object(type, id):
@@ -229,21 +276,24 @@ def get_all_as_dict(type, map_fn=None):
     return out
 
 
-def fetch_json(url, allow_not_found=False):
+def _fetch_json_with_resp(url, allow_not_found=False):
     for _ in range(5):
         try:
             res = SESSION.get(url, timeout=5)
             if allow_not_found and res.status_code == 404:
-                return None
+                return None, res
             res.raise_for_status()
-            return res.json()
+            return res.json(), res
         except requests.exceptions.JSONDecodeError:
-            # print(res.text)
             raise
         except requests.exceptions.ConnectionError as e:
-            print(f"got error {e}, retrying...")
+            LOG().error("got error, retrying...", exc_info=e)
             time.sleep(5)
-    raise Exception("failed after some retries :(")
+    raise Exception(f"failed fetching '{url}' after some retries :(")
+
+def fetch_json(url, allow_not_found=False):
+    data, _ = _fetch_json_with_resp(url, allow_not_found=allow_not_found)
+    return data
 
 
 def fetch_and_save(type, id, url, cache_interval=None, allow_not_found=False):
@@ -255,11 +305,21 @@ def fetch_and_save(type, id, url, cache_interval=None, allow_not_found=False):
                 # reuse
                 return get_object(type, id)
 
-    data = fetch_json(url, allow_not_found=allow_not_found)
-    print(f"fetching: {url}")
+    import time
+    time_before = time.time()
+    data, resp = _fetch_json_with_resp(url, allow_not_found=allow_not_found)
+    time_after = time.time()
+    LOG().info("fetched: %s (%d, took %.03fs)", url, resp.status_code, time_after - time_before)
     if allow_not_found and not data:
         return None
-    save_new_object(type, id, data, timestamp)
+    
+    existing_meta = get_object_meta(type, id)
+    new_hash = save_new_object(type, id, data, timestamp)
+    if existing_meta:
+        existing_hash, existing_last_update = existing_meta
+        if existing_hash != new_hash:
+            LOG().info("updated %s/%s: %s (%d) -> %s", type, id, abbrev_hash(existing_hash), existing_last_update, abbrev_hash(new_hash))
+
     return data
 
 
@@ -299,6 +359,17 @@ def fetch_state():
 def fetch_time():
     return fetch_and_save("time", "time", API + "/time", cache_interval=TIME_CACHE_INTERVAL)
 
+
+def fetch_player_and_update(player_id, cache_interval=None):
+    if cache_interval is None:
+        cache_interval = PLAYER_CACHE_INTERVAL
+    player = fetch_and_save("player", player_id, API + "/player/" + player_id, cache_interval=cache_interval)
+    try:
+        update_player_data(player_id)
+    except Exception as e:
+        LOG().error("failed to update player data for %s", player_id, exc_info=e)
+
+    return player
 
 def fetch_all_leagues():
     state = fetch_state()
@@ -356,7 +427,7 @@ def update_player_data(player_id):
         for team_id, team_stats in player_data["Stats"].items():
             for k, v in team_stats.items():
                 if type(v) != int:
-                    print(f"warn: player stat key {k} has type {type(v)} ({v})")
+                    LOG().error("player stat key %s has type %s (%s)", k, type(v), v)
                     continue
                 # pls no sql inject
                 sql = f"insert into player_stats(player_id, team_id, last_update, {k}) values (?, ?, ?, ?) on conflict (player_id, team_id) do update set last_update=excluded.last_update, {k}=excluded.{k}"
@@ -364,7 +435,7 @@ def update_player_data(player_id):
                     cur.execute(sql, (player_id, team_id, last_update, v))
                 except sqlite3.OperationalError as e:
                     if "has no column named" in str(e):
-                        print(f"warn: player stat had unknown key {k} (value: {v})")
+                        LOG().error("player stat had unknown key %s (value: %s)", k, v)
                         continue
         con.commit()
 

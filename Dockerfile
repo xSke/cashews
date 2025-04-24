@@ -6,4 +6,4 @@ COPY pyproject.toml uv.lock /app
 RUN uv sync --locked --no-install-project
 COPY . /app
 RUN uv sync --locked
-CMD ["uv", "run", "fastapi", "run", "web.py", "--port", "80"]
+CMD ["uv", "run", "fastapi", "run", "cashews/web.py", "--port", "80"]

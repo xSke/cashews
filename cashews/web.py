@@ -4,11 +4,12 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
-from . import utils
+from cashews import utils
 import datetime, json
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -57,6 +58,50 @@ async def api_teams(league: str | None = None):
         teams = {k: v for k, v in teams.items() if v["League"] == league}
     return teams
 
+@app.get("/api/games")
+async def api_games(team: str | None = None, season: int | None = None, day: int | None = None, state: str | None = None):
+    all_teams = utils.get_all_as_dict("team")
+    with utils.db() as con:
+        cur = con.cursor()
+
+        filters = []
+        params = []
+
+        if team:
+            filters.append("(home_team_id = ? or away_team_id = ?)")
+            params.append(team)
+            params.append(team)
+        if season is not None:
+            filters.append("season = ?")
+            params.append(season)
+        if day is not None:
+            filters.append("day = ?")
+            params.append(day)
+        if state is not None:
+            filters.append("state = ?")
+            params.append(state)
+        
+        where_clause = f"where {' and '.join(filters)}" if filters else ''
+        res = cur.execute(f"select id, season, day, home_team_id, away_team_id, state, last_update from games {where_clause}", params).fetchall()
+    out = []
+    for game_id, season, day, home_team_id, away_team_id, state, last_update in res:
+        # data = utils.decode_json(data_blob)
+
+        # team = utils.get_object()
+        league = all_teams[home_team_id]["League"]
+
+        out.append({
+            "game_id": game_id,
+            "season": season,
+            "day": day,
+            "home_team_id": home_team_id,
+            "away_team_id": away_team_id,
+            "last_update": last_update,
+            "state": state,
+            # "league_id": league
+        })
+    return out
+        
 def formatted_and_iso(timestamp_secs):
     dt = datetime.datetime.fromtimestamp(timestamp_secs, tz=datetime.UTC)
     formatted = dt.strftime("%Y-%m-%d %H:%M") + " UTC"
@@ -175,7 +220,7 @@ async def teams(request: Request):
 
     leagues = []
     all_teams = []
-    for league_id in state["LesserLeagues"]:
+    for league_id in state["GreaterLeagues"] + state["LesserLeagues"]:
         league = leagues_dict[league_id]
 
         league_teams = []
@@ -222,4 +267,129 @@ async def teams(request: Request):
     
     return templates.TemplateResponse(
         request=request, name="teams.html", context={"leagues": leagues, "teams": all_teams}
+    )
+
+@app.get("/team/{team_id}/stats", response_class=HTMLResponse)
+async def stats(request: Request, team_id: str):
+    team = utils.get_object("team", team_id)
+    if not team:
+        raise HTTPException(status_code=404, detail="team not found")
+
+    player_ids = utils.team_player_ids(team)
+    
+
+    # all_players = utils.get_all_as_dict("player")
+    all_teams = utils.get_all_as_dict("team")
+
+
+    import time
+    from cashews import stats
+    ttl = int(time.time() // 60)
+    league_agg = stats.league_agg_stats(ttl)
+
+    stats_by_player = {row["player_id"]: row for row in stats.all_player_stats()}
+    
+    players = []
+    for i, player_id in enumerate(player_ids):
+        player = utils.get_object("player", player_id)
+        team_id = player["TeamID"]
+        team = all_teams.get(team_id)
+
+        player_dict = {
+            "player_id": player_id,
+            "position": player["Position"],
+            "idx": i,
+            "name": utils.player_name(player),
+            "team_name": utils.team_name(team) if team else "Null Team",
+            "team_emoji": team["Emoji"] if team else "❓",
+            "stats": stats_by_player.get(player_id, None)
+        }
+        players.append(player_dict)
+
+    def format_int(number):
+        return str(number)
+    
+    def format_float3(number):
+        if type(number) == int or type(number) == float:
+            return f"{number:.03f}"
+        return ""
+    
+    def format_float2(number):
+        if type(number) == int or type(number) == float:
+            return f"{number:.02f}"
+        return ""
+    
+    def format_ip(number):
+        ip_whole = int(number)
+        ip_remainder = int((number - ip_whole) / 3 * 10)
+        if ip_remainder == 0:
+            ip_str = f"{ip_whole}"
+        else:
+            ip_str = f"{ip_whole}.{ip_remainder}"
+        return ip_str
+
+
+    defs = [
+        ("PA", "plate_appearances", None, format_int),
+        ("BA", "ba", True, format_float3),
+        ("OBP", "obp", True, format_float3),
+        ("SLG", "slg", True, format_float3),
+        ("OPS", "ops", True, format_float3),
+        ("SB", "stolen_bases", None, format_int),
+        ("CS", "caught_stealing", None, format_int),
+        ("SB%", "sb_success", True, format_float3),
+
+        ("IP", "ip", None, format_ip),
+        ("ERA", "era", False, format_float2),
+        ("WHIP", "whip", False, format_float2),
+        ("HR/9", "hr9", False, format_float2),
+        ("BB/9", "bb9", False, format_float2),
+        ("K/9", "k9", True, format_float2),
+        ("H/9", "h9", False, format_float2),
+    ]
+
+    defs2 = []
+    for name, key, up_good, formatter in defs:
+        defs2.append({
+            "name": name,
+            "key": key,
+            "up_good": up_good,
+            "league_avg": league_agg[key]["avg"],
+            "league_stddev": league_agg[key]["stddev"],
+            "format": formatter
+        })
+
+    def color_stat(key, value, avg, stddev, up_good):
+        if value is None:
+            return ""
+        if up_good is None:
+            return ""
+        if stddev < 0.0001:
+            stddev_diffs = 0
+        else:
+            stddev_diffs = (value - avg) / stddev
+        if not up_good:
+            stddev_diffs = -stddev_diffs
+        
+        if stddev_diffs < -2.5:
+            # -2.5 or below
+            return "text-red-800"
+        if stddev_diffs < -1.5:
+            # -2.5 to -1.5
+            return "text-red-600"
+        if stddev_diffs < -0.5:
+            # -1.5 to -0.5
+            return "text-orange-600"
+        if stddev_diffs < 0.5:
+            # -0.5 to 0.5
+            return "text-yellow-600"
+        if stddev_diffs < 1.5:
+            # 0.5 to 1.5
+            return "text-green-600"
+        # 1.5 or above
+        return "text-green-800"
+
+    print("render start")
+    return templates.TemplateResponse(
+        request=request, name="stats.html", context={"players": players, "team": team, "league": league_agg, "stat_defs": defs2, "color_stat": color_stat}
     )

@@ -4,7 +4,8 @@ __pycache__
 data/
 .env
 .idea
-http_cache/
 *.png
 *.ipynb
 .ipynb_checkpoints/
+http_cache
+script.py
