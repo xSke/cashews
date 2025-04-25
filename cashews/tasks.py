@@ -10,10 +10,13 @@ def run_every_thread(name, interval, real_inner, random_delta=60):
         utils.set_log(logger)
 
         if arg2 and arg2 != name:
-            logger.warning("skipping", name)
+            logger.warning("skipping %s", name)
             return
 
         presleep_time = random.random() * random_delta
+        if arg2:
+            # if specifying a specific task, no presleep
+            presleep_time = 0
         logger.info("pre-sleeping %f", presleep_time)
         time.sleep(presleep_time)
 

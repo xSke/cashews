@@ -38,6 +38,8 @@ def fetch_players():
 
     all_players = []
     for team_id, team in all_teams.items():
+        # if team_id != "6807020ace5a952465d7c1af":
+            # continue
         player_ids = utils.team_player_ids(team)
         LOG().info("got %d players from team %s", len(player_ids), team_id)
         all_players += player_ids

@@ -328,11 +328,14 @@ async def stats(request: Request, team_id: str):
     ttl = int(time.time() // 60)
     league_agg = stats.league_agg_stats(ttl)
 
-    stats_by_player = pd.read_sql_query(stats.STATS_Q, utils.db()).set_index("player_id")
+    with utils.db() as con:
+        stats_by_player = pd.read_sql_query(stats.STATS_Q, con).set_index("player_id")
 
     players_list = []
     for i, player_id in enumerate(player_ids):
         player = utils.get_object("player", player_id)
+        if not player:
+            continue
         try:
             player_ser = pd.concat([
                 pd.Series({
@@ -349,6 +352,8 @@ async def stats(request: Request, team_id: str):
             utils.LOG().error(f"{utils.player_name(player)} has no stats", exc_info=e)
 
     players = pd.DataFrame(players_list)
+    if not len(players):
+        raise HTTPException(status_code=404, detail="no players")
     # print(players)
     batters = players.query("plate_appearances > 0")
     # batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
