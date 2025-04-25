@@ -1,0 +1,229 @@
+<!doctype html>
+<html data-theme="light">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script src="https://cdn.jsdelivr.net/npm/date-fns@3.6.0/cdn.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"
+        integrity="sha512-dfX5uYVXzyU8+KHqj8bjo7UkOdg18PaOtpa48djpNbZHwExddghZ+ZmzWT06R5v6NSk3ZUfsH6FNEDepLx9hPQ=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/bulma/1.0.1/css/bulma.min.css" rel="stylesheet"
+        integrity="sha384-u1DpPo/VC1cCewPdLA1ujElPdm1c/ZVa5MNAV6930PlrYYXhoKH/+hui6tE7szxu" crossorigin="anonymous">
+    <link href="https://cdn.datatables.net/v/bm/jq-3.7.0/dt-2.2.2/datatables.min.css" rel="stylesheet"
+        integrity="sha384-NQR9ysESFMRrrks4rwDgTlpUgpKPftZV/S48q+tang2oiEqMIFGM4VDLBYAYdNLc" crossorigin="anonymous">\
+    <script src="https://cdn.datatables.net/v/bm/jq-3.7.0/dt-2.2.2/datatables.min.js"
+        integrity="sha384-SZXx6mFkCRJyGW8C8nsVaJpL1eMbIWwRRly7435CnZNwoIdr1QE2NpCihEcTIaM7"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.datatables.net/plug-ins/2.2.2/sorting/absolute.js"></script>
+
+    <style>
+        a {
+            color: inherit;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container is-fluid">
+        <div id="loading" class="has-text-centered is-size-4">Loading...</div>
+        <table class="table is-narrow is-striped is-fullwidth" id="players"></table>
+    </div>
+
+    <script>
+
+        async function main() {
+            const leagues = await fetch("/api/leagues").then(r => r.json());
+            const allteams = await fetch("/api/allteams").then(r => r.json());
+            const allplayers = await fetch("/api/allplayers/csv?fields=_id,FirstName,LastName,TeamID,Likes,Dislikes,Bats,Throws,Number,Position,PositionType,Augments,Bats,Home").then(r => r.text());
+            const data = Papa.parse(allplayers.trim(), {
+                header: true
+            });
+
+            // todo: no worky good
+            function renderFilter(dt) {
+                const select = $("<select></select>");
+                $("<option/>").attr("value", "").text("(any league)").appendTo(select);
+                for (const leagueId of Object.keys(leagues)) {
+                    const league = leagues[leagueId];
+                    $("<option/>").attr("value", leagueId).text(league.Emoji + " " + league.Name).appendTo(select);
+                }
+
+                select.on("change", (e) => {
+                    const wantedLeagueId = e.target.value;
+                    if (wantedLeagueId) {
+                        dt.api.column("league:name").search((_str, _data, _ridx, _cidx) => {
+                            console.log(_str, _data, _ridx, _cidx);
+                            const teamId = _data.TeamID;
+                            if (!teamId) return false;
+                            const leagueId = allteams[teamId].League;
+                            if (!leagueId) return false;
+                            return leagueId == wantedLeagueId;
+                        }).draw();
+                    } else {
+                        dt.api.column("league:name").search("").draw();
+                    }
+                })
+
+                const wrapper = $("<div class='control' />").append($("<div class='select' />").append(select))
+                return wrapper;
+            }
+
+            new DataTable('#players', {
+                columns: [
+                    {
+                        title: "#",
+                        data: "Number"
+                    },
+                    {
+                        title: "Pos.", 
+                        data: "Position", 
+                        className: "has-text-right has-text-weight-semibold"
+                    },
+                    {
+                        title: "Name",
+                        data: (row) => (row.FirstName + " " + row.LastName),
+                        render: (data, type, row) => {
+                            if (type === "display") {
+                                return $("<a />")
+                                    .attr("href", "https://mmolb.com/player/" + row._id)
+                                    .text(data)[0];
+                            }
+                            return data;
+                        },
+                    },
+                    {
+                        title: "Team",
+                        data: "TeamID",
+                        render: (data, type, row) => {
+                            const team = allteams[data];
+                            if (!team) {
+                                if (type === "display") {
+                                    return "";
+                                } else {
+                                    return "";
+                                }
+                            }
+
+                            if (type === "display") {
+                                return $("<a />")
+                                    .attr("href", "https://mmolb.com/team/" + data)
+                                    .text(team.Emoji + " " + team.Location + " " + team.Name)[0];
+                            } else {
+                                return (team.Location + " " + team.Name);
+                            }
+                        }
+                    },
+                    {
+                        name: "league",
+                        title: "League",
+                        data: (row) => {
+                            const teamId = row.TeamID;
+                            if (teamId) {
+                                return allteams[teamId].League;
+                            }
+                            return null;
+                        },
+                        render: (data, type, row) => {
+                            const league = leagues[data];
+                            if (!league) {
+                                if (type === "display") {
+                                    return "🕳️ Even Lesser League";
+                                } else {
+                                    return "Even Lesser League";
+                                }
+                            }
+
+                            if (type === "display") {
+                                return (league.Emoji + " " + league.Name + " League");
+                            } else {
+                                return (league.Name + " League");
+                            }
+                        }
+                    },
+                    // {
+                    //     title: "Home",
+                    //     data: "Home",
+                    // },
+                    {
+                        title: "Likes",
+                        data: "Likes"
+                    },
+                    {
+                        title: "Dislikes",
+                        data: "Dislikes"
+                    },
+                    {
+                        title: "Bats",
+                        data: "Bats",
+                    },
+                    {
+                        title: "Throws",
+                        data: "Throws"
+                    },
+                    {
+                        title: "ID",
+                        data: "_id",
+                        createdCell: (cell, cellData, rowData, rowIndex, rolIndex) => {
+                            cell.addEventListener("click", (e) => {
+                                const sel = window.getSelection();
+                                sel?.selectAllChildren(e.target);
+                            });
+                            cell.classList.add("is-family-monospace");
+                        },
+                    },
+                    {
+                        title: "Created",
+                        data: (row) => {
+                            const id = row._id;
+                            const timestamp = parseInt(id.substring(0, 8), 16);
+                            return new Date(timestamp * 1000);
+                        },
+                        render: (data, type, row) => {
+                            if (type == "display" || type == "filter") {
+                                return dateFns.format(data, 'Pp');
+                            }
+                            // sort by the more components in that
+                            return row._id;
+                        }
+                    }
+                ],
+                data: data.data,
+                order: [[2, "asc"]],
+                pageLength: 100,
+                layout: {
+                    topStart: ['pageLength'],
+                    topEnd: ['search'],
+                    bottomStart: 'info',
+                    bottomEnd: 'paging'
+                },
+                initComplete: () => {
+                    document.querySelector("#loading").remove();
+                }
+            });
+        }
+        main();
+
+        for (const elem of document.querySelectorAll(".team-id")) {
+            elem.addEventListener("click", (e) => {
+                const sel = window.getSelection();
+                sel?.selectAllChildren(e.target);
+
+                // TODO: too much?
+                // document.execCommand('copy');
+                // var old = e.target.innerHTML;
+                // e.target.innerText = "(copied!)";
+                // setTimeout(() => {
+                //     e.target.innerHTML = old;
+                // }, 2000);
+            });
+        }
+    </script>
+</body>
+
+</html>

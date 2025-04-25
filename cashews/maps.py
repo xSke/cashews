@@ -53,6 +53,7 @@ def _search_location_inner(location):
         LOG().error("got %s: %s", res, res.text)
     res.raise_for_status()
     res = res.json()
+    print(res)
 
     if "suggestions" not in res:
         return None
@@ -87,5 +88,6 @@ def fill_locations():
 
 if __name__ == "__main__":
     # fill_locations()
-    import sys
+    import sys, logging
+    utils.set_log(logging.getLogger())
     _search_location_inner(sys.argv[1])
