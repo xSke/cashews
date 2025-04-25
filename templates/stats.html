@@ -84,6 +84,40 @@
             </tbody>
         </table>
 
+
+        <table class="table is-narrow is-striped" id="stats_fielders">
+            <thead>
+                <tr>
+                    <th>Pos</th>
+                    <th data-class-name="text-nowrap">Name</th>
+                    <!-- <th>Team</th> -->
+
+                    {% for d in stat_defs_f %}
+                    <th>{{ d['name'] }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for index, player in players.iterrows() %}
+                <tr>
+                    <td data-order="{{ player['idx'] }}">{{ player['position'] }}</td>
+                    <td>{{ player['name'] }}</td>
+                    <!-- <td>{{ player['team_emoji'] }} {{ player['team_name'] }}</td> -->
+
+                    {% for d in stat_defs_f %}
+                    {% if player[d['key']] is not none %}
+                    <td data-order="{{ (player[d['key']] | string).replace('None', '') }}">
+                        <span class=" font-mono {{ color_stat(d['key'], player[d['key']], d['league_avg'], d['league_stddev'], d['up_good'])}}">{{ d['format'](player[d['key']]) }}
+                    </td>
+                    {% else %}
+                    <td data-order=""></td>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
         <div class="text-center text-sm text-gray-600 mt-16">
             <span class="border-t border-gray-300 px-8 py-1">
             the free cashews: 🍲 grashew design is my pashew 🍲
@@ -139,6 +173,25 @@
                 ],
                 columnDefs: [
                     {% for d in stat_defs_p %}
+                    {"target": "{{d['key']}}:name", "type": numbersType, "orderDataType": numbersType},
+                    {% endfor %}
+                ]
+            });
+            const table_3 = $("#stats_fielders").DataTable({
+                paging: false,
+                // order: [[0, ""]],
+                autoWidth: true,
+                columns: [
+                    null,
+                    null,
+                    // null,
+                    {% for d in stat_defs_f %}
+                    {name: "{{d['key']}}"},
+                    {% endfor %}
+
+                ],
+                columnDefs: [
+                    {% for d in stat_defs_f %}
                     {"target": "{{d['key']}}:name", "type": numbersType, "orderDataType": numbersType},
                     {% endfor %}
                 ]

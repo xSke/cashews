@@ -313,7 +313,7 @@ async def stats(request: Request, team_id: str):
     players = pd.DataFrame(players_list)
     # print(players)
     batters = players.query("plate_appearances > 0")
-    batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
+    # batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
     pitchers = players.query("batters_faced > 0")
 
     def format_int(number):
@@ -376,6 +376,16 @@ async def stats(request: Request, team_id: str):
         ("H/9", "h9", False, format_float2),
     ]
 
+    defs_f = [
+        ("Putouts", "putouts", None, format_ip),
+        ("Assists", "assists", None, format_int),
+        ("Errors", "errors", None, format_int),
+        ("DP", "double_plays", None, format_int),
+        ("FPCT", "fpct", None, format_float3),
+        ("SB", "allowed_stolen_bases", None, format_int),
+        ("CS", "runners_caught_stealing", None, format_int),
+    ]
+
     defs_b2 = []
     for name, key, up_good, formatter in defs_b:
         defs_b2.append({
@@ -389,6 +399,16 @@ async def stats(request: Request, team_id: str):
     defs_p2 = []
     for name, key, up_good, formatter in defs_p:
         defs_p2.append({
+            "name": name,
+            "key": key,
+            "up_good": up_good,
+            "league_avg": league_agg[key]["avg"],
+            "league_stddev": league_agg[key]["stddev"],
+            "format": formatter
+        })
+    defs_f2 = []
+    for name, key, up_good, formatter in defs_f:
+        defs_f2.append({
             "name": name,
             "key": key,
             "up_good": up_good,
@@ -429,7 +449,8 @@ async def stats(request: Request, team_id: str):
 
     print("render start")
     return templates.TemplateResponse(
-        request=request, name="stats.html", context={"batters": batters, "pitchers": pitchers, "team": team,
-                                                     "league": league_agg, "stat_defs_b": defs_b2,
-                                                     "stat_defs_p": defs_p2, "color_stat": color_stat}
+        request=request, name="stats.html", context={"players": players, "batters": batters, "pitchers": pitchers,
+                                                     "team": team, "league": league_agg, "stat_defs_b": defs_b2,
+                                                     "stat_defs_p": defs_p2, "stat_defs_f": defs_f2,
+                                                     "color_stat": color_stat}
     )
