@@ -5,6 +5,7 @@ from cashews import DATA_DIR
 
 LOG_TLS = threading.local()
 ZSTD_TLS = threading.local()
+SESS_TLS = threading.local()
 
 def _get_decompressor():
     if "decomp" in ZSTD_TLS.__dict__:
@@ -67,7 +68,25 @@ alter table games add column home_score int;
     """
 ]
 
-SESSION = requests.Session()
+def _get_session() -> requests.Session:
+    if "SESSION" in SESS_TLS.__dict__:
+        return SESS_TLS.sess
+    new_sess = requests.Session()
+    SESS_TLS.sess = new_sess
+    
+    from urllib3.util import Retry
+    from requests.adapters import HTTPAdapter
+    retries = Retry(
+        total=10,
+        read=10,
+        connect=10,
+        backoff_factor=0.1,
+        status_forcelist=[502, 503, 504],
+        allowed_methods={'GET'},
+    )
+    new_sess.mount('https://', HTTPAdapter(max_retries=retries))
+    return SESS_TLS.sess
+
 API = "https://mmolb.com/api"
 
 def abbrev_hash(hash):
@@ -204,9 +223,10 @@ def get_all_as_dict(type, map_fn=None):
     return out
 
 def _fetch_json_with_resp(url, allow_not_found=False):
-    for _ in range(5):
+    for i in range(1, 100):
+        backoff = int(i ** 1.5)
         try:
-            res = SESSION.get(url, timeout=5)
+            res = _get_session().get(url, timeout=10)
             if allow_not_found and res.status_code == 404:
                 return None, res
             res.raise_for_status()
@@ -214,8 +234,14 @@ def _fetch_json_with_resp(url, allow_not_found=False):
         except requests.exceptions.JSONDecodeError:
             raise
         except requests.exceptions.ConnectionError as e:
-            LOG().error("got error, retrying...", exc_info=e)
-            time.sleep(5)
+            LOG().error("got error, retrying... (try %d for %s)", i, url, exc_info=e)
+            time.sleep(backoff)
+        except requests.exceptions.ReadTimeout as e:
+            LOG().error("got error, retrying... (try %d for %s)", i, url, exc_info=e)
+            time.sleep(backoff)
+        except TimeoutError as e:
+            LOG().error("got error, retrying... (try %d for %s)", i, url, exc_info=e)
+            time.sleep(backoff)
     raise Exception(f"failed fetching '{url}' after some retries :(")
 
 def fetch_json(url, allow_not_found=False):
@@ -236,7 +262,7 @@ def fetch_and_save(type, id, url, cache_interval=None, allow_not_found=False):
     data, resp = _fetch_json_with_resp(url, allow_not_found=allow_not_found)
     time_after = time.time()
     LOG().info("fetched: %s (%d, took %.03fs)", url, resp.status_code, time_after - time_before)
-    if allow_not_found and not data:
+    if allow_not_found and not data and resp.status_code == 404:
         return None
     
     existing_meta = get_object_meta(type, id)
