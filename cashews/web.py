@@ -313,6 +313,7 @@ async def stats(request: Request, team_id: str):
     players = pd.DataFrame(players_list)
     # print(players)
     batters = players.query("plate_appearances > 0")
+    batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
     pitchers = players.query("batters_faced > 0")
 
     def format_int(number):
@@ -339,6 +340,15 @@ async def stats(request: Request, team_id: str):
 
     defs_b = [
         ("PA", "plate_appearances", None, format_int),
+        ("AB", "at_bats", None, format_int),
+        ("R", "runs", None, format_int),
+        ("1B", "singles", None, format_int),
+        ("2B", "doubles", None, format_int),
+        ("3B", "triples", None, format_int),
+        ("HR", "home_runs", None, format_int),
+        ("RBI", "runs_batted_in", None, format_int),
+        ("BB", "walked", None, format_int),
+        ("SO", "struck_out", None, format_int),
         ("BA", "ba", True, format_float3),
         ("OBP", "obp", True, format_float3),
         ("SLG", "slg", True, format_float3),
