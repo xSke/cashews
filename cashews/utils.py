@@ -4,7 +4,22 @@ import zstandard as zstd
 from cashews import DATA_DIR
 
 LOG_TLS = threading.local()
+ZSTD_TLS = threading.local()
 
+def _get_decompressor():
+    if "decomp" in ZSTD_TLS.__dict__:
+        return ZSTD_TLS.decomp
+    ZSTD_TLS.decomp = zstd.ZstdDecompressor()
+    return ZSTD_TLS.decomp
+
+try:
+    # "orjson" is significantly faster than stock python json
+    # this speeds up `get_all_as_dict` by about 2x if available
+    import orjson
+    _json_loads = orjson.loads
+except ImportError:
+    _json_loads = json.loads
+    
 def LOG() -> logging.Logger:
     if "logger" in LOG_TLS.__dict__:
         return LOG_TLS.logger
@@ -95,7 +110,7 @@ def init_db():
     
 def decode_json(data):
     if type(data) == bytes:
-        data_str = zstd.decompress(data).decode()
+        return _json_loads(_get_decompressor().decompress(data))
     elif type(data) == str:
         data_str = data
     return json.loads(data_str)

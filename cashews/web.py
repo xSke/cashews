@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException
+from typing import Annotated
+from fastapi import FastAPI, Request, HTTPException, Response
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -50,6 +51,11 @@ def to_delta(timestamp):
 #     leagues = utils.get_all_as_dict("league", filter_props(keep_properties))
 #     return leagues
 
+@app.get("/api/leagues")
+async def api_leagues():
+    leagues = utils.get_all_as_dict("league")
+    return leagues
+
 @app.get("/api/allteams")
 async def api_teams(league: str | None = None):
     keep_properties = set(["Color", "Emoji", "FullLocation", "Location", "League", "Name", "Record", "_id"])
@@ -57,6 +63,38 @@ async def api_teams(league: str | None = None):
     if league:
         teams = {k: v for k, v in teams.items() if v["League"] == league}
     return teams
+
+
+import functools
+@functools.lru_cache(maxsize=3)
+def _all_players_cached(_lru_key):
+    return utils.get_all_as_dict("player")
+
+def lru_key(interval_secs):
+    import time
+    return int(time.time() // interval_secs)
+
+# @app.get("/api/allplayers")
+# async def api_teams(fields: str = "FirstName,LastName"):
+#     keep_properties = tuple(set(fields.split(",")))
+#     players = _all_players_cached(keep_properties, lru_key(60))
+#     return players
+
+@app.get("/api/allplayers/csv")
+async def api_teams(fields: str = "FirstName,LastName"):
+    fields = fields.split(",")
+
+    players = _all_players_cached(lru_key(60))
+
+    import io, csv
+    out = io.StringIO()
+    cw = csv.DictWriter(out, list(fields), extrasaction="ignore", restval="")
+    cw.writeheader()
+    for player_id, player in players.items():
+        player["_id"] = player_id
+        cw.writerow(player)
+    
+    return Response(content=out.getvalue(), media_type="application/csv")
 
 @app.get("/api/games")
 async def api_games(team: str | None = None, season: int | None = None, day: int | None = None, state: str | None = None):
@@ -394,4 +432,10 @@ async def stats(request: Request, team_id: str):
     print("render start")
     return templates.TemplateResponse(
         request=request, name="stats.html", context={"players": players, "team": team, "league": league_agg, "stat_defs": defs2, "color_stat": color_stat}
+    )
+
+@app.get("/players", response_class=HTMLResponse)
+async def players(request: Request):
+    return templates.TemplateResponse(
+        request=request, name="players.html", context={}
     )
