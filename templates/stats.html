@@ -10,6 +10,12 @@
     <script src="https://cdn.datatables.net/v/bm/jq-3.7.0/dt-2.2.2/datatables.min.js" integrity="sha384-SZXx6mFkCRJyGW8C8nsVaJpL1eMbIWwRRly7435CnZNwoIdr1QE2NpCihEcTIaM7" crossorigin="anonymous"></script>
     <script src="https://cdn.datatables.net/plug-ins/2.2.2/sorting/absolute.js"></script>
   </head>
+
+  <style>
+    tr.wrong-position td {
+        font-style: italic;
+    }
+  </style>
   <body>
     <div class="container mx-auto flex flex-col gap-2 mt-8">
         <div>
@@ -31,8 +37,8 @@
             </thead>
             <tbody>
                 {% for index, batter in batters.iterrows() %}
-                <tr>
-                    <td data-order="{{ batter['idx'] }}">{{ batter['position'] }}</td>
+                <tr class="{{ 'is-background-warning-light wrong-position' if batter['position_type'] != 'Batter' else '' }}">
+                    <td data-order="{{ batter['idx'] + (100 if batter['position_type'] != 'Batter' else 0) }}">{{ batter['position'] }}</td>
                     <td>{{ batter['name'] }}</td>
                     <!-- <td>{{ batter['team_emoji'] }} {{ batter['team_name'] }}</td> -->
 
@@ -65,9 +71,9 @@
             </thead>
             <tbody>
                 {% for index, pitcher in pitchers.iterrows() %}
-                <tr>
-                    <td data-order="{{ pitcher['idx'] }}">{{ pitcher['position'] }}</td>
-                    <td>{{ pitcher['name'] }}</td>
+                <tr class="{{ 'is-background-warning-light wrong-position' if pitcher['position_type'] != 'Pitcher' else '' }}">
+                    <td class="col-pos" data-order="{{ pitcher['idx'] + (100 if pitcher['position_type'] != 'Pitcher' else 0) }}">{{ pitcher['position'] }}</td>
+                    <td class="col-name">{{ pitcher['name'] }}</td>
                     <!-- <td>{{ pitcher['team_emoji'] }} {{ pitcher['team_name'] }}</td> -->
 
                     {% for d in stat_defs_p %}

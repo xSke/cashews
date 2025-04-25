@@ -340,7 +340,8 @@ async def stats(request: Request, team_id: str):
             player_ser = pd.concat([
                 pd.Series({
                     "player_id": player_id,
-                    "position": player["Position"],
+                    "position": player["Position"], 
+                    "position_type": player["PositionType"],
                     "idx": i,
                     "name": utils.player_name(player),
                     "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
