@@ -15,6 +15,10 @@
     tr.wrong-position td {
         font-style: italic;
     }
+
+    th[title] {
+        text-decoration: underline dotted;
+    }
   </style>
   <body>
     <div class="container mx-auto flex flex-col gap-2 mt-8">
@@ -31,7 +35,11 @@
                     <!-- <th>Team</th> -->
 
                     {% for d in stat_defs_b %}
-                    <th>{{ d['name'] }}</th>
+                    <th
+                        {% if d['hover'] %}
+                        title="{{ d['hover'] }}"
+                        {% endif %}
+                    >{{ d['name'] }}</th>
                     {% endfor %}
                 </tr>
             </thead>
@@ -56,7 +64,6 @@
             </tbody>
         </table>
 
-
         <table class="table is-narrow is-striped" id="stats_pitchers">
             <thead>
                 <tr>
@@ -65,7 +72,11 @@
                     <!-- <th>Team</th> -->
 
                     {% for d in stat_defs_p %}
-                    <th>{{ d['name'] }}</th>
+                    <th
+                        {% if d['hover'] %}
+                        title="{{ d['hover'] }}"
+                        {% endif %}
+                    >{{ d['name'] }}</th>
                     {% endfor %}
                 </tr>
             </thead>
@@ -99,7 +110,11 @@
                     <!-- <th>Team</th> -->
 
                     {% for d in stat_defs_f %}
-                    <th>{{ d['name'] }}</th>
+                    <th
+                        {% if d['hover'] %}
+                        title="{{ d['hover'] }}"
+                        {% endif %}
+                    >{{ d['name'] }}</th>
                     {% endfor %}
                 </tr>
             </thead>

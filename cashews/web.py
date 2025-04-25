@@ -383,82 +383,85 @@ async def stats(request: Request, team_id: str):
         return ip_str
 
     defs_b = [
-        ("PA", "plate_appearances", None, format_int),
-        ("AB", "at_bats", None, format_int),
-        ("R", "runs", None, format_int),
-        ("1B", "singles", None, format_int),
-        ("2B", "doubles", None, format_int),
-        ("3B", "triples", None, format_int),
-        ("HR", "home_runs", None, format_int),
-        ("RBI", "runs_batted_in", None, format_int),
-        ("BB", "walked", None, format_int),
-        ("SO", "struck_out", None, format_int),
-        ("BA", "ba", True, format_float3),
-        ("OBP", "obp", True, format_float3),
-        ("SLG", "slg", True, format_float3),
-        ("OPS", "ops", True, format_float3),
-        ("SB", "stolen_bases", None, format_int),
-        ("CS", "caught_stealing", None, format_int),
-        ("SB%", "sb_success", True, format_float3),
+        ("PA", "plate_appearances", None, format_int, ""),
+        ("AB", "at_bats", None, format_int, ""),
+        ("R", "runs", None, format_int, ""),
+        ("1B", "singles", None, format_int, ""),
+        ("2B", "doubles", None, format_int, ""),
+        ("3B", "triples", None, format_int, ""),
+        ("HR", "home_runs", None, format_int, ""),
+        ("RBI", "runs_batted_in", None, format_int, ""),
+        ("BB", "walked", None, format_int, ""),
+        ("SO", "struck_out", None, format_int, ""),
+        ("BA", "ba", True, format_float3, ""),
+        ("OBP", "obp", True, format_float3, ""),
+        ("SLG", "slg", True, format_float3, ""),
+        ("OPS", "ops", True, format_float3, ""),
+        ("SB", "stolen_bases", None, format_int, ""),
+        ("CS", "caught_stealing", None, format_int, ""),
+        ("SB%", "sb_success", True, format_float3, ""),
     ]
     defs_p = [
-        ("IP", "ip", None, format_ip),
-        ("G", "appearances", None, format_int),
-        ("GS", "starts", None, format_int),
-        ("W", "wins", None, format_int),
-        ("L", "losses", None, format_int),
-        ("CG", "complete_games", None, format_int),
-        ("SHO", "shutouts", None, format_int),
-        ("NH", "no_hitters", None, format_int),
-        ("SV", "saves", None, format_int),
-        ("BS", "blown_saves", None, format_int),
-        ("ERA", "era", False, format_float2),
-        ("WHIP", "whip", False, format_float2),
-        ("HR/9", "hr9", False, format_float2),
-        ("BB/9", "bb9", False, format_float2),
-        ("K/9", "k9", True, format_float2),
-        ("H/9", "h9", False, format_float2),
+        ("IP", "ip", None, format_ip, "Innings pitched"),
+        ("G", "appearances", None, format_int, ""),
+        ("GS", "starts", None, format_int, ""),
+        ("W", "wins", None, format_int, ""),
+        ("L", "losses", None, format_int, ""),
+        ("CG", "complete_games", None, format_int, ""),
+        ("SHO", "shutouts", None, format_int, ""),
+        ("NH", "no_hitters", None, format_int, ""),
+        ("SV", "saves", None, format_int, ""),
+        ("BS", "blown_saves", None, format_int, ""),
+        ("ERA", "era", False, format_float2, ""),
+        ("WHIP", "whip", False, format_float2, ""),
+        ("HR/9", "hr9", False, format_float2, ""),
+        ("BB/9", "bb9", False, format_float2, ""),
+        ("K/9", "k9", True, format_float2, ""),
+        ("H/9", "h9", False, format_float2, ""),
     ]
 
     defs_f = [
-        ("Putouts", "putouts", None, format_ip),
-        ("Assists", "assists", None, format_int),
-        ("Errors", "errors", None, format_int),
-        ("DP", "double_plays", None, format_int),
-        ("FPCT", "fpct", None, format_float3),
-        ("SB", "allowed_stolen_bases", None, format_int),
-        ("CS", "runners_caught_stealing", None, format_int),
+        ("Putouts", "putouts", None, format_ip, ""),
+        ("Assists", "assists", None, format_int, ""),
+        ("Errors", "errors", None, format_int, ""),
+        ("DP", "double_plays", None, format_int, ""),
+        ("FPCT", "fpct", None, format_float3, ""),
+        ("SB", "allowed_stolen_bases", None, format_int, ""),
+        ("CS", "runners_caught_stealing", None, format_int, ""),
     ]
 
     defs_b2 = []
-    for name, key, up_good, formatter in defs_b:
+    for name, key, up_good, formatter, hover in defs_b:
         defs_b2.append({
             "name": name,
             "key": key,
             "up_good": up_good,
             "league_avg": league_agg[key]["avg"],
             "league_stddev": league_agg[key]["stddev"],
-            "format": formatter
+            "format": formatter,
+            "hover": hover,
         })
     defs_p2 = []
-    for name, key, up_good, formatter in defs_p:
+    for name, key, up_good, formatter, hover in defs_p:
         defs_p2.append({
             "name": name,
             "key": key,
             "up_good": up_good,
             "league_avg": league_agg[key]["avg"],
             "league_stddev": league_agg[key]["stddev"],
-            "format": formatter
+            "format": formatter,
+            "hover": hover,
         })
     defs_f2 = []
-    for name, key, up_good, formatter in defs_f:
+    for name, key, up_good, formatter, hover in defs_f:
         defs_f2.append({
             "name": name,
             "key": key,
             "up_good": up_good,
             "league_avg": league_agg[key]["avg"],
             "league_stddev": league_agg[key]["stddev"],
-            "format": formatter
+            "format": formatter,
+            "hover": hover,
         })
 
     def color_stat(key, value, avg, stddev, up_good):
