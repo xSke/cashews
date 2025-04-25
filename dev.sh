@@ -1,2 +1,2 @@
 #!/bin/sh
-uv run python -m fastapi dev cashews/web.py
+uv run python -m fastapi run cashews/web.py

@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from cashews import utils
 import datetime, json
+import pandas as pd
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -319,7 +320,7 @@ async def stats(request: Request, team_id: str):
     
 
     # all_players = utils.get_all_as_dict("player")
-    all_teams = utils.get_all_as_dict("team")
+    # all_teams = utils.get_all_as_dict("team")
 
 
     import time
@@ -327,24 +328,31 @@ async def stats(request: Request, team_id: str):
     ttl = int(time.time() // 60)
     league_agg = stats.league_agg_stats(ttl)
 
-    stats_by_player = {row["player_id"]: row for row in stats.all_player_stats()}
-    
-    players = []
+    stats_by_player = pd.read_sql_query(stats.STATS_Q, utils.db()).set_index("player_id")
+
+    players_list = []
     for i, player_id in enumerate(player_ids):
         player = utils.get_object("player", player_id)
-        team_id = player["TeamID"]
-        team = all_teams.get(team_id)
+        try:
+            player_ser = pd.concat([
+                pd.Series({
+                    "player_id": player_id,
+                    "position": player["Position"],
+                    "idx": i,
+                    "name": utils.player_name(player),
+                    "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
+                    "team_emoji": team["Emoji"] if team else "❓",  # since we're only grabbing players on a given team
+                }),
+                stats_by_player.loc[player_id]])
+            players_list.append(player_ser)
+        except KeyError as e:
+            utils.LOG().error(f"{utils.player_name(player)} has no stats", exc_info=e)
 
-        player_dict = {
-            "player_id": player_id,
-            "position": player["Position"],
-            "idx": i,
-            "name": utils.player_name(player),
-            "team_name": utils.team_name(team) if team else "Null Team",
-            "team_emoji": team["Emoji"] if team else "❓",
-            "stats": stats_by_player.get(player_id, None)
-        }
-        players.append(player_dict)
+    players = pd.DataFrame(players_list)
+    # print(players)
+    batters = players.query("plate_appearances > 0")
+    # batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
+    pitchers = players.query("batters_faced > 0")
 
     def format_int(number):
         return str(number)
@@ -368,9 +376,17 @@ async def stats(request: Request, team_id: str):
             ip_str = f"{ip_whole}.{ip_remainder}"
         return ip_str
 
-
-    defs = [
+    defs_b = [
         ("PA", "plate_appearances", None, format_int),
+        ("AB", "at_bats", None, format_int),
+        ("R", "runs", None, format_int),
+        ("1B", "singles", None, format_int),
+        ("2B", "doubles", None, format_int),
+        ("3B", "triples", None, format_int),
+        ("HR", "home_runs", None, format_int),
+        ("RBI", "runs_batted_in", None, format_int),
+        ("BB", "walked", None, format_int),
+        ("SO", "struck_out", None, format_int),
         ("BA", "ba", True, format_float3),
         ("OBP", "obp", True, format_float3),
         ("SLG", "slg", True, format_float3),
@@ -378,8 +394,18 @@ async def stats(request: Request, team_id: str):
         ("SB", "stolen_bases", None, format_int),
         ("CS", "caught_stealing", None, format_int),
         ("SB%", "sb_success", True, format_float3),
-
+    ]
+    defs_p = [
         ("IP", "ip", None, format_ip),
+        ("G", "appearances", None, format_int),
+        ("GS", "starts", None, format_int),
+        ("W", "wins", None, format_int),
+        ("L", "losses", None, format_int),
+        ("CG", "complete_games", None, format_int),
+        ("SHO", "shutouts", None, format_int),
+        ("NH", "no_hitters", None, format_int),
+        ("SV", "saves", None, format_int),
+        ("BS", "blown_saves", None, format_int),
         ("ERA", "era", False, format_float2),
         ("WHIP", "whip", False, format_float2),
         ("HR/9", "hr9", False, format_float2),
@@ -388,9 +414,39 @@ async def stats(request: Request, team_id: str):
         ("H/9", "h9", False, format_float2),
     ]
 
-    defs2 = []
-    for name, key, up_good, formatter in defs:
-        defs2.append({
+    defs_f = [
+        ("Putouts", "putouts", None, format_ip),
+        ("Assists", "assists", None, format_int),
+        ("Errors", "errors", None, format_int),
+        ("DP", "double_plays", None, format_int),
+        ("FPCT", "fpct", None, format_float3),
+        ("SB", "allowed_stolen_bases", None, format_int),
+        ("CS", "runners_caught_stealing", None, format_int),
+    ]
+
+    defs_b2 = []
+    for name, key, up_good, formatter in defs_b:
+        defs_b2.append({
+            "name": name,
+            "key": key,
+            "up_good": up_good,
+            "league_avg": league_agg[key]["avg"],
+            "league_stddev": league_agg[key]["stddev"],
+            "format": formatter
+        })
+    defs_p2 = []
+    for name, key, up_good, formatter in defs_p:
+        defs_p2.append({
+            "name": name,
+            "key": key,
+            "up_good": up_good,
+            "league_avg": league_agg[key]["avg"],
+            "league_stddev": league_agg[key]["stddev"],
+            "format": formatter
+        })
+    defs_f2 = []
+    for name, key, up_good, formatter in defs_f:
+        defs_f2.append({
             "name": name,
             "key": key,
             "up_good": up_good,
@@ -431,7 +487,10 @@ async def stats(request: Request, team_id: str):
 
     print("render start")
     return templates.TemplateResponse(
-        request=request, name="stats.html", context={"players": players, "team": team, "league": league_agg, "stat_defs": defs2, "color_stat": color_stat}
+        request=request, name="stats.html", context={"players": players, "batters": batters, "pitchers": pitchers,
+                                                     "team": team, "league": league_agg, "stat_defs_b": defs_b2,
+                                                     "stat_defs_p": defs_p2, "stat_defs_f": defs_f2,
+                                                     "color_stat": color_stat}
     )
 
 @app.get("/players", response_class=HTMLResponse)

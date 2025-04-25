@@ -7,6 +7,7 @@ BA_EXPR = f"CAST(({HITS_EXPR}) AS REAL) / CAST(at_bats AS REAL)"
 OBP_EXPR = f"CAST(({HITS_EXPR} + walked + hit_by_pitch) AS REAL) / CAST(plate_appearances AS REAL)"
 SLG_EXPR = "CAST((singles + 2 * doubles + 3 * triples + 4 * home_runs) AS REAL) / CAST(at_bats AS REAL)"
 IP_EXPR = f"(CAST(outs AS REAL) / 3)"
+FPCT_EXPR = f"CAST((putouts + assists) AS REAL) / CAST((putouts + assists + errors) AS REAL)"
 
 STATS_Q = f"""
 SELECT
@@ -24,7 +25,9 @@ SELECT
     (9 * strikeouts) / {IP_EXPR} AS k9,
     (9 * hits_allowed) / {IP_EXPR} AS h9,
 
-    (CAST(stolen_bases AS REAL) / (stolen_bases + caught_stealing)) AS sb_success
+    (CAST(stolen_bases AS REAL) / (stolen_bases + caught_stealing)) AS sb_success,
+    
+    {FPCT_EXPR} AS fpct
 FROM player_stats
 """
 
