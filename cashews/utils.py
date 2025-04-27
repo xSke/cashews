@@ -408,4 +408,39 @@ def get_all_game_data(season, day):
     with db() as con:
         cur = con.cursor()
         return cur.execute("select id, away_team_id, home_team_id, last_update, state from games where season = ? and day = ?", (season, day)).fetchall()
+    
+def get_team_batting_order(team_id):
+    # kind of a hack, since it's not exposed in the api...
+    # but we can find the most recent game and check that
+    team_games = list(get_all_games_for_team(team_id))
+    team_games.sort() # sort by game id, which is chronological
+    
+    lineup_message = None
+    for _, game in team_games[::-1]:
+        lineup_type = "AwayLineup" if game["AwayTeamID"] == team_id else "HomeLineup"
+        for evt in game["EventLog"]:
+            if evt["event"] == lineup_type:
+                lineup_message = evt["message"]
+                break
+        if lineup_message:
+            break
+    
+    if not lineup_message:
+        return []
         
+    # should we do this "the other way around"?
+    # (ie. "iterate lineup message and match each line with a player")
+    # otherwise we might return the wrong thing in case any matches didn't find
+    # but this way is more resilient to formatting changes...
+    team = get_object("team", team_id)
+    lineup_indexed = []
+    for player in team["Players"]:
+        if player["PlayerID"] == "#":
+            continue
+        player_and_position = f"{player["Slot"]} {player["FirstName"]} {player["LastName"]}"
+        if player_and_position in lineup_message:
+            idx = lineup_message.index(player_and_position)
+            lineup_indexed.append((idx, player["PlayerID"]))
+    lineup_indexed.sort()
+    
+    return [player_id for _, player_id in lineup_indexed]

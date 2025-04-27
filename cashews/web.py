@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from cashews import utils
 import datetime, json
 import pandas as pd
+import numpy as np
+
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -316,9 +318,12 @@ async def stats(request: Request, team_id: str):
     if not team:
         raise HTTPException(status_code=404, detail="team not found")
 
-    player_ids = utils.team_player_ids(team)
-    
+    # slots stored on the *team player* object, not the player itself
+    player_slots = {p["PlayerID"]: p["Slot"] for p in team["Players"]}
 
+    player_ids = utils.team_player_ids(team)
+
+    batting_order = utils.get_team_batting_order(team_id)
     # all_players = utils.get_all_as_dict("player")
     # all_teams = utils.get_all_as_dict("team")
 
@@ -327,7 +332,7 @@ async def stats(request: Request, team_id: str):
     from cashews import stats
     ttl = int(time.time() // 60)
     league_agg = stats.league_agg_stats(ttl)
-
+ 
     with utils.db() as con:
         stats_by_player = pd.read_sql_query(stats.STATS_Q, con).set_index("player_id")
 
@@ -337,11 +342,14 @@ async def stats(request: Request, team_id: str):
         if not player:
             continue
         try:
+            batting_position = (batting_order.index(player_id) + 1) if player_id in batting_order else 0
             player_ser = pd.concat([
                 pd.Series({
                     "player_id": player_id,
                     "position": player["Position"], 
+                    "slot": player_slots.get(player_id, player["Position"]), # slot field added later 
                     "position_type": player["PositionType"],
+                    "batting_order": batting_position,
                     "idx": i,
                     "name": utils.player_name(player),
                     "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
@@ -350,7 +358,8 @@ async def stats(request: Request, team_id: str):
                 stats_by_player.loc[player_id]])
             players_list.append(player_ser)
         except KeyError as e:
-            utils.LOG().error(f"{utils.player_name(player)} has no stats", exc_info=e)
+            pass
+            # utils.LOG().error(f"{utils.player_name(player)} has no stats")
 
     players = pd.DataFrame(players_list)
     if not len(players):
@@ -494,7 +503,6 @@ async def stats(request: Request, team_id: str):
         # 1.5 or above
         return "text-green-800"
 
-    print("render start")
     return templates.TemplateResponse(
         request=request, name="stats.html", context={"players": players, "batters": batters, "pitchers": pitchers,
                                                      "team": team, "league": league_agg, "stat_defs_b": defs_b2,

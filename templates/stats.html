@@ -44,7 +44,8 @@
         <table class="table is-narrow is-striped" id="stats_batters">
             <thead>
                 <tr>
-                    <th>Pos</th>
+                    <th>Bat#</th>
+                    <th>Slot</th>
                     <th data-class-name="text-nowrap">Name</th>
                     <!-- <th>Team</th> -->
 
@@ -60,7 +61,8 @@
             <tbody>
                 {% for index, batter in batters.iterrows() %}
                 <tr class="{{ 'wrong-position' if batter['position_type'] != 'Batter' else '' }}">
-                    <td class="col-pos" data-order="{{ batter['idx'] + (100 if batter['position_type'] != 'Batter' else 0) }}">{{ batter['position'] }}</td>
+                    <td class="dt-type-numeric">{{ batter['batting_order'] or "" }}</td>
+                    <td class="col-pos" data-order="{{ batter['idx'] + (100 if batter['position_type'] != 'Batter' else 0) }}">{{ batter['slot'] }}</td>
                     <td class="col-name">{{ batter['name'] }}</td>
                     <!-- <td>{{ batter['team_emoji'] }} {{ batter['team_name'] }}</td> -->
 
@@ -81,7 +83,7 @@
         <table class="table is-narrow is-striped" id="stats_pitchers">
             <thead>
                 <tr>
-                    <th>Pos</th>
+                    <th>Slot</th>
                     <th data-class-name="text-nowrap">Name</th>
                     <!-- <th>Team</th> -->
 
@@ -97,7 +99,7 @@
             <tbody>
                 {% for index, pitcher in pitchers.iterrows() %}
                 <tr class="{{ 'wrong-position' if pitcher['position_type'] != 'Pitcher' else '' }}">
-                    <td class="col-pos" data-order="{{ pitcher['idx'] + (100 if pitcher['position_type'] != 'Pitcher' else 0) }}">{{ pitcher['position'] }}</td>
+                    <td class="col-pos" data-order="{{ pitcher['idx'] + (100 if pitcher['position_type'] != 'Pitcher' else 0) }}">{{ pitcher['slot'] }}</td>
                     <td class="col-name">{{ pitcher['name'] }}</td>
                     <!-- <td>{{ pitcher['team_emoji'] }} {{ pitcher['team_name'] }}</td> -->
 
@@ -119,7 +121,7 @@
         <table class="table is-narrow is-striped" id="stats_fielders">
             <thead>
                 <tr>
-                    <th>Pos</th>
+                    <th>Slot</th>
                     <th data-class-name="text-nowrap">Name</th>
                     <!-- <th>Team</th> -->
 
@@ -135,7 +137,7 @@
             <tbody>
                 {% for index, player in players.iterrows() %}
                 <tr>
-                    <td data-order="{{ player['idx'] }}">{{ player['position'] }}</td>
+                    <td data-order="{{ player['idx'] }}">{{ player['slot'] }}</td>
                     <td>{{ player['name'] }}</td>
                     <!-- <td>{{ player['team_emoji'] }} {{ player['team_name'] }}</td> -->
 
@@ -176,9 +178,10 @@
 
             const table_1 = $("#stats_batters").DataTable({
                 paging: false,
-                // order: [[0, ""]],
+                order: [[0, "asc"]],
                 autoWidth: true,
                 columns: [
+                    {name: "batorder"},
                     null,
                     null, 
                     // null,
@@ -188,6 +191,7 @@
 
                 ],
                 columnDefs: [
+                    {"target": "batorder:name", "type": numbersType, "orderDataType": numbersType},
                     {% for d in stat_defs_b %}
                     {"target": "{{d['key']}}:name", "type": numbersType, "orderDataType": numbersType},
                     {% endfor %}
