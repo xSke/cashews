@@ -65,6 +65,37 @@ create table player_stats(
     """
 alter table games add column away_score int;
 alter table games add column home_score int;
+    """,
+
+
+    """
+create table game_events(
+    game_id text,
+    idx int,
+
+    away_score int,
+    balls int,
+    batter text,
+    event text,
+    home_score text,
+    inning int,
+    inning_side int,
+    message text,
+    on_1b bool,
+    on_2b bool,
+    on_3b bool,
+    on_deck text,
+    outs int,
+    pitch_info text,
+    pitcher text,
+    strikes int,
+    zone int,
+
+    pitch_type text,
+    pitch_speed float,
+
+    primary key (game_id, idx)
+);
     """
 ]
 
@@ -363,6 +394,41 @@ def update_game_data(game_id):
                         values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         on conflict (id) do update set season=excluded.season, day=excluded.day, away_team_id=excluded.away_team_id, home_team_id=excluded.home_team_id, away_score=excluded.away_score, home_score=excluded.home_score, last_update=excluded.last_update, state=excluded.state, hash=excluded.hash""",
                         (game_id, season, day, away_team_id, home_team_id, away_score, home_score, last_update, state, data_hash))
+        con.commit()
+        
+        event_params = []
+        for i, evt in enumerate(game_data["EventLog"]):
+            if evt["pitch_info"]:
+                pitch_type = evt["pitch_info"].split(" MPH ")[1].strip()
+                pitch_speed = float(evt["pitch_info"].split(" MPH")[0])
+            else:
+                pitch_type = pitch_speed = None
+            event_params.append((
+                game_id, i,
+
+                evt["away_score"],
+                evt["balls"],
+                evt["batter"] or None,
+                evt["event"] or None,
+                evt["home_score"],
+                evt["inning"],
+                evt["inning_side"],
+                evt["message"] or None,
+                evt["on_1b"],
+                evt["on_2b"],
+                evt["on_3b"],
+                evt["on_deck"] or None,
+                evt["outs"],
+                evt["pitch_info"] or None,
+                evt["pitcher"] or None,
+                evt["strikes"],
+                evt["zone"] or None,
+
+                pitch_type,
+                pitch_speed,
+            ))
+        cur.executemany("""insert into game_events(game_id, idx, away_score, balls, batter, event, home_score, inning, inning_side, message, on_1b, on_2b, on_3b, on_deck, outs, pitch_info, pitcher, strikes, zone, pitch_type, pitch_speed)
+            values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict(game_id, idx) do nothing""", event_params)
         con.commit()
 
 def update_player_data(player_id):

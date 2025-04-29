@@ -59,6 +59,26 @@ async def api_leagues():
     leagues = utils.get_all_as_dict("league")
     return leagues
 
+@app.get("/api/aggstats")
+async def api_aggstats():
+    from cashews import stats
+    import time
+    ttl = int(time.time() // 60)
+    df = stats.league_agg_stats_2(ttl)
+
+    percentiles = [.1, .2, .25, .3, .4, .5, .6, .7, .75, .8, .9]
+    
+    agg_all = df.describe(percentiles)
+    agg_league = df.groupby(df["league_id"]).describe(percentiles)
+
+    out_dict = {
+        "leagues": {}
+    }
+    for league_id in agg_league.index:
+        out_dict["leagues"][league_id] = agg_league.loc[league_id].unstack(0).to_dict()
+    out_dict["total"] = agg_all.to_dict()
+    return out_dict
+
 @app.get("/api/allteams")
 async def api_teams(league: str | None = None):
     keep_properties = set(["Color", "Emoji", "FullLocation", "Location", "League", "Name", "Record", "_id"])
@@ -312,11 +332,18 @@ async def teams(request: Request):
         request=request, name="teams.html", context={"leagues": leagues, "teams": all_teams}
     )
 
+@functools.lru_cache(maxsize=3)
+def _player_stats(_ttl):
+    with utils.db() as con:
+        from cashews import stats
+        return pd.read_sql_query(stats.STATS_Q, con).set_index("player_id")
+
 @app.get("/team/{team_id}/stats", response_class=HTMLResponse)
 async def stats(request: Request, team_id: str):
     team = utils.get_object("team", team_id)
     if not team:
         raise HTTPException(status_code=404, detail="team not found")
+    league = utils.get_object("league", team["League"])
 
     # slots stored on the *team player* object, not the player itself
     player_slots = {p["PlayerID"]: p["Slot"] for p in team["Players"]}
@@ -331,10 +358,12 @@ async def stats(request: Request, team_id: str):
     import time
     from cashews import stats
     ttl = int(time.time() // 60)
-    league_agg = stats.league_agg_stats(ttl)
+
+    agg_stats =  stats.league_agg_stats_2(ttl)
+    league_agg = agg_stats.describe(percentiles=[.25, .50, .75]).to_dict()
+    subleague_agg = agg_stats[agg_stats["league_id"] == team["League"]].describe(percentiles=[.25, .50, .75]).to_dict()
  
-    with utils.db() as con:
-        stats_by_player = pd.read_sql_query(stats.STATS_Q, con).set_index("player_id")
+    stats_by_player = _player_stats(ttl)
 
     players_list = []
     for i, player_id in enumerate(player_ids):
@@ -445,8 +474,8 @@ async def stats(request: Request, team_id: str):
             "name": name,
             "key": key,
             "up_good": up_good,
-            "league_avg": league_agg[key]["avg"],
-            "league_stddev": league_agg[key]["stddev"],
+            "league_avg": league_agg[key]["mean"] if key in league_agg else None,
+            "league_stddev": league_agg[key]["std"] if key in league_agg else None,
             "format": formatter,
             "hover": hover,
         })
@@ -456,8 +485,8 @@ async def stats(request: Request, team_id: str):
             "name": name,
             "key": key,
             "up_good": up_good,
-            "league_avg": league_agg[key]["avg"],
-            "league_stddev": league_agg[key]["stddev"],
+            "league_avg": league_agg[key]["mean"] if key in league_agg else None,
+            "league_stddev": league_agg[key]["std"] if key in league_agg else None,
             "format": formatter,
             "hover": hover,
         })
@@ -467,8 +496,8 @@ async def stats(request: Request, team_id: str):
             "name": name,
             "key": key,
             "up_good": up_good,
-            "league_avg": league_agg[key]["avg"],
-            "league_stddev": league_agg[key]["stddev"],
+            "league_avg": league_agg[key]["mean"] if key in league_agg else None,
+            "league_stddev": league_agg[key]["std"] if key in league_agg else None,
             "format": formatter,
             "hover": hover,
         })
@@ -505,8 +534,9 @@ async def stats(request: Request, team_id: str):
 
     return templates.TemplateResponse(
         request=request, name="stats.html", context={"players": players, "batters": batters, "pitchers": pitchers,
-                                                     "team": team, "league": league_agg, "stat_defs_b": defs_b2,
-                                                     "stat_defs_p": defs_p2, "stat_defs_f": defs_f2,
+                                                     "team": team, "league": league,
+                                                     "league_agg": league_agg, "subleague_agg": subleague_agg,
+                                                     "stat_defs_b": defs_b2, "stat_defs_p": defs_p2, "stat_defs_f": defs_f2,
                                                      "color_stat": color_stat}
     )
 

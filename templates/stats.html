@@ -33,6 +33,10 @@
     th[title] {
         text-decoration: underline dotted;
     }
+
+    .table tfoot tr:not(:first-child) th {
+        border-width: inherit;
+    }
   </style>
   <body>
     <div class="container mx-auto flex flex-col gap-2 mt-8">
@@ -78,6 +82,35 @@
                 </tr>
                 {% endfor %}
             </tbody>
+            <tfoot>
+                {% for pct_name, pct_key in [("average", "mean")] %}
+                <tr>
+                    <th></th>
+                    <th></th>
+                    <th>({{ league['Name'] }} {{ pct_name }})</th>
+                    {% for d in stat_defs_b %}
+                    {% if d['key'] in league_agg %}
+                    <th class="font-mono">{{ d['format'](subleague_agg[d['key']][pct_key]) }}</th>
+                    {% else %}
+                    <th></th>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+
+                <tr>
+                    <th></th>
+                    <th></th>
+                    <th>(LL {{ pct_name }})</th>
+                    {% for d in stat_defs_b %}
+                    {% if d['key'] in league_agg %}
+                    <th class="font-mono">{{ d['format'](league_agg[d['key']][pct_key]) }}</th>
+                    {% else %}
+                    <th></th>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tfoot>
         </table>
 
         <table class="table is-narrow is-striped" id="stats_pitchers">
@@ -115,6 +148,33 @@
                 </tr>
                 {% endfor %}
             </tbody>
+            <tfoot>
+                {% for pct_name, pct_key in [("average", "mean")] %}
+                <tr>
+                    <th></th>
+                    <th>({{ league['Name'] }} {{ pct_name }})</th>
+                    {% for d in stat_defs_p %}
+                    {% if d['key'] in league_agg %}
+                    <th class="font-mono">{{ d['format'](subleague_agg[d['key']][pct_key]) }}</th>
+                    {% else %}
+                    <th></th>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+                
+                <tr>
+                    <th></th>
+                    <th>(LL {{ pct_name }})</th>
+                    {% for d in stat_defs_p %}
+                    {% if d['key'] in league_agg %}
+                    <th class="font-mono">{{ d['format'](league_agg[d['key']][pct_key]) }}</th>
+                    {% else %}
+                    <th></th>
+                    {% endif %}
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tfoot>
         </table>
 
 
