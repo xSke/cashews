@@ -69,6 +69,7 @@ def main():
         run_every_thread("fetch_games", 3*60, lambda: fetch_games.fetch_games(False)),
         run_every_thread("fetch_league", 1*60, fetch_league.fetch_league),
         run_every_thread("fetch_players", 90*60, fetch_league.fetch_players),
+        run_every_thread("fetch_election", 5*60, fetch_league.fetch_election),
         run_every_thread("fetch_new_games", 3*60, lambda: fetch_games.fetch_games(True)),
         run_every_thread("refetch_unfinished", 3*60, fetch_games.refetch_unfinished_known_games),
         run_every_thread("refetch_players", 30*60, fetch_league.refresh_known_players),

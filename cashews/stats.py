@@ -1,6 +1,6 @@
 from cashews import utils
 import sqlite3, math
-
+import pandas as pd
 
 HITS_EXPR = "singles + doubles + triples + home_runs"
 BA_EXPR = f"CAST(({HITS_EXPR}) AS REAL) / CAST(at_bats AS REAL)"
@@ -24,6 +24,7 @@ SELECT
     (9 * walks) / {IP_EXPR} AS bb9,
     (9 * strikeouts) / {IP_EXPR} AS k9,
     (9 * hits_allowed) / {IP_EXPR} AS h9,
+    (stolen_bases + caught_stealing) AS sb_attempts,
 
     (CAST(stolen_bases AS REAL) / (stolen_bases + caught_stealing)) AS sb_success,
     
@@ -91,3 +92,32 @@ def league_agg_stats(_ttl):
             "samples": len(values)
         }
     return stats
+
+import functools
+@functools.lru_cache(maxsize=3)
+def league_agg_stats_2(_ttl):
+    with utils.db() as con:
+        stats = pd.read_sql_query(STATS_Q, con).set_index(["team_id", "player_id"])
+
+    all_teams = utils.get_all_as_dict("team")
+    stats["league_id"] = stats.index.to_series().apply(lambda idx: all_teams.get(idx[0])["League"])
+    
+    batting_stats = "ba obp slg ops".split()
+    pitching_stats = "era whip hr9 bb9 k9 h9".split()
+    steal_stats = "sb_success"
+
+    batters = stats[stats["plate_appearances"] > 20]
+    pitchers = stats[stats["ip"] > 20]
+    stealers = stats[stats["sb_attempts"] > 5]
+
+    relevant_stats = pd.concat([
+        batters[batting_stats],
+        pitchers[pitching_stats],
+        stealers[steal_stats],
+    ])
+    relevant_stats["league_id"] = stats["league_id"]
+    return relevant_stats
+
+
+if __name__ == "__main__":
+    league_agg_stats_2()

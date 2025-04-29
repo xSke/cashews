@@ -40,7 +40,7 @@
         async function main() {
             const leagues = await fetch("/api/leagues").then(r => r.json());
             const allteams = await fetch("/api/allteams").then(r => r.json());
-            const allplayers = await fetch("/api/allplayers/csv?fields=_id,FirstName,LastName,TeamID,Likes,Dislikes,Bats,Throws,Number,Position,PositionType,Augments,Bats,Home").then(r => r.text());
+            const allplayers = await fetch("/api/allplayers/csv?fields=_id,FirstName,LastName,TeamID,Likes,Dislikes,Bats,Throws,Number,Position,PositionType,Augments,Allergy,Home").then(r => r.text());
             const data = Papa.parse(allplayers.trim(), {
                 header: true
             });
@@ -166,6 +166,10 @@
                         title: "Throws",
                         data: "Throws"
                     },
+                    // {
+                    //     title: "Allergy",
+                    //     data: "Allergy"
+                    // },
                     {
                         title: "ID",
                         data: "_id",

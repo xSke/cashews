@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from cashews import utils
 import datetime, json
 import pandas as pd
+import numpy as np
+
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
@@ -56,6 +58,26 @@ def to_delta(timestamp):
 async def api_leagues():
     leagues = utils.get_all_as_dict("league")
     return leagues
+
+@app.get("/api/aggstats")
+async def api_aggstats():
+    from cashews import stats
+    import time
+    ttl = int(time.time() // 60)
+    df = stats.league_agg_stats_2(ttl)
+
+    percentiles = [.1, .2, .25, .3, .4, .5, .6, .7, .75, .8, .9]
+    
+    agg_all = df.describe(percentiles)
+    agg_league = df.groupby(df["league_id"]).describe(percentiles)
+
+    out_dict = {
+        "leagues": {}
+    }
+    for league_id in agg_league.index:
+        out_dict["leagues"][league_id] = agg_league.loc[league_id].unstack(0).to_dict()
+    out_dict["total"] = agg_all.to_dict()
+    return out_dict
 
 @app.get("/api/allteams")
 async def api_teams(league: str | None = None):
@@ -310,15 +332,25 @@ async def teams(request: Request):
         request=request, name="teams.html", context={"leagues": leagues, "teams": all_teams}
     )
 
+@functools.lru_cache(maxsize=3)
+def _player_stats(_ttl):
+    with utils.db() as con:
+        from cashews import stats
+        return pd.read_sql_query(stats.STATS_Q, con).set_index("player_id")
+
 @app.get("/team/{team_id}/stats", response_class=HTMLResponse)
 async def stats(request: Request, team_id: str):
     team = utils.get_object("team", team_id)
     if not team:
         raise HTTPException(status_code=404, detail="team not found")
+    league = utils.get_object("league", team["League"])
+
+    # slots stored on the *team player* object, not the player itself
+    player_slots = {p["PlayerID"]: p["Slot"] for p in team["Players"]}
 
     player_ids = utils.team_player_ids(team)
-    
 
+    batting_order = utils.get_team_batting_order(team_id)
     # all_players = utils.get_all_as_dict("player")
     # all_teams = utils.get_all_as_dict("team")
 
@@ -326,10 +358,12 @@ async def stats(request: Request, team_id: str):
     import time
     from cashews import stats
     ttl = int(time.time() // 60)
-    league_agg = stats.league_agg_stats(ttl)
 
-    with utils.db() as con:
-        stats_by_player = pd.read_sql_query(stats.STATS_Q, con).set_index("player_id")
+    agg_stats =  stats.league_agg_stats_2(ttl)
+    league_agg = agg_stats.describe(percentiles=[.25, .50, .75]).to_dict()
+    subleague_agg = agg_stats[agg_stats["league_id"] == team["League"]].describe(percentiles=[.25, .50, .75]).to_dict()
+ 
+    stats_by_player = _player_stats(ttl)
 
     players_list = []
     for i, player_id in enumerate(player_ids):
@@ -337,11 +371,14 @@ async def stats(request: Request, team_id: str):
         if not player:
             continue
         try:
+            batting_position = (batting_order.index(player_id) + 1) if player_id in batting_order else 0
             player_ser = pd.concat([
                 pd.Series({
                     "player_id": player_id,
                     "position": player["Position"], 
+                    "slot": player_slots.get(player_id, player["Position"]), # slot field added later 
                     "position_type": player["PositionType"],
+                    "batting_order": batting_position,
                     "idx": i,
                     "name": utils.player_name(player),
                     "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
@@ -350,7 +387,8 @@ async def stats(request: Request, team_id: str):
                 stats_by_player.loc[player_id]])
             players_list.append(player_ser)
         except KeyError as e:
-            utils.LOG().error(f"{utils.player_name(player)} has no stats", exc_info=e)
+            pass
+            # utils.LOG().error(f"{utils.player_name(player)} has no stats")
 
     players = pd.DataFrame(players_list)
     if not len(players):
@@ -383,23 +421,23 @@ async def stats(request: Request, team_id: str):
         return ip_str
 
     defs_b = [
-        ("PA", "plate_appearances", None, format_int, "Plate appearances"),
-        ("AB", "at_bats", None, format_int, "At bats"),
-        ("R", "runs", None, format_int, "Runs"),
+        ("PA", "plate_appearances", None, format_int, "Plate Appearances"),
+        ("AB", "at_bats", None, format_int, "At Bats"),
+        ("R", "runs", None, format_int, "Runs Scored"),
         ("1B", "singles", None, format_int, "Singles"),
         ("2B", "doubles", None, format_int, "Doubles"),
         ("3B", "triples", None, format_int, "Triples"),
-        ("HR", "home_runs", None, format_int, "Home runs"),
-        ("RBI", "runs_batted_in", None, format_int, "Runs batted in"),
-        ("BB", "walked", None, format_int, "Walks"),
+        ("HR", "home_runs", None, format_int, "Home Runs"),
+        ("RBI", "runs_batted_in", None, format_int, "Runs Batted In"),
+        ("BB", "walked", None, format_int, "Bases on Balls (Walks)"),
         ("SO", "struck_out", None, format_int, "Strikeouts"),
-        ("BA", "ba", True, format_float3, "Batting average"),
-        ("OBP", "obp", True, format_float3, "On-base percentage"),
-        ("SLG", "slg", True, format_float3, "Slugging percentage"),
-        ("OPS", "ops", True, format_float3, "On-base plus slugging"),
-        ("SB", "stolen_bases", None, format_int, "Stolen bases"),
-        ("CS", "caught_stealing", None, format_int, "Caught stealing"),
-        ("SB%", "sb_success", True, format_float3, "Stolen base %"),
+        ("BA", "ba", True, format_float3, "Batting Average"),
+        ("OBP", "obp", True, format_float3, "On-base Percentage"),
+        ("SLG", "slg", True, format_float3, "Slugging Percentage"),
+        ("OPS", "ops", True, format_float3, "On-base Plus Slugging"),
+        ("SB", "stolen_bases", None, format_int, "Stolen Bases (Attempts)"),
+        ("CS", "caught_stealing", None, format_int, "Caught Stealing"),
+        ("SB%", "sb_success", True, format_float3, "Stolen Bases (Successes)"),
     ]
     defs_p = [
         ("IP", "ip", None, format_ip, "Innings pitched"),
@@ -421,13 +459,13 @@ async def stats(request: Request, team_id: str):
     ]
 
     defs_f = [
-        ("Putouts", "putouts", None, format_ip, "Putouts"),
-        ("Assists", "assists", None, format_int, "Assists"),
-        ("Errors", "errors", None, format_int, "Errors"),
-        ("DP", "double_plays", None, format_int, "Double plays"),
-        ("FPCT", "fpct", None, format_float3, "Fielding percentage"),
-        ("SB", "allowed_stolen_bases", None, format_int, "Stolen bases allowed"),
-        ("CS", "runners_caught_stealing", None, format_int, "Runners caught stealing"),
+        ("Putouts", "putouts", None, format_ip, ""),
+        ("Assists", "assists", None, format_int, ""),
+        ("Errors", "errors", None, format_int, ""),
+        ("DP", "double_plays", None, format_int, "Double Plays"),
+        ("FPCT", "fpct", None, format_float3, "Fielding Percentage"),
+        ("SB", "allowed_stolen_bases", None, format_int, "Allowed Stolen Bases"),
+        ("CS", "runners_caught_stealing", None, format_int, "Runners Caught Stealing"),
     ]
 
     defs_b2 = []
@@ -436,8 +474,8 @@ async def stats(request: Request, team_id: str):
             "name": name,
             "key": key,
             "up_good": up_good,
-            "league_avg": league_agg[key]["avg"],
-            "league_stddev": league_agg[key]["stddev"],
+            "league_avg": league_agg[key]["mean"] if key in league_agg else None,
+            "league_stddev": league_agg[key]["std"] if key in league_agg else None,
             "format": formatter,
             "hover": hover,
         })
@@ -447,8 +485,8 @@ async def stats(request: Request, team_id: str):
             "name": name,
             "key": key,
             "up_good": up_good,
-            "league_avg": league_agg[key]["avg"],
-            "league_stddev": league_agg[key]["stddev"],
+            "league_avg": league_agg[key]["mean"] if key in league_agg else None,
+            "league_stddev": league_agg[key]["std"] if key in league_agg else None,
             "format": formatter,
             "hover": hover,
         })
@@ -458,8 +496,8 @@ async def stats(request: Request, team_id: str):
             "name": name,
             "key": key,
             "up_good": up_good,
-            "league_avg": league_agg[key]["avg"],
-            "league_stddev": league_agg[key]["stddev"],
+            "league_avg": league_agg[key]["mean"] if key in league_agg else None,
+            "league_stddev": league_agg[key]["std"] if key in league_agg else None,
             "format": formatter,
             "hover": hover,
         })
@@ -494,11 +532,11 @@ async def stats(request: Request, team_id: str):
         # 1.5 or above
         return "text-green-800"
 
-    print("render start")
     return templates.TemplateResponse(
         request=request, name="stats.html", context={"players": players, "batters": batters, "pitchers": pitchers,
-                                                     "team": team, "league": league_agg, "stat_defs_b": defs_b2,
-                                                     "stat_defs_p": defs_p2, "stat_defs_f": defs_f2,
+                                                     "team": team, "league": league,
+                                                     "league_agg": league_agg, "subleague_agg": subleague_agg,
+                                                     "stat_defs_b": defs_b2, "stat_defs_p": defs_p2, "stat_defs_f": defs_f2,
                                                      "color_stat": color_stat}
     )
 

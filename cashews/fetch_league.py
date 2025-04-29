@@ -15,12 +15,24 @@ def fetch_league():
     utils.fetch_and_save("news", "news", utils.API + "/news")
     utils.fetch_and_save("spotlight", "spotlight", utils.API + "/spotlight")
 
-    # will also fetch and cache: state, leagues, teams
-    for _ in utils.fetch_all_teams():
-        pass
+    # # will also fetch and cache: state, leagues, teams
+    seen_teams = set()
+    for team in utils.fetch_all_teams():
+        seen_teams.add(team["_id"])
 
     # also do this now
     fetch_new_players()
+    
+    # lastly do a quick spot check for any teams we know about but aren't "in the leagues"
+    for team_id in utils.get_all_ids("team"):
+        if team_id not in seen_teams:
+            team = utils.fetch_and_save("team", team_id, utils.API + "/team/" + team_id, cache_interval=utils.TEAM_CACHE_INTERVAL, allow_not_found=True)
+            LOG().info("known team %s missing from leagues, fetching anyway (found? %d)", team_id, int(team is not None))
+            
+def fetch_election():
+    # run this separately because it might 500
+    election = utils.fetch_and_save("election", "election", utils.API + "/election")
+    # TODO: fetch images, but that requires binary blob support
 
 def fetch_new_players():
     all_teams = utils.get_all_as_dict("team")
