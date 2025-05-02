@@ -419,10 +419,22 @@ async def stats(request: Request, team_id: str):
     players = pd.DataFrame(players_list)
     if not len(players):
         raise HTTPException(status_code=404, detail="no players")
-    # print(players)
-    batters = players.query("plate_appearances > 0").copy()
-    # batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
-    pitchers = players.query("batters_faced > 0").copy()
+
+    ttl = int(time.time() // 60)
+    agg_stats_3 = stats.league_agg_stats_3(ttl)
+    fip_const = float(agg_stats_3["fip_const"].iloc[0])
+    era_avg = float(agg_stats_3["era_avg"].iloc[0])
+    obp_avg = float(agg_stats_3["obp_avg"].iloc[0])
+    slg_avg = float(agg_stats_3["slg_avg"].iloc[0])
+
+    batters = players.query("plate_appearances > 0").copy().assign(
+        ops_plus=lambda x: 100 * (x.obp/obp_avg + x.slg/slg_avg - 1)
+    )
+    batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
+    pitchers = players.query("batters_faced > 0").copy().assign(
+        fip=lambda x: (13*x.home_runs_allowed + 3*(x.walks + x.hit_batters) - 2*x.strikeouts)/x.ip + fip_const,
+        era_minus=lambda x: 100 * x.era/era_avg
+    )
     pitchers["total_runs"] = pitchers["earned_runs"] + pitchers["unearned_runs"]
 
     team_batting = batters.sum(numeric_only=True)
@@ -436,6 +448,7 @@ async def stats(request: Request, team_id: str):
     team_batting["ops"] = team_batting["obp"] + team_batting["slg"]
     team_batting["sb_success"] = team_batting["stolen_bases"] / (team_batting["stolen_bases"]
                                                                  + team_batting["caught_stealing"])
+    team_batting["ops_plus"] = 100 * (team_batting.obp/obp_avg + team_batting.slg/slg_avg - 1)
 
     team_pitching = pitchers.sum(numeric_only=True)
     team_pitching["appearances"] = team_pitching["starts"]  # total games doesn't make sense to simply add
@@ -445,6 +458,8 @@ async def stats(request: Request, team_id: str):
     team_pitching["bb9"] = 9 * team_pitching["walks"] / team_pitching["ip"]
     team_pitching["k9"] = 9 * team_pitching["strikeouts"] / team_pitching["ip"]
     team_pitching["h9"] = 9 * team_pitching["hits_allowed"] / team_pitching["ip"]
+    team_pitching["fip"] = (13*team_pitching.home_runs_allowed + 3*(team_pitching.walks + team_pitching.hit_batters) - 2*team_pitching.strikeouts)/team_pitching.ip + fip_const
+    team_pitching["era_minus"] = 100 * team_pitching.era/era_avg
 
     def format_int(number):
         return str(int(number))
@@ -484,6 +499,7 @@ async def stats(request: Request, team_id: str):
         ("OBP", "obp", True, format_float3, "On-base Percentage"),
         ("SLG", "slg", True, format_float3, "Slugging Percentage"),
         ("OPS", "ops", True, format_float3, "On Base Plus Slugging"),
+        ("OPS+", "ops_plus", None, format_int, "OPS+"),
         ("SB", "stolen_bases", None, format_int, "Stolen Bases (Attempts)"),
         ("CS", "caught_stealing", None, format_int, "Caught Stealing"),
         ("SB%", "sb_success", True, format_float3, "Stolen Bases (Successes)"),
@@ -499,14 +515,18 @@ async def stats(request: Request, team_id: str):
         ("NH", "no_hitters", None, format_int, "No-hitters"),
         ("QS", "quality_starts", None, format_int, "Quality Starts"),
         ("SV", "saves", None, format_int, "Saves"),
-        ("BS", "blown_saves", None, format_int, "Blown saves"),
+        ("BS", "blown_saves", None, format_int, "Blown Saves"),
         ("R", "total_runs", None, format_int, "Runs"),
-        ("ER", "earned_runs", None, format_int, "Earned runs"),
+        ("ER", "earned_runs", None, format_int, "Earned Runs"),
+        ("IR", "inherited_runners", None, format_int, "Inherited Runners"),
+        ("IRA", "inherited_runs_allowed", None, format_int, "Inherited Runs Allowed"),
         ("HR", "home_runs_allowed", None, format_int, "Home Runs Allowed"),
         ("BB", "walks", None, format_int, "Walks"),
         ("SO", "strikeouts", None, format_int, "Strikeouts"),
         ("HB", "hit_batters", None, format_int, "Hit Batters"),
         ("ERA", "era", False, format_float2, "Earned Run Average"),
+        ("FIP", "fip", None, format_float2, "Fielding-Independent Pitching"),
+        ("ERA-", "era_minus", None, format_int, "ERA-"),
         ("WHIP", "whip", False, format_float2, "Walks + Hits per Inning Pitched"),
         ("HR/9", "hr9", False, format_float2, "Home Runs per 9 Innings"),
         ("BB/9", "bb9", False, format_float2, "Walks per 9 Innings"),
