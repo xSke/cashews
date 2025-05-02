@@ -67,15 +67,34 @@ async def api_aggstats():
     df = stats.league_agg_stats_2(ttl)
 
     percentiles = [.1, .2, .25, .3, .4, .5, .6, .7, .75, .8, .9]
-    
-    agg_all = df.describe(percentiles)
-    agg_league = df.groupby(df["league_id"]).describe(percentiles)
+
+    def flip_turnways(df):
+        idx = ['count', 'mean', 'std',
+               'min', '10%', '20%', '25%', '30%', '40%', '50%', '60%', '70%', '75%', '80%', '90%', 'max']
+        idx_flip = ['count', 'mean', 'std', *np.flip(idx[3:])]
+        pos_list = ["ba", "obp", "slg", "ops", "k9", "sb_success"]
+        neg_list = ["era", "whip", "hr9", "bb9", "h9"]
+        for col in df.columns:
+            col_contents = df.loc[:, col]
+            if ((col in pos_list) and (col_contents['min'] > col_contents['max']) or
+                    (col in neg_list) and (col_contents['min'] < col_contents['max'])):
+                df.loc[idx, col] = np.asarray(col_contents[idx_flip])
+        return df
+
+    agg_all = flip_turnways(df.describe(percentiles))
+    agg_grouped = df.groupby(df["league_id"])
+    agg_league = {}
+    for name, group in agg_grouped:
+        agg_league[name] = flip_turnways(group.describe(percentiles))
+
+    # print(agg_league.loc["6805db0cac48194de3cd3fe4", ["ba", "era"]])
 
     out_dict = {
         "leagues": {}
     }
-    for league_id in agg_league.index:
-        out_dict["leagues"][league_id] = agg_league.loc[league_id].unstack(0).to_dict()
+    for league_id in agg_league:
+        # i hate this, do we have to do this? surely there's a better way... ---glum
+        out_dict["leagues"][league_id] = agg_league[league_id].unstack().unstack().T.to_dict()
     out_dict["total"] = agg_all.to_dict()
     return out_dict
 
@@ -348,7 +367,7 @@ async def stats(request: Request, team_id: str):
     # slots stored on the *team player* object, not the player itself
     player_slots = {p["PlayerID"]: p["Slot"] for p in team["Players"]}
 
-    player_ids = utils.team_player_ids(team)
+    # player_ids = utils.team_player_ids(team)
 
     batting_order = utils.get_team_batting_order(team_id)
     # all_players = utils.get_all_as_dict("player")
@@ -359,12 +378,14 @@ async def stats(request: Request, team_id: str):
     from cashews import stats
     ttl = int(time.time() // 60)
 
-    agg_stats =  stats.league_agg_stats_2(ttl)
+    agg_stats = stats.league_agg_stats_2(ttl)
     league_agg = agg_stats.describe(percentiles=[.25, .50, .75]).to_dict()
     subleague_agg = agg_stats[agg_stats["league_id"] == team["League"]].describe(percentiles=[.25, .50, .75]).to_dict()
  
     stats_by_player = _player_stats(ttl)
+    player_ids = stats_by_player[stats_by_player["team_id"] == team_id].index
 
+    slot_order_pitchers = ["SP1", "SP2", "SP3", "SP4", "SP5", "RP1", "RP2", "RP3", "CL"]
     players_list = []
     for i, player_id in enumerate(player_ids):
         player = utils.get_object("player", player_id)
@@ -372,17 +393,22 @@ async def stats(request: Request, team_id: str):
             continue
         try:
             batting_position = (batting_order.index(player_id) + 1) if player_id in batting_order else 0
+            is_current_pitcher = player_slots.get(player_id, player["Position"]) in slot_order_pitchers
+            if is_current_pitcher:
+                pitching_order = slot_order_pitchers.index(player_slots.get(player_id, player["Position"]))
+            else:
+                pitching_order = 99
             player_ser = pd.concat([
                 pd.Series({
                     "player_id": player_id,
                     "position": player["Position"], 
-                    "slot": player_slots.get(player_id, player["Position"]), # slot field added later 
+                    "slot": player_slots.get(player_id, player["Position"]),  # slot field added later
                     "position_type": player["PositionType"],
                     "batting_order": batting_position,
-                    "idx": i,
+                    "idx": pitching_order if is_current_pitcher else i,
                     "name": utils.player_name(player),
-                    "team_name": utils.team_name(team) if team else "Null Team",  # null team probably won't happen
-                    "team_emoji": team["Emoji"] if team else "❓",  # since we're only grabbing players on a given team
+                    "team_name": utils.team_name(team) if team else "Null Team",
+                    "team_emoji": team["Emoji"] if team else "❓",
                 }),
                 stats_by_player.loc[player_id]])
             players_list.append(player_ser)
@@ -394,20 +420,42 @@ async def stats(request: Request, team_id: str):
     if not len(players):
         raise HTTPException(status_code=404, detail="no players")
     # print(players)
-    batters = players.query("plate_appearances > 0")
+    batters = players.query("plate_appearances > 0").copy()
     # batters["hits"] = batters["singles"] + batters["doubles"] + batters["triples"] + batters["home_runs"]
-    pitchers = players.query("batters_faced > 0")
+    pitchers = players.query("batters_faced > 0").copy()
+    pitchers["total_runs"] = pitchers["earned_runs"] + pitchers["unearned_runs"]
+
+    team_batting = batters.sum(numeric_only=True)
+    team_batting["ba"] = (team_batting["singles"] + team_batting["doubles"] + team_batting["triples"]
+                          + team_batting["home_runs"]) / team_batting["at_bats"]
+    team_batting["obp"] = (team_batting["singles"] + team_batting["doubles"] + team_batting["triples"]
+                           + team_batting["home_runs"] + team_batting["walked"] + team_batting["hit_by_pitch"]
+                           ) / team_batting["plate_appearances"]
+    team_batting["slg"] = (team_batting["singles"] + 2 * team_batting["doubles"] + 3 * team_batting["triples"]
+                           + 4 * team_batting["home_runs"]) / team_batting["at_bats"]
+    team_batting["ops"] = team_batting["obp"] + team_batting["slg"]
+    team_batting["sb_success"] = team_batting["stolen_bases"] / (team_batting["stolen_bases"]
+                                                                 + team_batting["caught_stealing"])
+
+    team_pitching = pitchers.sum(numeric_only=True)
+    team_pitching["appearances"] = team_pitching["starts"]  # total games doesn't make sense to simply add
+    team_pitching["era"] = 9 * team_pitching["earned_runs"] / team_pitching["ip"]
+    team_pitching["whip"] = (team_pitching["walks"] + team_pitching["hits_allowed"]) / team_pitching["ip"]
+    team_pitching["hr9"] = 9 * team_pitching["home_runs_allowed"] / team_pitching["ip"]
+    team_pitching["bb9"] = 9 * team_pitching["walks"] / team_pitching["ip"]
+    team_pitching["k9"] = 9 * team_pitching["strikeouts"] / team_pitching["ip"]
+    team_pitching["h9"] = 9 * team_pitching["hits_allowed"] / team_pitching["ip"]
 
     def format_int(number):
-        return str(number)
+        return str(int(number))
     
     def format_float3(number):
-        if type(number) == int or type(number) == float:
+        if type(number) == int or type(number) == float or type(number) == np.float64:
             return f"{number:.03f}"
         return ""
     
     def format_float2(number):
-        if type(number) == int or type(number) == float:
+        if type(number) == int or type(number) == float or type(number) == np.float64:
             return f"{number:.02f}"
         return ""
     
@@ -431,41 +479,49 @@ async def stats(request: Request, team_id: str):
         ("RBI", "runs_batted_in", None, format_int, "Runs Batted In"),
         ("BB", "walked", None, format_int, "Bases on Balls (Walks)"),
         ("SO", "struck_out", None, format_int, "Strikeouts"),
+        ("HBP", "hit_by_pitch", None, format_int, "Hit By Pitch"),
         ("BA", "ba", True, format_float3, "Batting Average"),
         ("OBP", "obp", True, format_float3, "On-base Percentage"),
         ("SLG", "slg", True, format_float3, "Slugging Percentage"),
-        ("OPS", "ops", True, format_float3, "On-base Plus Slugging"),
+        ("OPS", "ops", True, format_float3, "On Base Plus Slugging"),
         ("SB", "stolen_bases", None, format_int, "Stolen Bases (Attempts)"),
         ("CS", "caught_stealing", None, format_int, "Caught Stealing"),
         ("SB%", "sb_success", True, format_float3, "Stolen Bases (Successes)"),
     ]
-    defs_p = [
+    defs_p = [  # I now have put too much in this table for our current format, whoops
         ("IP", "ip", None, format_ip, "Innings pitched"),
         ("G", "appearances", None, format_int, "Games"),
         ("GS", "starts", None, format_int, "Games started"),
         ("W", "wins", None, format_int, "Wins"),
         ("L", "losses", None, format_int, "Losses"),
-        ("CG", "complete_games", None, format_int, "Complete games"),
+        ("CG", "complete_games", None, format_int, "Complete Games"),
         ("SHO", "shutouts", None, format_int, "Shutouts"),
         ("NH", "no_hitters", None, format_int, "No-hitters"),
+        ("QS", "quality_starts", None, format_int, "Quality Starts"),
         ("SV", "saves", None, format_int, "Saves"),
         ("BS", "blown_saves", None, format_int, "Blown saves"),
-        ("ERA", "era", False, format_float2, "Earned run average"),
-        ("WHIP", "whip", False, format_float2, "Walks + hits per innings pitched"),
-        ("HR/9", "hr9", False, format_float2, "Home runs per 9 innings"),
-        ("BB/9", "bb9", False, format_float2, "Walks per 9 innings"),
-        ("K/9", "k9", True, format_float2, "Strikeouts per 9 innings"),
-        ("H/9", "h9", False, format_float2, "Hits per 9 innings"),
+        ("R", "total_runs", None, format_int, "Runs"),
+        ("ER", "earned_runs", None, format_int, "Earned runs"),
+        ("HR", "home_runs_allowed", None, format_int, "Home Runs Allowed"),
+        ("BB", "walks", None, format_int, "Walks"),
+        ("SO", "strikeouts", None, format_int, "Strikeouts"),
+        ("HB", "hit_batters", None, format_int, "Hit Batters"),
+        ("ERA", "era", False, format_float2, "Earned Run Average"),
+        ("WHIP", "whip", False, format_float2, "Walks + Hits per Inning Pitched"),
+        ("HR/9", "hr9", False, format_float2, "Home Runs per 9 Innings"),
+        ("BB/9", "bb9", False, format_float2, "Walks per 9 Innings"),
+        ("K/9", "k9", True, format_float2, "Strikeouts per 9 Innings"),
+        ("H/9", "h9", False, format_float2, "Hits per 9 Innings"),
     ]
 
     defs_f = [
-        ("Putouts", "putouts", None, format_ip, ""),
-        ("Assists", "assists", None, format_int, ""),
-        ("Errors", "errors", None, format_int, ""),
+        ("Putouts", "putouts", None, format_int, "Putouts"),
+        ("Assists", "assists", None, format_int, "Assists"),
+        ("Errors", "errors", None, format_int, "Errors"),
         ("DP", "double_plays", None, format_int, "Double Plays"),
         ("FPCT", "fpct", None, format_float3, "Fielding Percentage"),
-        ("SB", "allowed_stolen_bases", None, format_int, "Allowed Stolen Bases"),
-        ("CS", "runners_caught_stealing", None, format_int, "Runners Caught Stealing"),
+        ("SB", "allowed_stolen_bases", None, format_int, "Allowed stolen bases"),
+        ("CS", "runners_caught_stealing", None, format_int, "Runners caught stealing"),
     ]
 
     defs_b2 = []
@@ -536,8 +592,9 @@ async def stats(request: Request, team_id: str):
         request=request, name="stats.html", context={"players": players, "batters": batters, "pitchers": pitchers,
                                                      "team": team, "league": league,
                                                      "league_agg": league_agg, "subleague_agg": subleague_agg,
-                                                     "stat_defs_b": defs_b2, "stat_defs_p": defs_p2, "stat_defs_f": defs_f2,
-                                                     "color_stat": color_stat}
+                                                     "stat_defs_b": defs_b2, "stat_defs_p": defs_p2,
+                                                     "stat_defs_f": defs_f2, "color_stat": color_stat,
+                                                     "team_batting": team_batting, "team_pitching": team_pitching}
     )
 
 @app.get("/players", response_class=HTMLResponse)

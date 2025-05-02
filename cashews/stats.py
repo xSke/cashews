@@ -6,6 +6,7 @@ HITS_EXPR = "singles + doubles + triples + home_runs"
 BA_EXPR = f"CAST(({HITS_EXPR}) AS REAL) / CAST(at_bats AS REAL)"
 OBP_EXPR = f"CAST(({HITS_EXPR} + walked + hit_by_pitch) AS REAL) / CAST(plate_appearances AS REAL)"
 SLG_EXPR = "CAST((singles + 2 * doubles + 3 * triples + 4 * home_runs) AS REAL) / CAST(at_bats AS REAL)"
+BABIP_EXPR = "CAST((singles + doubles + triples) AS REAL) / CAST((at_bats - struck_out + sac_flies) AS REAL)"
 IP_EXPR = f"(CAST(outs AS REAL) / 3)"
 FPCT_EXPR = f"CAST((putouts + assists) AS REAL) / CAST((putouts + assists + errors) AS REAL)"
 
@@ -17,6 +18,7 @@ SELECT
     {OBP_EXPR} AS obp,
     {SLG_EXPR} AS slg,
     ({OBP_EXPR} + {SLG_EXPR}) AS ops,
+    {BABIP_EXPR} AS babip,
 
     (9 * earned_runs) / {IP_EXPR} AS era,
     (walks + hits_allowed) / {IP_EXPR} AS whip,
@@ -24,8 +26,8 @@ SELECT
     (9 * walks) / {IP_EXPR} AS bb9,
     (9 * strikeouts) / {IP_EXPR} AS k9,
     (9 * hits_allowed) / {IP_EXPR} AS h9,
+    
     (stolen_bases + caught_stealing) AS sb_attempts,
-
     (CAST(stolen_bases AS REAL) / (stolen_bases + caught_stealing)) AS sb_success,
     
     {FPCT_EXPR} AS fpct
@@ -113,11 +115,14 @@ def league_agg_stats_2(_ttl):
     relevant_stats = pd.concat([
         batters[batting_stats],
         pitchers[pitching_stats],
-        stealers[steal_stats],
+        pd.DataFrame(stealers[steal_stats]),
     ])
     relevant_stats["league_id"] = stats["league_id"]
+
     return relevant_stats
 
 
 if __name__ == "__main__":
-    league_agg_stats_2()
+    import time
+    ttl = int(time.time() // 60)
+    league_agg_stats_2(ttl)
