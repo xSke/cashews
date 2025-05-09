@@ -39,6 +39,7 @@ def fetch_games(new_only=False):
 def refetch_unfinished_known_games():
     for game_id, data, _ in utils.get_all("game"):
         if data["State"] != "Complete":
+            print(game_id)
             _do_refetch_game(game_id)
             # new_game = utils.fetch_and_save("game", game_id, utils.API + "/game/" + game_id, cache_interval=GAME_CACHE_INTERVAL)
             # utils.update_game_data(game_id)
@@ -77,10 +78,10 @@ def backfill_game_ids():
         for m in re.finditer("\\b([0-9a-f]{24})\\b", f.read()):
             game_id = m.group(1)
 
-            if utils.get_last_update("game", game_id):
-                game = utils.get_object("game", game_id)
-                print("already have game", game_id, f"day {game['Day']}")
-                continue
+            # if utils.get_last_update("game", game_id):
+            #     game = utils.get_object("game", game_id)
+            #     print("already have game", game_id, f"day {game['Day']}")
+            #     continue
 
             new_game = utils.fetch_and_save("game", game_id, utils.API + "/game/" + game_id, allow_not_found=True)
             if not new_game:

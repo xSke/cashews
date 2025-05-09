@@ -371,7 +371,7 @@ def update_game_data(game_id):
     if not game_data:
         return
     last_update = get_last_update("game", game_id)
-    with db() as con:
+    with utils.db() as con:
         cur = con.cursor()
         
         season = game_data["Season"]
@@ -503,7 +503,7 @@ def get_team_batting_order(team_id):
     for player in team["Players"]:
         if player["PlayerID"] == "#":
             continue
-        player_and_position = f"{player["Slot"]} {player["FirstName"]} {player["LastName"]}"
+        player_and_position = f"{player['Slot']} {player['FirstName']} {player['LastName']}"
         if player_and_position in lineup_message:
             idx = lineup_message.index(player_and_position)
             lineup_indexed.append((idx, player["PlayerID"]))
