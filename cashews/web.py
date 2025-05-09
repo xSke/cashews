@@ -6,13 +6,15 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from cashews import utils
-import datetime, json
+import datetime
+import json
 import pandas as pd
+from pandas.io.formats.style import Styler
 import numpy as np
 
 app = FastAPI(docs_url=None, redoc_url=None)
 app.mount("/static", StaticFiles(directory="static"), name="static")
-templates = Jinja2Templates(directory="templates")
+templates = Jinja2Templates(autoescape=False, directory="templates")
 
 
 app.add_middleware(
@@ -622,3 +624,199 @@ async def players(request: Request):
     return templates.TemplateResponse(
         request=request, name="players.html", context={}
     )
+
+
+@app.get("/game/{game_id}", response_class=HTMLResponse)
+async def stats(request: Request, game_id: str):
+    from all_stat_columns import ALL_STAT_COLUMNS
+
+    GAME_ID = "6805db4bac48194de3cd42d9"
+
+    HITS_EXPR = "singles + doubles + triples + home_runs"
+    BA_EXPR = f"CAST(({HITS_EXPR}) AS REAL) / CAST(at_bats AS REAL)"
+    OBP_EXPR = f"CAST(({HITS_EXPR} + walked + hit_by_pitch) AS REAL) / CAST(plate_appearances AS REAL)"
+    SLG_EXPR = "CAST((singles + 2 * doubles + 3 * triples + 4 * home_runs) AS REAL) / CAST(at_bats AS REAL)"
+    IP_EXPR = "(CAST(outs AS REAL) / 3)"
+    ERA_EXPR = f"(9 * earned_runs) / {IP_EXPR}"
+
+    def format_ip(outs):
+        return ".".join([str(int(outs / 3)), str(outs % 3)])
+
+    def set_format(df, side):
+        styler = Styler(df, uuid_len=0, cell_ids=False)
+        styler.hide()
+        if side == "batting":
+            styler.format(precision=3, subset=["BA", "OPS"])
+        if side == "pitching":
+            styler.format(precision=2, subset=["ERA"])
+            styler.hide(["order_h", "order_a"], axis=1)
+        return styler
+
+    data = utils.get_object("game", GAME_ID)
+    events = data["EventLog"]
+    away_lineup = events[2]["message"].split("<br>")[:-1]
+    away_lineup_names = [x.split(maxsplit=2)[-1] for x in away_lineup]
+    home_lineup = events[3]["message"].split("<br>")[:-1]
+    home_lineup_names = [x.split(maxsplit=2)[-1] for x in home_lineup]
+    away_team = data["AwayTeamID"]
+    away_team_name = data["AwayTeamName"]
+    away_team_abbrev = data["AwayTeamAbbreviation"]
+    home_team = data["HomeTeamID"]
+    home_team_name = data["HomeTeamName"]
+    home_team_abbrev = data["HomeTeamAbbreviation"]
+    day = data["Day"]
+    stats = data["Stats"]
+    weather = data["Weather"]
+
+    box_cols_batting = ["name", "plate_appearances", "at_bats", "runs", "hits",
+                        "runs_batted_in", "walked", "struck_out", "left_on_base", "ba", "ops"]
+    box_cols_pitching = ["name", "ip", "hits_allowed", "runs", "earned_runs",
+                         "walks", "strikeouts", "home_runs_allowed", "era", "order_h", "order_a"]
+    box_cols_batting_rename = {
+        "plate_appearances": "PA",
+        "at_bats": "AB",
+        "runs": "R",
+        "hits": "H",
+        "runs_batted_in": "RBI",
+        "walked": "BB",
+        "struck_out": "K",
+        "left_on_base": "LOB",
+        "ba": "BA",
+        "ops": "OPS"
+    }
+    box_cols_pitching_rename = {
+        "ip": "IP",
+        "hits_allowed": "H",
+        "runs": "R",
+        "earned_runs": "ER",
+        "walks": "BB",
+        "strikeouts": "K",
+        "home_runs_allowed": "HR",
+        "era": "ERA"
+    }
+
+    home_pitcher_order = pd.Series(dtype="int", name="order_h")
+    away_pitcher_order = pd.Series(dtype="int", name="order_a")
+    i_h = 0
+    i_a = 0
+    for event in events:
+        if event["pitcher"]:
+            if event["inning_side"] == 0 and event["pitcher"] not in home_pitcher_order:
+                home_pitcher_order[event["pitcher"]] = i_h
+                i_h += 1
+            if event["inning_side"] == 1 and event["pitcher"] not in away_pitcher_order:
+                away_pitcher_order[event["pitcher"]] = i_a
+                i_a += 1
+
+    def get_player_name(id):
+        return utils.player_name(utils.get_object("player", id))
+
+    stat_df = pd.DataFrame(columns=["team", "name", *ALL_STAT_COLUMNS])
+    for team, teamstats in stats.items():
+        if team == away_team:
+            current_team = away_team_name
+        else:
+            current_team = home_team_name
+        current_stats = pd.DataFrame(teamstats).T
+        current_stats["team"] = current_team
+        stat_df = pd.concat([stat_df, current_stats])
+    stat_df["name"] = [get_player_name(x) for x in stat_df.index]
+
+    stats_q = f"""
+    SELECT
+        player_id,
+        {BA_EXPR} AS ba,
+        {OBP_EXPR} AS obp,
+        {SLG_EXPR} AS slg,
+        ({OBP_EXPR} + {SLG_EXPR}) AS ops,
+        {ERA_EXPR} AS era
+    FROM player_stats
+    WHERE player_id IN {tuple(stat_df.index)}
+    """
+    with utils.db() as con:
+        db_stats = pd.read_sql_query(stats_q, con).set_index("player_id")
+    stat_df = stat_df.join(db_stats)
+
+    stat_df = stat_df.join(home_pitcher_order, on="name").join(away_pitcher_order, on="name")
+
+    fillcols_batting = {
+        "singles": 0,
+        "doubles": 0,
+        "triples": 0,
+        "home_runs": 0,
+        "at_bats": 0,
+        "runs": 0,
+        "hits": 0,
+        "runs_batted_in": 0,
+        "walked": 0,
+        "struck_out": 0,
+        "left_on_base": 0,
+    }
+    fillcols_pitching = {
+        "outs": 0,
+        "hits_allowed": 0,
+        "unearned_runs": 0,
+        "earned_runs": 0,
+        "walks": 0,
+        "strikeouts": 0,
+        "home_runs_allowed": 0,
+    }
+    stat_df = stat_df.convert_dtypes()
+
+    away_batting = pd.DataFrame(columns=["team", "lineup_num", "name", "position", *ALL_STAT_COLUMNS])
+    for i, entry in enumerate(away_lineup):
+        batter_statline = stat_df[stat_df["name"].str.contains(away_lineup_names[i])].copy()
+        batter_statline["position"] = entry.split(maxsplit=2)[1]
+        batter_statline["lineup_num"] = i + 1
+        away_batting = pd.concat([away_batting, batter_statline])
+
+    away_batting = away_batting.fillna(value=fillcols_batting)
+    away_batting["hits"] = away_batting["singles"] + away_batting["doubles"] + away_batting["triples"] + away_batting[
+        "home_runs"]
+    away_batting = away_batting.dropna(axis=1, how="all")
+
+    home_batting = pd.DataFrame(columns=["team", "lineup_num", "name", "position"])
+    for i, entry in enumerate(home_lineup):
+        batter_statline = stat_df[stat_df["name"].str.contains(home_lineup_names[i])].copy()
+        batter_statline["position"] = entry.split(maxsplit=2)[1]
+        batter_statline["lineup_num"] = i + 1
+        home_batting = pd.concat([home_batting, batter_statline])
+
+    home_batting = home_batting.fillna(value=fillcols_batting)
+    home_batting["hits"] = home_batting["singles"] + home_batting["doubles"] + home_batting["triples"] + home_batting[
+        "home_runs"]
+    home_batting = home_batting.dropna(axis=1, how="all")
+
+    pitchers = stat_df[~pd.isna(stat_df.appearances)].fillna(value=fillcols_pitching).dropna(axis=1, how="all")
+    pitchers["ip"] = pitchers["outs"].map(format_ip)
+    pitchers["runs"] = pitchers["unearned_runs"] + pitchers["earned_runs"]
+    away_pitchers = pitchers[pitchers.name.isin(away_pitcher_order.index)]
+    home_pitchers = pitchers[pitchers.name.isin(home_pitcher_order.index)]
+
+    renamecols = box_cols_batting_rename
+    renamecols["name"] = f"Batters - {away_team_abbrev}"
+    away_batting_box = away_batting[box_cols_batting].sort_values(
+        by="name", key=lambda x: away_lineup_names).rename(columns=renamecols).pipe(set_format, side="batting")
+
+    renamecols = box_cols_pitching_rename
+    renamecols["name"] = f"Pitchers - {away_team_abbrev}"
+    away_pitching_box = away_pitchers[box_cols_pitching].sort_values(
+        by="order_a").rename(columns=box_cols_pitching_rename).pipe(set_format, side="pitching")
+
+    renamecols = box_cols_batting_rename
+    renamecols["name"] = f"Batters - {home_team_abbrev}"
+    home_batting_box = home_batting[box_cols_batting].sort_values(
+        by="name", key=lambda x: home_lineup_names).rename(columns=box_cols_batting_rename).pipe(set_format,
+                                                                                                 side="batting")
+
+    renamecols = box_cols_pitching_rename
+    renamecols["name"] = f"Pitchers - {home_team_abbrev}"
+    home_pitching_box = home_pitchers[box_cols_pitching].sort_values(
+        by="order_h").rename(columns=box_cols_pitching_rename).pipe(set_format, side="pitching")
+
+    return templates.TemplateResponse(request=request, name="box_score.html", context={
+        "away_batting_box": away_batting_box.to_html(), "home_batting_box": home_batting_box.to_html(),
+        "away_pitching_box": away_pitching_box.to_html(), "home_pitching_box":home_pitching_box.to_html(),
+        "away_team_name": away_team_name, "home_team_name": home_team_name, "away_team_abbrev": away_team_abbrev,
+        "home_team_abbrev": home_team_abbrev, "day": day, "weather": weather
+    })

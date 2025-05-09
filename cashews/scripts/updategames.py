@@ -13,27 +13,35 @@ LOG_TLS = threading.local()
 ZSTD_TLS = threading.local()
 SESS_TLS = threading.local()
 
-url = "https://freecashe.ws/api/games"
-data = requests.get(url).json()
-with open("game_ids.txt", "w") as f:
-    for item in data:
-        # print(item)
-        f.write(str(item['game_id']))
-        f.write("\n")
+# url = "https://freecashe.ws/api/games"
+# data = requests.get(url).json()
+# with open("game_ids.txt", "w") as f:
+#     for item in data:
+#         # if item["home_team_id"] == "6805db0cac48194de3cd3ff7" or item["away_team_id"] == "6805db0cac48194de3cd3ff7":
+#         # print(item)
+#         f.write(str(item['game_id']))
+#         f.write("\n")
+# with open("games_all.txt", "w") as f:
+#     for item in data:
+#         # if item["home_team_id"] == "6805db0cac48194de3cd3ff7" or item["away_team_id"] == "6805db0cac48194de3cd3ff7":
+#         # print(item)
+#         f.write(str(item))
+#         f.write("\n")
 
-
-def init_db():
-    with utils.db() as con:
-        cur = con.cursor()
-        script = """
-        alter table games add column away_score int;
-        alter table games add column home_score int;
-        """
-        # cur.executescript(script)
-        cur.executescript(utils.MIGRATIONS[-1])
-        con.commit()
-
-
-init_db()
+#
+# def init_db():
+#     with utils.db() as con:
+#         cur = con.cursor()
+#         script = """
+#         alter table games add column away_score int;
+#         alter table games add column home_score int;
+#         """
+#         # cur.executescript(script)
+#         # cur.executescript(utils.MIGRATIONS[-1])
+#         con.commit()
+#
+#
+# init_db()
 
 fetch_games.backfill_game_ids()
+# fetch_games.refetch_unfinished_known_games()
