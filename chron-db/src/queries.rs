@@ -1,6 +1,10 @@
+use std::pin::Pin;
+
+use futures::Stream;
 use sea_query::{Asterisk, Expr, Iden, PostgresQueryBuilder, Query, SimpleExpr};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
+use sqlx::postgres::PgRow;
 use time::OffsetDateTime;
 
 use crate::{
@@ -171,6 +175,28 @@ impl ChronDb {
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
         let res = sqlx::query_as_with(&q, vals).fetch_all(&self.pool).await?;
         Ok(with_page_token(res))
+    }
+
+    pub async fn get_version_count(&self, kind: EntityKind) -> anyhow::Result<usize> {
+        let res: i64 = sqlx::query_scalar("select count(*) from versions where kind = $1")
+            .bind(kind)
+            .fetch_one(&self.pool)
+            .await?;
+
+        Ok(res as usize)
+    }
+
+    pub async fn get_all_versions_stream(
+        &self,
+        kind: EntityKind,
+    ) -> anyhow::Result<
+        Pin<Box<dyn Stream<Item = sqlx::Result<EntityVersion, sqlx::Error>> + Send + '_>>,
+    > {
+        let res = sqlx::query_as::<_, EntityVersion>("select kind, entity_id, valid_from, valid_to, data from versions inner join objects using (hash) where kind = $1 order by valid_from")
+            .bind(kind)
+            .fetch(&self.pool);
+
+        Ok(res)
     }
 }
 
