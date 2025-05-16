@@ -1,0 +1,82 @@
+use std::{
+    sync::{Arc, RwLock},
+    time::Duration,
+};
+
+use chron_base::load_config;
+use chron_db::ChronDb;
+use http::DataClient;
+use tracing::{error, info};
+use uuid::Uuid;
+use workers::{
+    IntervalWorker, SimState, WorkerContext, crunch,
+    games::{self, PollAllGames},
+    import,
+    league::{PollLeague, PollNewPlayers},
+};
+
+mod http;
+mod models;
+mod workers;
+
+fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
+    tokio::spawn(async move {
+        // let pin_w = pin_w;
+
+        let mut interval = T::interval();
+        interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
+        let type_name = std::any::type_name::<T>().split("::").last().unwrap();
+
+        loop {
+            interval.tick().await;
+
+            info!("running: {}", type_name);
+            w.tick(&mut ctx).await.unwrap_or_else(|e| {
+                let type_name = std::any::type_name::<T>().split("::").last().unwrap();
+                error!("error executing worker {}: {:?}", type_name, e);
+            });
+            info!("done: {}", type_name);
+        }
+    });
+}
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let config = load_config()?;
+
+    let client = DataClient::new()?;
+    let mut ctx = WorkerContext {
+        client,
+        db: ChronDb::new(&config).await?,
+        sim: Arc::new(RwLock::new(SimState {
+            _season: Uuid::default(),
+            _day: -1,
+        })),
+    };
+
+    let args = std::env::args().collect::<Vec<_>>();
+    if args.len() > 1 {
+        handle_fn(&ctx, &args[1], &args[2..]).await
+    } else {
+        spawn(ctx.clone(), PollLeague);
+        spawn(ctx.clone(), PollNewPlayers);
+        // spawn(ctx, PollAllGames);
+
+        loop {
+            tokio::time::sleep(Duration::from_secs(1)).await;
+        }
+    }
+}
+
+async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::Result<()> {
+    match name {
+        "rebuild-games" => games::rebuild_games(ctx).await?,
+        "fetch-all-games" => games::fetch_all_games(ctx).await?,
+        "import-db" => import::import(ctx, &args[0]).await?,
+        "crunch" => crunch::crunch(ctx).await?,
+        _ => panic!("unknown function: {}", name),
+    }
+
+    Ok(())
+}

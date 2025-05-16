@@ -1,0 +1,232 @@
+use chron_base::objectid_to_timestamp;
+use sea_query::{Asterisk, Expr, PostgresQueryBuilder, Query};
+use sea_query_binder::SqlxBinder;
+use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
+use time::OffsetDateTime;
+
+use crate::{
+    ChronDb, Idens,
+    models::{HasPageToken, PageToken},
+    queries::{PaginatedResult, SortOrder, get_order, paginate, paginate_simple, with_page_token},
+};
+
+pub struct DbGameSaveModel<'a> {
+    pub game_id: &'a str,
+    pub season: i32,
+    pub day: i32,
+    pub home_team_id: &'a str,
+    pub away_team_id: &'a str,
+    pub state: &'a str,
+    pub event_count: i32,
+    pub last_update: Option<&'a serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, FromRow)]
+pub struct DbGame {
+    pub game_id: String,
+    pub season: i32,
+    pub day: i32,
+    pub home_team_id: String,
+    pub away_team_id: String,
+    pub state: String,
+    pub event_count: i32,
+    pub last_update: Option<serde_json::Value>,
+}
+
+#[derive(Serialize, Deserialize, Debug, FromRow)]
+pub struct DbGamePlayerStats {
+    pub game_id: String,
+    pub season: i16,
+    pub day: i16,
+    pub player_id: String,
+    pub team_id: String,
+    pub data: serde_json::Value,
+}
+
+impl HasPageToken for DbGame {
+    fn page_token(&self) -> PageToken {
+        // oh god oh no this is a mess
+        PageToken {
+            entity_id: self.game_id.clone(),
+            timestamp: objectid_to_timestamp(&self.game_id).unwrap_or(OffsetDateTime::UNIX_EPOCH),
+        }
+    }
+}
+
+pub struct GetGamesQuery {
+    pub season: Option<i32>,
+    pub day: Option<i32>,
+    pub team: Option<String>,
+    pub count: u64,
+    pub order: SortOrder,
+    pub page: Option<PageToken>,
+}
+
+pub struct GetPlayerStatsQuery {
+    pub start: Option<(i32, i32)>,
+    pub end: Option<(i32, i32)>,
+    pub player: Option<String>,
+    pub team: Option<String>,
+}
+
+impl ChronDb {
+    pub async fn get_games(&self, q: GetGamesQuery) -> anyhow::Result<PaginatedResult<DbGame>> {
+        let mut qq = Query::select()
+            .expr(Expr::col((Idens::Games, Asterisk)))
+            .from(Idens::Games)
+            .order_by_columns([(Idens::GameId, get_order(q.order))])
+            .limit(q.count)
+            .to_owned();
+
+        if let Some(season) = q.season {
+            qq = qq.and_where(Expr::col(Idens::Season).eq(season)).to_owned();
+        }
+
+        if let Some(day) = q.day {
+            qq = qq.and_where(Expr::col(Idens::Day).eq(day)).to_owned();
+        }
+
+        if let Some(team) = q.team {
+            qq = qq
+                .and_where(
+                    Expr::col(Idens::HomeTeamId)
+                        .eq(&team)
+                        .or(Expr::col(Idens::AwayTeamId).eq(&team)),
+                )
+                .to_owned();
+        }
+
+        if let Some(page) = q.page {
+            qq = qq
+                .and_where(paginate_simple(q.order, Idens::GameId, page))
+                .to_owned();
+        }
+
+        let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
+        let res = sqlx::query_as_with(&q, vals).fetch_all(&self.pool).await?;
+        Ok(with_page_token(res))
+    }
+
+    pub async fn get_player_stats(
+        &self,
+        q: GetPlayerStatsQuery,
+    ) -> anyhow::Result<Vec<DbGamePlayerStats>> {
+        let mut qq = Query::select()
+            .expr(Expr::col((Idens::GamePlayerStats, Asterisk)))
+            .from(Idens::GamePlayerStats)
+            .to_owned();
+
+        if let Some((s, d)) = q.start {
+            qq = qq
+                .and_where(
+                    Expr::tuple([Expr::col(Idens::Season).into(), Expr::col(Idens::Day).into()])
+                        .gte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
+                )
+                .to_owned();
+        }
+
+        if let Some((s, d)) = q.end {
+            qq = qq
+                .and_where(
+                    Expr::tuple([Expr::col(Idens::Season).into(), Expr::col(Idens::Day).into()])
+                        .lte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
+                )
+                .to_owned();
+        }
+
+        if let Some(player) = q.player {
+            qq = qq
+                .and_where(Expr::col(Idens::PlayerId).eq(&player))
+                .to_owned();
+        }
+
+        if let Some(team) = q.team {
+            qq = qq.and_where(Expr::col(Idens::TeamId).eq(&team)).to_owned();
+        }
+
+        let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
+        let res = sqlx::query_as_with(&q, vals).fetch_all(&self.pool).await?;
+        Ok(res)
+    }
+
+    pub async fn update_game(&self, game: DbGameSaveModel<'_>) -> anyhow::Result<()> {
+        sqlx::query("insert into games (game_id, season, day, home_team_id, away_team_id, state, event_count, last_update) values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (game_id) do update set state = excluded.state, event_count = excluded.event_count, last_update = excluded.last_update")
+            .bind(game.game_id)
+            .bind(game.season)
+            .bind(game.day)
+            .bind(game.home_team_id)
+            .bind(game.away_team_id)
+            .bind(game.state)
+            .bind(game.event_count)
+            .bind(game.last_update)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
+    pub async fn update_game_events(
+        &self,
+        game_id: &str,
+        events: &[(i32, &serde_json::Value)],
+    ) -> anyhow::Result<()> {
+        let mut indexes = Vec::with_capacity(events.len());
+        let mut datas = Vec::with_capacity(events.len());
+        for (idx, data) in events {
+            indexes.push(*idx);
+            datas.push(data);
+        }
+
+        sqlx::query("insert into game_events (game_id, index, data) select $1 as game_id, unnest($2::int[]) as index, unnest($3::jsonb[]) as data on conflict (game_id, index) do nothing")
+            .bind(game_id)
+            .bind(&indexes)
+            .bind(&datas)
+            .execute(&self.pool).await?;
+
+        Ok(())
+    }
+
+    pub async fn update_game_player_stats(
+        &self,
+        game_id: &str,
+        season: i32,
+        day: i32,
+        stats: &[(&str, &str, &serde_json::Value)],
+    ) -> anyhow::Result<()> {
+        let mut team_ids = Vec::with_capacity(stats.len());
+        let mut player_ids = Vec::with_capacity(stats.len());
+        let mut datas = Vec::with_capacity(stats.len());
+        for (team_id, player_id, data) in stats {
+            team_ids.push(*team_id);
+            player_ids.push(*player_id);
+            datas.push(data);
+        }
+
+        sqlx::query("insert into game_player_stats (game_id, season, day, team_id, player_id, data) select $1 as game_id, $2 as season, $3 as day, unnest($4::text[]) as team_id, unnest($5::text[]) as player_id, unnest($6::jsonb[]) as data on conflict (game_id, team_id, player_id) do update set data=excluded.data")
+            .bind(game_id)
+            .bind(season)
+            .bind(day)
+            .bind(&team_ids)
+            .bind(&player_ids)
+            .bind(&datas)
+            .execute(&self.pool).await?;
+
+        Ok(())
+    }
+
+    pub async fn get_all_team_ids_from_stats(&self) -> anyhow::Result<Vec<String>> {
+        Ok(
+            sqlx::query_scalar("select distinct team_id from game_player_stats")
+                .fetch_all(&self.pool)
+                .await?,
+        )
+    }
+
+    pub async fn get_all_player_ids_from_stats(&self) -> anyhow::Result<Vec<String>> {
+        Ok(
+            sqlx::query_scalar("select distinct player_id from game_player_stats")
+                .fetch_all(&self.pool)
+                .await?,
+        )
+    }
+}

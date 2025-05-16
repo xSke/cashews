@@ -3,3 +3,5 @@ data/
 __pycache__
 .env
 http_cache
+mnt/
+target/

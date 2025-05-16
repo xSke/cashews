@@ -5,3 +5,5 @@ data/
 .env
 http_cache
 script.py
+mnt/
+target/
