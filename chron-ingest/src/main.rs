@@ -9,10 +9,7 @@ use http::DataClient;
 use tracing::{error, info};
 use uuid::Uuid;
 use workers::{
-    IntervalWorker, SimState, WorkerContext, crunch,
-    games::{self, PollAllGames},
-    import,
-    league::{PollLeague, PollNewPlayers},
+    crunch, games::{self, PollAllGames}, import, league::{self, PollLeague, PollNewPlayers}, IntervalWorker, SimState, WorkerContext
 };
 
 mod http;
@@ -57,7 +54,10 @@ async fn main() -> anyhow::Result<()> {
 
     let args = std::env::args().collect::<Vec<_>>();
     if args.len() > 1 {
-        handle_fn(&ctx, &args[1], &args[2..]).await
+        if let Err(e) = handle_fn(&ctx, &args[1], &args[2..]).await {
+            error!("error running cli: {:?}", e);
+        }
+        Ok(())
     } else {
         spawn(ctx.clone(), PollLeague);
         spawn(ctx.clone(), PollNewPlayers);
@@ -72,7 +72,9 @@ async fn main() -> anyhow::Result<()> {
 async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::Result<()> {
     match name {
         "rebuild-games" => games::rebuild_games(ctx).await?,
+        "rebuild-games-slow" => games::rebuild_games_slow(ctx).await?,
         "fetch-all-games" => games::fetch_all_games(ctx).await?,
+        "fetch-all-players" => league::fetch_all_players(ctx).await?,
         "import-db" => import::import(ctx, &args[0]).await?,
         "crunch" => crunch::crunch(ctx).await?,
         _ => panic!("unknown function: {}", name),

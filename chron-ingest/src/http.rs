@@ -80,6 +80,28 @@ impl DataClient {
         Ok(DataClient { client })
     }
 
+    pub async fn try_fetch(
+        &self,
+        orig_url: impl IntoUrl,
+    ) -> anyhow::Result<Option<ClientResponse>> {
+        let res = self.fetch(orig_url).await;
+
+        // if this is specifically a not found error, return None instead
+        // todo: can we make this cleaner?
+        if let Err(e) = &res {
+            if let Some(e) = e.downcast_ref::<reqwest::Error>() {
+                match e.status() {
+                    Some(StatusCode::NOT_FOUND) => {
+                        return Ok(None);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        Ok(Some(res?))
+    }
+
     pub async fn fetch(&self, orig_url: impl IntoUrl) -> anyhow::Result<ClientResponse> {
         let mut request = self.client.get(orig_url);
         // if let Some(cached_etag) = self

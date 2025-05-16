@@ -11,17 +11,6 @@ use crate::{
     queries::{PaginatedResult, SortOrder, get_order, paginate, paginate_simple, with_page_token},
 };
 
-pub struct DbGameSaveModel<'a> {
-    pub game_id: &'a str,
-    pub season: i32,
-    pub day: i32,
-    pub home_team_id: &'a str,
-    pub away_team_id: &'a str,
-    pub state: &'a str,
-    pub event_count: i32,
-    pub last_update: Option<&'a serde_json::Value>,
-}
-
 #[derive(Serialize, Deserialize, Debug, FromRow)]
 pub struct DbGame {
     pub game_id: String,
@@ -120,8 +109,11 @@ impl ChronDb {
         if let Some((s, d)) = q.start {
             qq = qq
                 .and_where(
-                    Expr::tuple([Expr::col(Idens::Season).into(), Expr::col(Idens::Day).into()])
-                        .gte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
+                    Expr::tuple([
+                        Expr::col(Idens::Season).into(),
+                        Expr::col(Idens::Day).into(),
+                    ])
+                    .gte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
                 )
                 .to_owned();
         }
@@ -129,8 +121,11 @@ impl ChronDb {
         if let Some((s, d)) = q.end {
             qq = qq
                 .and_where(
-                    Expr::tuple([Expr::col(Idens::Season).into(), Expr::col(Idens::Day).into()])
-                        .lte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
+                    Expr::tuple([
+                        Expr::col(Idens::Season).into(),
+                        Expr::col(Idens::Day).into(),
+                    ])
+                    .lte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
                 )
                 .to_owned();
         }
@@ -168,6 +163,7 @@ impl ChronDb {
     pub async fn update_game_events(
         &self,
         game_id: &str,
+        timestamp: &OffsetDateTime,
         events: &[(i32, &serde_json::Value)],
     ) -> anyhow::Result<()> {
         let mut indexes = Vec::with_capacity(events.len());
@@ -177,10 +173,11 @@ impl ChronDb {
             datas.push(data);
         }
 
-        sqlx::query("insert into game_events (game_id, index, data) select $1 as game_id, unnest($2::int[]) as index, unnest($3::jsonb[]) as data on conflict (game_id, index) do nothing")
+        sqlx::query("insert into game_events (game_id, index, data, observed_at) select $1 as game_id, unnest($2::int[]) as index, unnest($3::jsonb[]) as data, $4 as observed_at on conflict (game_id, index) do update set observed_at = excluded.observed_at where (game_events.observed_at is null or excluded.observed_at < game_events.observed_at)")
             .bind(game_id)
             .bind(&indexes)
             .bind(&datas)
+            .bind(timestamp)
             .execute(&self.pool).await?;
 
         Ok(())
@@ -214,6 +211,34 @@ impl ChronDb {
         Ok(())
     }
 
+    pub async fn update_team(&self, team: DbTeamSaveModel<'_>) -> anyhow::Result<()> {
+        sqlx::query("insert into teams (team_id, league_id, location, name, full_location, emoji, color, abbreviation) values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (team_id) do update set league_id = excluded.league_id, location = excluded.location, name = excluded.name, full_location = excluded.full_location, emoji = excluded.emoji, color = excluded.color, abbreviation = excluded.abbreviation")
+            .bind(team.team_id)
+            .bind(team.league_id)
+            .bind(team.location)
+            .bind(team.name)
+            .bind(team.full_location)
+            .bind(team.emoji)
+            .bind(team.color)
+            .bind(team.abbreviation)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn update_league(&self, league: DbLeagueSaveModel<'_>) -> anyhow::Result<()> {
+        sqlx::query("insert into leagues (league_id, league_type, name, color, emoji) values ($1, $2, $3, $4, $5) on conflict (league_id) do update set league_type = excluded.league_type, name = excluded.name, color = excluded.color, emoji = excluded.emoji")
+            .bind(league.league_id)
+            .bind(league.league_type)
+            .bind(league.name)
+            .bind(league.color)
+            .bind(league.emoji)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
+
     pub async fn get_all_team_ids_from_stats(&self) -> anyhow::Result<Vec<String>> {
         Ok(
             sqlx::query_scalar("select distinct team_id from game_player_stats")
@@ -229,4 +254,34 @@ impl ChronDb {
                 .await?,
         )
     }
+}
+
+pub struct DbTeamSaveModel<'a> {
+    pub team_id: &'a str,
+    pub league_id: &'a str,
+    pub location: &'a str,
+    pub name: &'a str,
+    pub full_location: &'a str,
+    pub emoji: &'a str,
+    pub color: &'a str,
+    pub abbreviation: &'a str,
+}
+
+pub struct DbLeagueSaveModel<'a> {
+    pub league_id: &'a str,
+    pub league_type: &'a str,
+    pub name: &'a str,
+    pub color: &'a str,
+    pub emoji: &'a str,
+}
+
+pub struct DbGameSaveModel<'a> {
+    pub game_id: &'a str,
+    pub season: i32,
+    pub day: i32,
+    pub home_team_id: &'a str,
+    pub away_team_id: &'a str,
+    pub state: &'a str,
+    pub event_count: i32,
+    pub last_update: Option<&'a serde_json::Value>,
 }

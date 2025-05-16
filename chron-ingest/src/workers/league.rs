@@ -1,9 +1,15 @@
 use std::{collections::HashSet, time::Duration};
 
-use chron_db::models::{EntityKind, NewObject};
+use chron_db::{
+    derived::{DbLeagueSaveModel, DbTeamSaveModel},
+    models::{EntityKind, NewObject},
+};
 use tracing::info;
 
-use crate::models::{MmolbLeague, MmolbState, MmolbTeam};
+use crate::{
+    http::ClientResponse,
+    models::{MmolbLeague, MmolbState, MmolbTeam},
+};
 
 use super::{IntervalWorker, WorkerContext};
 
@@ -61,7 +67,19 @@ impl IntervalWorker for PollNewPlayers {
 
 async fn fetch_league(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/league/{}", id);
-    ctx.fetch_and_save(url, EntityKind::League, id).await?;
+    let resp = ctx.fetch_and_save(url, EntityKind::League, &id).await?;
+
+    let league_data = resp.parse::<MmolbLeague>()?;
+    ctx.db
+        .update_league(DbLeagueSaveModel {
+            league_id: &id,
+            league_type: &league_data.league_type,
+            name: &league_data.name,
+            color: &league_data.color,
+            emoji: &league_data.emoji,
+        })
+        .await?;
+
     Ok(())
 }
 
@@ -69,30 +87,22 @@ async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/team/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Team, &id).await?;
 
-    // write a "cleaned" version of the team object without the big Players[x].Stats objects
-    // can we make this code nicer?
-    let mut team_data = resp.parse::<serde_json::Value>()?;
-    if let Some(o) = team_data.as_object_mut() {
-        if let Some(players_value) = o.get_mut("Players") {
-            if let Some(players) = players_value.as_array_mut() {
-                for player_value in players {
-                    if let Some(p) = player_value.as_object_mut() {
-                        p.remove("Stats");
-                    }
-                }
-            }
-        }
-    }
+    write_team_lite(ctx, &id, &resp).await?;
 
+    let team_data = resp.parse::<MmolbTeam>()?;
     ctx.db
-        .save(NewObject {
-            kind: EntityKind::TeamLite,
-            entity_id: id.to_string(),
-            data: team_data,
-            timestamp: resp.timestamp(),
-            request_time: resp.request_time(),
+        .update_team(DbTeamSaveModel {
+            team_id: &id,
+            league_id: &team_data.league,
+            location: &team_data.location,
+            name: &team_data.name,
+            full_location: &team_data.full_location,
+            emoji: &team_data.emoji,
+            color: &team_data.color,
+            abbreviation: &team_data.abbreviation,
         })
         .await?;
+
     Ok(())
 }
 
@@ -100,22 +110,7 @@ async fn fetch_player(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/player/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Player, &id).await?;
 
-    // write a "cleaned" version of the player object without the big stats object
-    let mut player_data = resp.parse::<serde_json::Value>()?;
-    if let Some(o) = player_data.as_object_mut() {
-        o.remove("Stats");
-    }
-
-    ctx.db
-        .save(NewObject {
-            kind: EntityKind::PlayerLite,
-            entity_id: id.to_string(),
-            data: player_data,
-            timestamp: resp.timestamp(),
-            request_time: resp.request_time(),
-        })
-        .await?;
-
+    write_player_lite(ctx, &id, &resp).await?;
     Ok(())
 }
 
@@ -166,4 +161,66 @@ async fn get_all_known_player_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet
     team_ids.extend(ctx.db.get_all_player_ids_from_stats().await?);
 
     Ok(team_ids)
+}
+
+pub async fn fetch_all_players(ctx: &WorkerContext) -> anyhow::Result<()> {
+    let all_players = get_all_known_player_ids(ctx).await?;
+    ctx.process_many(all_players, 50, fetch_player).await;
+    Ok(())
+}
+
+async fn write_team_lite(
+    ctx: &WorkerContext,
+    id: &str,
+    resp: &ClientResponse,
+) -> anyhow::Result<()> {
+    // write a "cleaned" version of the team object without the big Players[x].Stats objects
+    // can we make this code nicer?
+    let mut team_data = resp.parse::<serde_json::Value>()?;
+    if let Some(o) = team_data.as_object_mut() {
+        if let Some(players_value) = o.get_mut("Players") {
+            if let Some(players) = players_value.as_array_mut() {
+                for player_value in players {
+                    if let Some(p) = player_value.as_object_mut() {
+                        p.remove("Stats");
+                    }
+                }
+            }
+        }
+    }
+
+    ctx.db
+        .save(NewObject {
+            kind: EntityKind::TeamLite,
+            entity_id: id.to_string(),
+            data: team_data,
+            timestamp: resp.timestamp(),
+            request_time: resp.request_time(),
+        })
+        .await?;
+    Ok(())
+}
+
+async fn write_player_lite(
+    ctx: &WorkerContext,
+    id: &str,
+    resp: &ClientResponse,
+) -> anyhow::Result<()> {
+    // write a "cleaned" version of the player object without the big stats object
+    let mut player_data = resp.parse::<serde_json::Value>()?;
+    if let Some(o) = player_data.as_object_mut() {
+        o.remove("Stats");
+    }
+
+    ctx.db
+        .save(NewObject {
+            kind: EntityKind::PlayerLite,
+            entity_id: id.to_string(),
+            data: player_data,
+            timestamp: resp.timestamp(),
+            request_time: resp.request_time(),
+        })
+        .await?;
+
+    Ok(())
 }

@@ -62,8 +62,7 @@ impl ChronDb {
         let mut tx = pool.acquire().await?;
         tx.execute(include_str!("../migrations/functions.sql"))
             .await?;
-        tx.execute(include_str!("../migrations/views.sql"))
-            .await?;
+        tx.execute(include_str!("../migrations/views.sql")).await?;
 
         Ok(ChronDb {
             pool,

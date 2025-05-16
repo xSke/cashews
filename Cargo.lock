@@ -275,6 +275,7 @@ dependencies = [
  "base64",
  "chron-base",
  "dashmap",
+ "futures",
  "log",
  "sea-query",
  "sea-query-binder",
