@@ -11,3 +11,5 @@ script.py
 .ipynb_checkpoints
 *.png
 *.csv
+analysis
+graphs

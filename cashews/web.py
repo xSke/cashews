@@ -512,16 +512,16 @@ async def stats(request: Request, team_id: str):
         ("GS", "starts", None, format_int, "Games started"),
         ("W", "wins", None, format_int, "Wins"),
         ("L", "losses", None, format_int, "Losses"),
-        ("CG", "complete_games", None, format_int, "Complete Games"),
-        ("SHO", "shutouts", None, format_int, "Shutouts"),
-        ("NH", "no_hitters", None, format_int, "No-hitters"),
+        # ("CG", "complete_games", None, format_int, "Complete Games"),
+        # ("SHO", "shutouts", None, format_int, "Shutouts"),
+        # ("NH", "no_hitters", None, format_int, "No-hitters"),
         ("QS", "quality_starts", None, format_int, "Quality Starts"),
-        ("SV", "saves", None, format_int, "Saves"),
-        ("BS", "blown_saves", None, format_int, "Blown Saves"),
-        ("R", "total_runs", None, format_int, "Runs"),
-        ("ER", "earned_runs", None, format_int, "Earned Runs"),
-        ("IR", "inherited_runners", None, format_int, "Inherited Runners"),
-        ("IRA", "inherited_runs_allowed", None, format_int, "Inherited Runs Allowed"),
+        # ("SV", "saves", None, format_int, "Saves"),
+        # ("BS", "blown_saves", None, format_int, "Blown Saves"),
+        # ("R", "total_runs", None, format_int, "Runs"),
+        # ("ER", "earned_runs", None, format_int, "Earned Runs"),
+        # ("IR", "inherited_runners", None, format_int, "Inherited Runners"),
+        # ("IRA", "inherited_runs_allowed", None, format_int, "Inherited Runs Allowed"),
         ("HR", "home_runs_allowed", None, format_int, "Home Runs Allowed"),
         ("BB", "walks", None, format_int, "Walks"),
         ("SO", "strikeouts", None, format_int, "Strikeouts"),
@@ -667,6 +667,8 @@ async def stats(request: Request, game_id: str):
     day = data["Day"]
     stats = data["Stats"]
     weather = data["Weather"]
+    away_score = events[-1]["away_score"]
+    home_score = events[-1]["home_score"]
 
     box_cols_batting = ["name", "plate_appearances", "at_bats", "runs", "hits",
                         "runs_batted_in", "walked", "struck_out", "left_on_base", "ba", "ops"]
@@ -733,6 +735,7 @@ async def stats(request: Request, game_id: str):
     FROM player_stats
     WHERE player_id IN {tuple(stat_df.index)}
     """
+    # TODO: make "as of day N" db/view and call that instead, here
     with utils.db() as con:
         db_stats = pd.read_sql_query(stats_q, con).set_index("player_id")
     stat_df = stat_df.join(db_stats)
@@ -816,7 +819,8 @@ async def stats(request: Request, game_id: str):
 
     return templates.TemplateResponse(request=request, name="box_score.html", context={
         "away_batting_box": away_batting_box.to_html(), "home_batting_box": home_batting_box.to_html(),
-        "away_pitching_box": away_pitching_box.to_html(), "home_pitching_box":home_pitching_box.to_html(),
+        "away_pitching_box": away_pitching_box.to_html(), "home_pitching_box": home_pitching_box.to_html(),
         "away_team_name": away_team_name, "home_team_name": home_team_name, "away_team_abbrev": away_team_abbrev,
-        "home_team_abbrev": home_team_abbrev, "day": day, "weather": weather
+        "home_team_abbrev": home_team_abbrev, "day": day, "weather": weather, "away_score": away_score,
+        "home_score": home_score,
     })
