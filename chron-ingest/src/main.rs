@@ -9,7 +9,10 @@ use http::DataClient;
 use tracing::{error, info};
 use uuid::Uuid;
 use workers::{
-    crunch, games::{self, PollAllGames}, import, league::{self, PollLeague, PollNewPlayers}, IntervalWorker, SimState, WorkerContext
+    IntervalWorker, SimState, WorkerContext, crunch,
+    games::{self, PollAllGames},
+    import,
+    league::{self, PollLeague, PollNewPlayers},
 };
 
 mod http;

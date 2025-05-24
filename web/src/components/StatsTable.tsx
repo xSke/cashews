@@ -7,6 +7,9 @@ import {
   ColumnDef,
   flexRender,
   getCoreRowModel,
+  getSortedRowModel,
+  HeaderContext,
+  SortingState,
   useReactTable,
 } from "@tanstack/react-table";
 import {
@@ -17,7 +20,9 @@ import {
   TableHeader,
   TableRow,
 } from "./ui/table";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import { Button } from "./ui/button";
+import { ChevronDown, ChevronUp } from "lucide-react";
 
 interface StatsTableProps {
   data: PlayerStatsEntry[];
@@ -32,10 +37,16 @@ type RowData = {
   position: string | null;
 } & AdvancedStats;
 
-function StatCell(digits: number) {
+function StatCell(digits: number, foo: string = "") {
   return (props: CellContext<RowData, unknown>) => {
     const data = props.getValue() as number;
-    return <span className="tabular-nums">{data.toFixed(digits)}</span>;
+    return <div className="tabular-nums p-2">{data.toFixed(digits)}</div>;
+  };
+}
+
+function NormalCell() {
+  return (props: CellContext<RowData, unknown>) => {
+    return <div className="p-2">{props.getValue()?.toString()}</div>;
   };
 }
 
@@ -46,88 +57,116 @@ function InningsCell() {
     const innings = Math.floor(data);
     const outs = Math.floor(data * 3) % 3;
     return (
-      <span className="tabular-nums">
+      <div className="tabular-nums p-2 font-medium text-green-700 dark:text-green-400">
         {innings}.{outs}
-      </span>
+      </div>
+    );
+  };
+}
+
+function SortableHeader(name: string) {
+  return (props: HeaderContext<RowData, unknown>) => {
+    return (
+      <div
+        className="flex items-center cursor-pointer"
+        onClick={() => props.column.toggleSorting()}
+      >
+        {name}
+
+        {props.column.getIsSorted() === "asc" && (
+          <ChevronDown className="h-4 w-4 ml-0.5" />
+        )}
+        {props.column.getIsSorted() === "desc" && (
+          <ChevronUp className="h-4 w-4 ml-0.5" />
+        )}
+      </div>
     );
   };
 }
 
 const columnsBase: ColumnDef<RowData>[] = [
-  { header: "ID", accessorKey: "id" },
   {
-    header: "Name",
+    header: SortableHeader("ID"),
+    accessorKey: "id",
+    cell: NormalCell(),
+  },
+  {
+    header: SortableHeader("Name"),
     accessorKey: "name",
+    cell: NormalCell(),
   },
   {
     header: "Pos.",
     accessorKey: "position",
+    cell: NormalCell(),
   },
 ];
 
 const columnsBatting: ColumnDef<RowData>[] = [
   {
-    header: "ABs",
+    header: SortableHeader("ABs"),
     accessorKey: "at_bats",
+    cell: StatCell(0),
   },
   {
-    header: "PAs",
+    header: SortableHeader("PAs"),
     accessorKey: "plate_appearances",
+    cell: StatCell(0),
   },
   {
-    header: "BA",
+    header: SortableHeader("BA"),
     accessorKey: "ba",
     cell: StatCell(3),
   },
   {
-    header: "OBP",
+    header: SortableHeader("OBP"),
     accessorKey: "obp",
     cell: StatCell(3),
   },
   {
-    header: "SLG",
+    header: SortableHeader("SLG"),
     accessorKey: "slg",
     cell: StatCell(3),
   },
   {
-    header: "OPS",
+    header: SortableHeader("OPS"),
     accessorKey: "ops",
     cell: StatCell(3),
   },
 ];
 const columnsPitching: ColumnDef<RowData>[] = [
   {
-    header: "IP",
+    header: SortableHeader("IP"),
     accessorKey: "ip",
     cell: InningsCell(),
   },
   {
-    header: "ERA",
+    header: SortableHeader("ERA"),
     accessorKey: "era",
     cell: StatCell(2),
   },
   {
-    header: "WHIP",
+    header: SortableHeader("WHIP"),
     accessorKey: "whip",
     cell: StatCell(2),
   },
   {
-    header: "H/9",
+    header: SortableHeader("H/9"),
     accessorKey: "h9",
     cell: StatCell(2),
   },
   {
-    header: "HR/9",
+    header: SortableHeader("HR/9"),
     accessorKey: "hr9",
     cell: StatCell(2),
   },
   {
-    header: "K/9",
+    header: SortableHeader("K/9"),
     accessorKey: "k9",
     cell: StatCell(2),
   },
   {
-    header: "BB/9",
+    header: SortableHeader("BB/9"),
     accessorKey: "bb9",
     cell: StatCell(2),
   },
@@ -144,10 +183,17 @@ export default function StatsTable(props: StatsTableProps) {
     return columnsBase;
   }, [props.type]);
 
+  const [sorting, setSorting] = useState<SortingState>([]);
+
   const table = useReactTable({
     data,
     columns,
     getCoreRowModel: getCoreRowModel(),
+    onSortingChange: setSorting,
+    getSortedRowModel: getSortedRowModel(),
+    state: {
+      sorting,
+    },
   });
 
   return (
@@ -158,7 +204,7 @@ export default function StatsTable(props: StatsTableProps) {
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
                 return (
-                  <TableHead key={header.id}>
+                  <TableHead key={header.id} className="font-semibold">
                     {header.isPlaceholder
                       ? null
                       : flexRender(
@@ -179,7 +225,7 @@ export default function StatsTable(props: StatsTableProps) {
                 data-state={row.getIsSelected() && "selected"}
               >
                 {row.getVisibleCells().map((cell) => (
-                  <TableCell key={cell.id}>
+                  <TableCell key={cell.id} className="p-0">
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}
                   </TableCell>
                 ))}

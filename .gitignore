@@ -7,3 +7,4 @@ http_cache
 script.py
 mnt/
 target/
+.idea/

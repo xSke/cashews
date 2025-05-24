@@ -56,6 +56,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/chron/v0/entities", get(chron_api::get_entities))
         .route("/chron/v0/versions", get(chron_api::get_versions))
         .route("/games", get(derived_api::get_games))
+        .route("/teams", get(derived_api::get_teams))
+        .route("/leagues", get(derived_api::get_leagues))
         .route("/player-stats", get(derived_api::get_player_stats))
         // todo: is the order here right?
         .layer(cors)

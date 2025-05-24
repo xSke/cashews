@@ -39,7 +39,7 @@ export default async function TeamStatsPage(props: TeamPageProps) {
   const stats = await getTeamStats(teamId);
 
   const playerIds = [...new Set(stats.map((x) => x.player_id))];
-  const players = await getEntities<MmolbPlayer>("player", playerIds);
+  const players = await getEntities<MmolbPlayer>("player_lite", playerIds);
 
   const teamIds = [...new Set(stats.map((x) => x.team_id))];
   const teams = await getEntities<MmolbTeam>("team", teamIds);

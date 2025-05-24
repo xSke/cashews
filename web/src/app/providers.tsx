@@ -1,7 +1,13 @@
 "use client";
 
+import { getBasicLeagues, getBasicTeams } from "@/data/data";
 import { getQueryClient } from "@/get-query-client";
-import { QueryClientProvider } from "@tanstack/react-query";
+import {
+  dehydrate,
+  HydrationBoundary,
+  QueryClientProvider,
+  usePrefetchQuery,
+} from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
 
 export default function Providers({ children }: { children: React.ReactNode }) {

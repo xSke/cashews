@@ -6,6 +6,7 @@ import {
   getGames,
   MmolbLeague,
   MmolbTeam,
+  useAllTeams,
 } from "@/data/data";
 import { LineChart } from "recharts";
 
@@ -68,29 +69,10 @@ export default async function TeamPage(props: TeamPageProps) {
 
   return (
     <main className="flex flex-col">
-      <h1 className="mb-4">
-        {team.data.Emoji} {team.data.Location} {team.data.Name}
-      </h1>
+      <h1>[okay so something needs to go here]</h1>
 
-      <div className="flex flex-row">
-        <aside className="pr-4 flex flex-col flex-1">
-          <h4 className="font-medium text-sm py-1">Team</h4>
-          <a className="py-1 px-2 bg-primary-foreground rounded">Info</a>
-          <a className="py-1 px-2 ">Roster</a>
-          <a className="py-1 px-2 ">Records</a>
-          <a className="py-1 px-2 ">History</a>
-
-          <h4 className="font-medium text-sm py-1 mt-4">Stats</h4>
-          <a className="py-1 px-2 ">Seasonal</a>
-          <a className="py-1 px-2 ">Average</a>
-          <a className="py-1 px-2 ">Whatever</a>
-          <a className="py-1 px-2 ">Something else</a>
-        </aside>
-        <div className="pl-4 flex-4">
-          <h2>{league.data.Name} League</h2>
-          <TeamChart data={recordData} />
-        </div>
-      </div>
+      <h2 className="mt-8">{league.data.Name} League</h2>
+      <TeamChart data={recordData} />
     </main>
   );
 }

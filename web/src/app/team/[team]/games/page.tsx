@@ -8,19 +8,8 @@ import {
   MmolbTeam,
 } from "@/data/data";
 
-function generateStaticParams() {}
-
 interface TeamPageProps {
   params: Promise<{ team: string }>;
-}
-
-function getRelevantTeamIds(games: ChronGame[]): string[] {
-  const map: Record<string, number> = {};
-  for (let game of games) {
-    map[game.away_team_id] = 1;
-    map[game.home_team_id] = 1;
-  }
-  return Object.keys(map);
 }
 
 export default async function TeamGamesPage(props: TeamPageProps) {
@@ -31,8 +20,8 @@ export default async function TeamGamesPage(props: TeamPageProps) {
   // const league = await getEntity<MmolbLeague>("league", team.data.League);
   const games = await getGames({ season: 0, team: params.team });
 
-  const teamIds = getRelevantTeamIds(games.items);
-  const teams = await getEntities<MmolbTeam>("team", teamIds);
+  // const teamIds = getRelevantTeamIds(games.items);
+  const teams = {};
 
   return <TeamGamesTable games={games.items} teams={teams} />;
 }
