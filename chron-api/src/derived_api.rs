@@ -5,7 +5,7 @@ use axum::{
     extract::{Query, State},
 };
 use chron_db::{
-    derived::{DbGame, DbGamePlayerStats},
+    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam},
     models::PageToken,
     queries::{PaginatedResult, SortOrder},
 };
@@ -44,6 +44,40 @@ pub async fn get_games(
         .await?;
 
     Ok(Json(games))
+}
+
+
+
+#[derive(Deserialize, Debug)]
+pub struct GetTeamsQuery {
+}
+
+pub async fn get_teams(
+    State(ctx): State<AppState>,
+    Query(_q): Query<GetTeamsQuery>,
+) -> Result<Json<PaginatedResult<DbTeam>>, AppError> {
+    let teams = ctx
+        .db
+        .get_teams()
+        .await?;
+
+    Ok(Json(fake_paginate(teams)))
+}
+
+#[derive(Deserialize, Debug)]
+pub struct GetLeaguesQuery {
+}
+
+pub async fn get_leagues(
+    State(ctx): State<AppState>,
+    Query(_q): Query<GetTeamsQuery>,
+) -> Result<Json<PaginatedResult<DbLeague>>, AppError> {
+    let teams = ctx
+        .db
+        .get_leagues()
+        .await?;
+
+    Ok(Json(fake_paginate(teams)))
 }
 
 #[derive(Deserialize, Debug)]
@@ -127,4 +161,8 @@ fn aggregate_player_stats(source: &[DbGamePlayerStats]) -> Vec<ApiPlayerStats> {
     }
 
     output
+}
+
+fn fake_paginate<T>(data: Vec<T>) -> PaginatedResult<T> {
+    PaginatedResult { items: data, next_page: None }
 }

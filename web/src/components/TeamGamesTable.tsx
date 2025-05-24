@@ -1,6 +1,12 @@
 "use client";
 
-import { ChronGame, MmolbTeam } from "@/data/data";
+import {
+  BasicTeam,
+  ChronGame,
+  MmolbTeam,
+  useAllLeagues,
+  useAllTeams,
+} from "@/data/data";
 import { useMemo } from "react";
 import {
   CellContext,
@@ -40,7 +46,7 @@ interface TableData {
 }
 
 interface TableMeta {
-  teams: Record<string, MmolbTeam>;
+  teams: Record<string, BasicTeam>;
 }
 
 function TeamCell(ctx: CellContext<TableData, unknown>) {
@@ -51,7 +57,7 @@ function TeamCell(ctx: CellContext<TableData, unknown>) {
   if (!team) return "Null Team";
   return (
     <span>
-      {team.Emoji} {team.Location} {team.Name}
+      {team.emoji} {team.location} {team.name}
     </span>
   );
 }
@@ -102,6 +108,9 @@ const columns: ColumnDef<TableData>[] = [
 ];
 
 export default function TeamGamesTable(props: TeamGamesTableProps) {
+  const teams = useAllTeams();
+  const leagues = useAllLeagues();
+
   const data = useMemo(() => {
     const data = [];
     for (let game of props.games) {
@@ -124,7 +133,7 @@ export default function TeamGamesTable(props: TeamGamesTableProps) {
   const table = useReactTable({
     data,
     columns,
-    meta: { teams: props.teams } as TableMeta,
+    meta: { teams } as TableMeta,
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),

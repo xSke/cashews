@@ -33,6 +33,26 @@ pub struct DbGamePlayerStats {
     pub data: serde_json::Value,
 }
 
+#[derive(Serialize, Deserialize, Debug, FromRow)]
+pub struct DbTeam {
+    pub team_id: String,
+    pub league_id: String,
+    pub name: String,
+    pub location: String,
+    pub emoji: String,
+    pub color: String,
+    pub abbreviation: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, FromRow)]
+pub struct DbLeague {
+    pub league_id: String,
+    pub league_type: String,
+    pub name: String,
+    pub emoji: String,
+    pub color: String,
+}
+
 impl HasPageToken for DbGame {
     fn page_token(&self) -> PageToken {
         // oh god oh no this is a mess
@@ -60,6 +80,22 @@ pub struct GetPlayerStatsQuery {
 }
 
 impl ChronDb {
+    pub async fn get_teams(&self) -> anyhow::Result<Vec<DbTeam>> {
+        let res = sqlx::query_as("select * from teams")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(res)
+    }
+
+    pub async fn get_leagues(&self) -> anyhow::Result<Vec<DbLeague>> {
+        let res = sqlx::query_as("select * from leagues")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(res)
+    }
+
     pub async fn get_games(&self, q: GetGamesQuery) -> anyhow::Result<PaginatedResult<DbGame>> {
         let mut qq = Query::select()
             .expr(Expr::col((Idens::Games, Asterisk)))
