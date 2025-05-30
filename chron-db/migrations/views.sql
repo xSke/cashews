@@ -116,15 +116,35 @@ select
     h.team_id,
     -- (select league_id from teams t where t.team_id = h.team_id limit 1),
 
-    sum(ip) as ip,
-
     sum(plate_appearances) as plate_appearances,
     sum(at_bats) as at_bats,
+
+    sum(hits) as hits,
+    sum(doubles) as doubles,
+    sum(triples) as triples,
+    sum(home_runs) as home_runs,
+    sum(walked) as walked,
+    sum(struck_out) as struck_out,
+    sum(sac_flies) as sac_flies,
 
     ((sum(hits)::real) / nullif(sum(at_bats)::real, 0)) as ba,
     (sum(hits + walked + hit_by_pitch)::real / nullif(sum(plate_appearances)::real, 0)) as obp,
     (sum(singles + doubles * 2 + triples * 3 + home_runs * 4)::real / nullif(sum(at_bats)::real, 0)) as slg,
     (sum(hits + walked + hit_by_pitch)::real / nullif(sum(plate_appearances)::real, 0) + sum(singles + doubles * 2 + triples * 3 + home_runs * 4)::real / nullif(sum(at_bats)::real, 0)) as ops,
+    (sum(singles + doubles + triples)::real / nullif(sum(at_bats - struck_out + sac_flies)::real, 0)) as babip,
+
+    sum(appearances) as appearances,
+    sum(starts) as starts,
+    sum(ip) as ip,
+    sum(outs) as outs,
+
+    sum(strikeouts) as strikeouts,
+    sum(walks) as walks,
+    sum(hits_allowed) as hits_allowed,
+    sum(home_runs_allowed) as home_runs_allowed,
+    sum(hit_batters) as hit_batters,
+    sum(earned_runs) as earned_runs,
+    sum(runs) as runs,
 
     ((9 * sum(earned_runs))::real / nullif(sum(ip), 0)) as era,
     (sum(walks + hits_allowed)::real / nullif(sum(ip), 0)) as whip,
@@ -134,10 +154,12 @@ select
     (sum(9 * hits_allowed)::real / nullif(sum(ip), 0)) as h9,
     (sum(13 * home_runs_allowed + 3 * (walks + hit_batters) - 2 * strikeouts)::real / nullif(sum(ip), 0)) as fip_base,
 
+    sum(stolen_bases) as stolen_bases,
+    sum(caught_stealing) as caught_stealing,
     sum(stolen_bases + caught_stealing) as sb_attempts,
     (sum(stolen_bases)::real / nullif(sum(stolen_bases + caught_stealing)::real, 0)) as sb_success,
 
-    (sum(singles + doubles + triples)::real / nullif(sum(at_bats - struck_out + sac_flies)::real, 0)) as babip,
+    sum(errors) as errors,
     (sum(putouts + assists)::real / nullif(sum(putouts + assists + errors)::real, 0)) as fpct
 from helper h
 group by (season, h.player_id, h.team_id);
