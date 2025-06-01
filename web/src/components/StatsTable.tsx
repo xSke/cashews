@@ -134,10 +134,10 @@ function SortableHeader(name: string) {
         {name}
 
         {props.column.getIsSorted() === "asc" && (
-          <ChevronDown className="h-4 w-4 ml-0.5" />
+          <ChevronUp className="h-4 w-4 ml-0.5" />
         )}
         {props.column.getIsSorted() === "desc" && (
-          <ChevronUp className="h-4 w-4 ml-0.5" />
+          <ChevronDown className="h-4 w-4 ml-0.5" />
         )}
       </div>
     );
