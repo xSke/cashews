@@ -229,4 +229,8 @@ export interface StatPercentile {
   league_id: string;
   season: number;
   percentile: number;
+  fip_base: number;
+  fip_const: number;
+  era: number;
+  ops: number;
 }
