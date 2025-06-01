@@ -1,7 +1,7 @@
 sync.sh
 __pycache__
 .venv/
-data/
+/data/
 .env
 http_cache
 script.py

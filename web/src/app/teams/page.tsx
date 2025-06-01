@@ -109,6 +109,7 @@ function TeamNameCell(props: CellContext<BasicTeam, unknown>) {
     <Link
       href={`/team/${team.team_id}/stats`}
       className="font-medium hover:underline"
+      prefetch={false}
     >
       {props.getValue()?.toString()}
     </Link>
