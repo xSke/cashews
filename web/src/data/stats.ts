@@ -1,16 +1,32 @@
-import { PlayerStatsEntry } from "./data";
+import { PlayerStatsEntry, StatPercentile } from "./data";
 
 export interface AdvancedStats {
   at_bats: number;
   plate_appearances: number;
   hits: number;
+  doubles: number;
+  triples: number;
+  home_runs: number;
+  walked: number;
+  struck_out: number;
   ba: number;
   obp: number;
   slg: number;
   ops: number;
+  ops_plus: number;
 
   ip: number;
+  appearances: number;
+  starts: number;
+  wins: number;
+  losses: number;
+  hits_allowed: number;
+  home_runs_allowed: number;
+  strikeouts: number;
+  walks: number;
   era: number;
+  era_minus: number;
+  fip: number;
   whip: number;
   h9: number;
   bb9: number;
@@ -18,7 +34,10 @@ export interface AdvancedStats {
   hr9: number;
 }
 
-export function calculateAdvancedStats(data: PlayerStatsEntry): AdvancedStats {
+export function calculateAdvancedStats(data: PlayerStatsEntry, aggs: StatPercentile[]): AdvancedStats {
+  // TODO: make this use the MEAN, not the MEDIAN!
+  const median = aggs.find((x) => x.percentile === 0.5)!;
+
   const singles = data.stats.singles ?? 0;
   const doubles = data.stats.doubles ?? 0;
   const triples = data.stats.triples ?? 0;
@@ -30,9 +49,15 @@ export function calculateAdvancedStats(data: PlayerStatsEntry): AdvancedStats {
   const strikeouts = data.stats.strikeouts ?? 0;
   const home_runs_allowed = data.stats.home_runs_allowed ?? 0;
   const walked = data.stats.walked ?? 0;
+  const struck_out = data.stats.struck_out ?? 0;
   const hit_by_pitch = data.stats.hit_by_pitch ?? 0;
+  const hit_batters = data.stats.hit_batters ?? 0;
 
   const ip = outs / 3;
+  const appearances = data.stats.appearances ?? 0;
+  const starts = data.stats.starts ?? 0;
+  const wins = data.stats.wins ?? 0;
+  const losses = data.stats.losses ?? 0;
 
   const abs = data.stats.at_bats ?? 0;
   const pas = data.stats.plate_appearances ?? 0;
@@ -43,8 +68,12 @@ export function calculateAdvancedStats(data: PlayerStatsEntry): AdvancedStats {
   const obp = (hits + walked + hit_by_pitch) / pas;
   const slg = (singles + doubles * 2 + triples * 3 + home_runs * 4) / abs;
   const ops = obp + slg;
+  const ops_plus = 100 * ops / median.ops;
 
   const era = (9 * earned_runs) / ip;
+  const era_minus = 100 * era / median.era;
+  const fip_base = (13 * home_runs_allowed + 3 * (walks + hit_batters) - 2 * strikeouts) / ip;
+  const fip = fip_base + median.fip_const;
   const whip = (walks + hits_allowed) / ip;
   const hr9 = (9 * home_runs_allowed) / ip;
   const bb9 = (9 * walks) / ip;
@@ -55,13 +84,29 @@ export function calculateAdvancedStats(data: PlayerStatsEntry): AdvancedStats {
     at_bats: abs,
     plate_appearances: pas,
     hits,
+    doubles,
+    triples,
+    home_runs,
+    walked,
+    struck_out,
     ba,
     obp,
     slg,
     ops,
+    ops_plus,
 
     ip,
+    appearances,
+    starts,
+    wins,
+    losses,
+    hits_allowed,
+    home_runs_allowed,
+    strikeouts,
+    walks,
     era,
+    era_minus,
+    fip,
     whip,
     h9,
     bb9,

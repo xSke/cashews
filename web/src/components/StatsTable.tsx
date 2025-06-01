@@ -89,7 +89,7 @@ function StatCell(
 
     return (
       <div
-        className={`tabular-nums p-2 ${statKey && "font-medium"} ${statKey}`}
+        className={`text-right tabular-nums p-2 ${statKey && "font-medium"} ${statKey}`}
       >
         {data.toFixed(digits)}
       </div>
@@ -126,6 +126,7 @@ function InningsCell() {
 function SortableHeader(name: string) {
   return (props: HeaderContext<RowData, unknown>) => {
     return (
+      //   TODO: make the headers right align somehow, and then put the chevron on the left?
       <div
         className="flex items-center cursor-pointer"
         onClick={() => props.column.toggleSorting()}
@@ -133,10 +134,10 @@ function SortableHeader(name: string) {
         {name}
 
         {props.column.getIsSorted() === "asc" && (
-          <ChevronDown className="h-4 w-4 ml-0.5" />
+          <ChevronUp className="h-4 w-4 ml-0.5" />
         )}
         {props.column.getIsSorted() === "desc" && (
-          <ChevronUp className="h-4 w-4 ml-0.5" />
+          <ChevronDown className="h-4 w-4 ml-0.5" />
         )}
       </div>
     );
@@ -160,11 +161,11 @@ function NameCell(props: CellContext<RowData, unknown>) {
 }
 
 const columnsBase: ColumnDef<RowData>[] = [
-  {
-    header: SortableHeader("ID"),
-    accessorKey: "id",
-    cell: IdCell,
-  },
+  // {
+  //   header: SortableHeader("ID"),
+  //   accessorKey: "id",
+  //   cell: IdCell,
+  // },
   {
     header: SortableHeader("Name"),
     accessorKey: "name",
@@ -179,14 +180,50 @@ const columnsBase: ColumnDef<RowData>[] = [
 
 const columnsBatting: ColumnDef<RowData>[] = [
   {
+    header: SortableHeader("PAs"),
+    accessorKey: "plate_appearances",
+    cell: StatCell(0),
+  },
+  {
     header: SortableHeader("ABs"),
     accessorKey: "at_bats",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("PAs"),
-    accessorKey: "plate_appearances",
+    header: SortableHeader("H"),
+    accessorKey: "hits",
     cell: StatCell(0),
+    // footer: StatFooter(),
+  },
+  {
+    header: SortableHeader("2B"),
+    accessorKey: "doubles",
+    cell: StatCell(0),
+    // footer: StatFooter(),
+  },
+  {
+    header: SortableHeader("3B"),
+    accessorKey: "triples",
+    cell: StatCell(0),
+    // footer: StatFooter(),
+  },
+  {
+    header: SortableHeader("HR"),
+    accessorKey: "home_runs",
+    cell: StatCell(0),
+    // footer: StatFooter(),
+  },
+  {
+    header: SortableHeader("BB"),
+    accessorKey: "walked",
+    cell: StatCell(0),
+    // footer: StatFooter(),
+  },
+  {
+    header: SortableHeader("K"),
+    accessorKey: "struck_out",
+    cell: StatCell(0),
+    // footer: StatFooter(),
   },
   {
     header: SortableHeader("BA"),
@@ -209,17 +246,72 @@ const columnsBatting: ColumnDef<RowData>[] = [
     accessorKey: "ops",
     cell: StatCell(3, "ops"),
   },
+  {
+    header: SortableHeader("OPS+"),
+    accessorKey: "ops_plus",
+    cell: StatCell(0, "ops_plus"),
+  },
 ];
 const columnsPitching: ColumnDef<RowData>[] = [
+  {
+    header: SortableHeader("G"),
+    accessorKey: "appearances",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("GS"),
+    accessorKey: "starts",
+    cell: StatCell(0),
+  },
   {
     header: SortableHeader("IP"),
     accessorKey: "ip",
     cell: InningsCell(),
   },
   {
+    header: SortableHeader("W"),
+    accessorKey: "wins",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("L"),
+    accessorKey: "losses",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("H"),
+    accessorKey: "hits_allowed",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("HR"),
+    accessorKey: "home_runs_allowed",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("K"),
+    accessorKey: "strikeouts",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("BB"),
+    accessorKey: "walks",
+    cell: StatCell(0),
+  },
+  {
     header: SortableHeader("ERA"),
     accessorKey: "era",
     cell: StatCell(2, "era", true),
+  },
+  {
+    header: SortableHeader("ERA-"),
+    accessorKey: "era_minus",
+    cell: StatCell(0, "era_minus"),
+  },
+  {
+    header: SortableHeader("FIP"),
+    accessorKey: "fip",
+    cell: StatCell(2, "fip", true),
   },
   {
     header: SortableHeader("WHIP"),
@@ -343,7 +435,7 @@ export default function StatsTable(props: StatsTableProps) {
 function processStats(props: StatsTableProps): RowData[] {
   const data = [];
   for (let row of props.data) {
-    const stats = calculateAdvancedStats(row);
+    const stats = calculateAdvancedStats(row, props.aggs);
     if (props.type == "batting" && stats.plate_appearances == 0) continue;
     if (props.type == "pitching" && stats.ip == 0) continue;
 
