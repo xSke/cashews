@@ -1,15 +1,17 @@
-use std::collections::{BTreeMap, HashMap};
+use std::{collections::BTreeMap, time::{Duration, Instant}};
 
+use anyhow::anyhow;
 use axum::{
     Json,
     extract::{Query, State},
 };
 use chron_db::{
-    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam},
+    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam, PercentileStats},
     models::PageToken,
     queries::{PaginatedResult, SortOrder},
 };
 use serde::{Deserialize, Serialize};
+use tracing::{error, info};
 
 use crate::{AppError, AppState};
 
@@ -46,36 +48,26 @@ pub async fn get_games(
     Ok(Json(games))
 }
 
-
-
 #[derive(Deserialize, Debug)]
-pub struct GetTeamsQuery {
-}
+pub struct GetTeamsQuery {}
 
 pub async fn get_teams(
     State(ctx): State<AppState>,
     Query(_q): Query<GetTeamsQuery>,
 ) -> Result<Json<PaginatedResult<DbTeam>>, AppError> {
-    let teams = ctx
-        .db
-        .get_teams()
-        .await?;
+    let teams = ctx.db.get_teams().await?;
 
     Ok(Json(fake_paginate(teams)))
 }
 
 #[derive(Deserialize, Debug)]
-pub struct GetLeaguesQuery {
-}
+pub struct GetLeaguesQuery {}
 
 pub async fn get_leagues(
     State(ctx): State<AppState>,
     Query(_q): Query<GetTeamsQuery>,
 ) -> Result<Json<PaginatedResult<DbLeague>>, AppError> {
-    let teams = ctx
-        .db
-        .get_leagues()
-        .await?;
+    let teams = ctx.db.get_leagues().await?;
 
     Ok(Json(fake_paginate(teams)))
 }
@@ -108,6 +100,57 @@ pub async fn get_player_stats(
         .await?;
 
     Ok(Json(aggregate_player_stats(&stats)))
+}
+
+pub async fn league_aggregate(
+    State(ctx): State<AppState>,
+) -> Result<Json<Vec<PercentileStats>>, AppError> {
+    // this caching code is stupid, redo with a proper lib at some point...
+    let (data, should_recalc) = {
+        let _lock = ctx.percentile_cache.read().unwrap();
+
+        if let Some((ref data, ref expiry)) = (*_lock).0 {
+                    (data.clone(), Instant::now() > *expiry )
+            } else {
+                (Vec::new(), true)
+            }   
+    };
+
+    if should_recalc {
+        let should_spawn = {
+            let mut _lock = ctx.percentile_cache.write().unwrap();
+            if !_lock.1 {
+                _lock.1 = true;
+                true
+            } else {
+                false
+            }
+        };
+        if should_spawn {
+            tokio::spawn(async move {
+                if let Err(e) = refresh_league_aggregate(&ctx).await {
+                    error!("error refreshing league aggregates: {}", e);
+                }
+
+                let mut _lock = ctx.percentile_cache.write().unwrap();
+                _lock.1 = false;
+            });
+        }
+    }
+
+    Ok(Json(data))
+}
+
+async fn refresh_league_aggregate(ctx: &AppState) -> anyhow::Result<()> {
+    info!("refreshing league aggregates");
+    let percentiles = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95];
+    let res = ctx.db.get_league_percentiles(&percentiles).await?;
+
+    let expiry = Instant::now() + Duration::from_secs(5);
+    let mut lock = ctx.percentile_cache.write().unwrap();
+    lock.0 = Some((res, expiry));
+
+    Ok(())
 }
 
 #[derive(Serialize, Debug)]
@@ -164,5 +207,8 @@ fn aggregate_player_stats(source: &[DbGamePlayerStats]) -> Vec<ApiPlayerStats> {
 }
 
 fn fake_paginate<T>(data: Vec<T>) -> PaginatedResult<T> {
-    PaginatedResult { items: data, next_page: None }
+    PaginatedResult {
+        items: data,
+        next_page: None,
+    }
 }

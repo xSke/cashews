@@ -27,15 +27,16 @@ export default async function Layout(props: TeamPageProps) {
         <div className="flex flex-col">
           <h4 className="font-medium text-sm py-1">Team</h4>
           <a className="py-1 px-2 bg-muted rounded">Info</a>
-          <a className="py-1 px-2 ">Roster</a>
-          <a className="py-1 px-2 ">Records</a>
-          <a className="py-1 px-2 ">History</a>
+          <a className="py-1 px-2">Roster</a>
+          <a className="py-1 px-2">Records</a>
+          <a className="py-1 px-2">History</a>
 
           <h4 className="font-medium text-sm py-1 mt-4">Stats</h4>
-          <a className="py-1 px-2 ">Seasonal</a>
-          <a className="py-1 px-2 ">Average</a>
-          <a className="py-1 px-2 ">Whatever</a>
-          <a className="py-1 px-2 ">Something else</a>
+          <a className="py-1 px-2">Seasonal</a>
+          <a className="py-1 px-2">Average</a>
+          <a className="py-1 px-2">Whatever</a>
+          <a className="py-1 px-2">Something else</a>
+          <a className="py-1 px-2">Please Imagine More Links</a>
           <div className="pl-4 flex-4"></div>
         </div>
       </aside>

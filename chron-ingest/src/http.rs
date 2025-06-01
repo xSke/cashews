@@ -1,9 +1,8 @@
 use chron_db::models::{EntityKind, NewObject};
-use reqwest::{Client, ClientBuilder, IntoUrl, StatusCode, Url, header};
+use reqwest::{Client, ClientBuilder, IntoUrl, StatusCode, Url};
 use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
 use tracing::info;
-use uuid::Uuid;
 
 #[derive(Clone)]
 pub struct DataClient {
@@ -13,15 +12,15 @@ pub struct DataClient {
 
 #[derive(Debug, Clone)]
 pub struct ClientResponse {
-    pub url: Url,
+    pub _url: Url,
     pub timestamp_before: OffsetDateTime,
     pub timestamp_after: OffsetDateTime,
     // pub etag: Option<String>,
     // pub content_type: Option<String>,
     // pub last_modified: Option<String>,
     pub data: Vec<u8>,
-    pub status_code: StatusCode,
-    pub was_cached: bool,
+    pub _status_code: StatusCode,
+    pub _was_cached: bool,
 }
 
 impl ClientResponse {
@@ -103,7 +102,7 @@ impl DataClient {
     }
 
     pub async fn fetch(&self, orig_url: impl IntoUrl) -> anyhow::Result<ClientResponse> {
-        let mut request = self.client.get(orig_url);
+        let request = self.client.get(orig_url);
         // if let Some(cached_etag) = self
         //     .cached_responses
         //     .get(orig_url)
@@ -158,15 +157,15 @@ impl DataClient {
         let data = response.bytes().await?.to_vec();
 
         let sr = ClientResponse {
-            url,
+            _url: url,
             timestamp_before,
             timestamp_after,
             // etag,
             data,
             // content_type,
             // last_modified,
-            status_code,
-            was_cached: false,
+            _status_code: status_code,
+            _was_cached: false,
         };
 
         // if sr.etag.is_some() {

@@ -8,6 +8,7 @@ anyhow = { workspace = true }
 axum = { workspace = true }
 chron-base = { workspace = true }
 chron-db = { workspace = true }
+moka = { version = "0.12.10", features = ["future"] }
 serde = { workspace = true }
 time = { workspace = true }
 tokio = { workspace = true }

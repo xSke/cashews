@@ -79,6 +79,27 @@ pub struct GetPlayerStatsQuery {
     pub team: Option<String>,
 }
 
+#[derive(FromRow, Debug, Clone, Serialize)]
+pub struct PercentileStats {
+    pub season: i32,
+    pub league_id: String,
+    pub percentile: f32,
+    
+    pub ba: f32,
+    pub obp: f32,
+    pub slg: f32,
+    pub ops: f32,
+    pub era: f32,
+    pub whip: f32,
+    pub fip_base: f32,
+    pub fip_const: f32,
+    pub h9: f32,
+    pub k9: f32,
+    pub bb9: f32,
+    pub hr9: f32
+}
+
+
 impl ChronDb {
     pub async fn get_teams(&self) -> anyhow::Result<Vec<DbTeam>> {
         let res = sqlx::query_as("select * from teams")
@@ -131,6 +152,19 @@ impl ChronDb {
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
         let res = sqlx::query_as_with(&q, vals).fetch_all(&self.pool).await?;
         Ok(with_page_token(res))
+    }
+
+    pub async fn get_league_percentiles(&self, percentiles: &[f32]) -> anyhow::Result<Vec<PercentileStats>> {
+        let mut q = String::new();
+        q.push_str("select season, league_id,");
+
+        for col in "ba obp slg ops era whip fip_base fip_const h9 k9 bb9 hr9".split_ascii_whitespace() {
+            q.push_str(&format!("unnest({}) as {}, ", col, col));
+        }
+        q.push_str(" unnest($1) as percentile from league_percentiles($1::real[])");
+
+        let res = sqlx::query_as(&q).bind(&percentiles).fetch_all(&self.pool).await?;
+        Ok(res)
     }
 
     pub async fn get_player_stats(
