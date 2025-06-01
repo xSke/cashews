@@ -10,9 +10,10 @@ use tracing::{error, info};
 use uuid::Uuid;
 use workers::{
     IntervalWorker, SimState, WorkerContext, crunch,
-    games::{self, PollAllGames},
+    games::{self},
     import,
     league::{self, PollLeague, PollNewPlayers},
+    matviews::RefreshMatviews,
 };
 
 mod http;
@@ -46,10 +47,10 @@ async fn main() -> anyhow::Result<()> {
     let config = load_config()?;
 
     let client = DataClient::new()?;
-    let mut ctx = WorkerContext {
+    let ctx = WorkerContext {
         client,
         db: ChronDb::new(&config).await?,
-        sim: Arc::new(RwLock::new(SimState {
+        _sim: Arc::new(RwLock::new(SimState {
             _season: Uuid::default(),
             _day: -1,
         })),
@@ -64,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         spawn(ctx.clone(), PollLeague);
         spawn(ctx.clone(), PollNewPlayers);
+        spawn(ctx.clone(), RefreshMatviews);
         // spawn(ctx, PollAllGames);
 
         loop {

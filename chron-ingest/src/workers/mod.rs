@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use chron_db::{ChronDb, models::EntityKind};
 use futures::StreamExt;
 use futures::stream;
-use reqwest::{IntoUrl, StatusCode, Url};
+use reqwest::IntoUrl;
 use tokio::time::Interval;
 use tracing::error;
 use uuid::Uuid;
@@ -14,10 +14,11 @@ pub mod crunch;
 pub mod games;
 pub mod import;
 pub mod league;
+pub mod matviews;
 
 #[derive(Clone)]
 pub struct WorkerContext {
-    pub sim: Arc<RwLock<SimState>>,
+    pub _sim: Arc<RwLock<SimState>>,
     pub db: ChronDb,
     pub client: DataClient,
 }

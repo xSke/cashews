@@ -1,3 +1,6 @@
+drop materialized view if exists game_player_stats_league_aggregate cascade;
+drop materialized view if exists game_player_stats_global_aggregate cascade;
+ 
 drop view if exists league_percentiles;
 drop view if exists game_player_stats_advanced;
 
@@ -309,6 +312,7 @@ from helper h
          inner join teams t on (t.team_id = h.team_id)
 group by (season, league_id)
 with data;
+create unique index game_player_stats_league_aggregate_idx on game_player_stats_league_aggregate(season, league_id);
 
 -- Materialized view for calculating globally averaged stats. Unlike game_player_stats_league_aggregate, does not group
 -- by league, so BA here is (total hits across every league in MMOLB) / (total at-bats across every league in MMOLB) for
@@ -453,6 +457,7 @@ from helper h
          inner join teams t on (t.team_id = h.team_id)
 group by (season)
 with data;
+create unique index game_player_stats_global_aggregate_idx on game_player_stats_global_aggregate(season);
 
 drop function if exists league_percentiles;
 create or replace function league_percentiles(real[]) returns table(

@@ -1,11 +1,13 @@
+use std::{sync::{atomic::AtomicBool, Arc, Mutex, RwLock}, time::{Duration, Instant}};
+
 use axum::{
     Router,
     http::{Method, StatusCode},
     response::{IntoResponse, Response},
     routing::get,
 };
-use chron_base::load_config;
-use chron_db::ChronDb;
+use chron_base::{load_config};
+use chron_db::{ChronDb, derived::PercentileStats};
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
@@ -19,6 +21,7 @@ mod derived_api;
 #[derive(Clone)]
 pub struct AppState {
     db: ChronDb,
+    percentile_cache: Arc<RwLock<(Option<(Vec<PercentileStats>, Instant)>, bool)>>
 }
 
 pub struct AppError(anyhow::Error);
@@ -40,7 +43,10 @@ async fn main() -> anyhow::Result<()> {
     let config = load_config()?;
     let db = ChronDb::new(&config).await?;
 
-    let state = AppState { db };
+    let state = AppState {
+        db,
+        percentile_cache: Arc::new(RwLock::new((None, false)))
+    };
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET])
@@ -59,6 +65,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/teams", get(derived_api::get_teams))
         .route("/leagues", get(derived_api::get_leagues))
         .route("/player-stats", get(derived_api::get_player_stats))
+        .route("/league-aggregate-stats", get(derived_api::league_aggregate))
         // todo: is the order here right?
         .layer(cors)
         .layer(CompressionLayer::new())

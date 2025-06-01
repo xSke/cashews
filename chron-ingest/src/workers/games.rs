@@ -1,5 +1,5 @@
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashSet},
     time::Duration,
 };
 
@@ -10,7 +10,7 @@ use chron_db::{
 use futures::StreamExt;
 use time::OffsetDateTime;
 use tokio::time::interval;
-use tracing::{error, event, info, warn};
+use tracing::{error, info, warn};
 
 use crate::models::{MmolbGame, MmolbGameByTeam, MmolbTime};
 
