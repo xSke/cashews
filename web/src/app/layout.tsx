@@ -10,7 +10,8 @@ import {
   QueryClient,
 } from "@tanstack/react-query";
 
-// import "@mantine/core/styles.css";
+// disable trying to pregenerate static pages
+export const dynamic = 'force-dynamic';
 
 import SiteHeader from "@/components/SiteHeader";
 import { getBasicLeagues, getBasicTeams } from "@/data/data";
