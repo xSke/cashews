@@ -8,7 +8,7 @@ use time::OffsetDateTime;
 use crate::{
     ChronDb, Idens,
     models::{HasPageToken, PageToken},
-    queries::{PaginatedResult, SortOrder, get_order, paginate, paginate_simple, with_page_token},
+    queries::{PaginatedResult, SortOrder, get_order, paginate_simple, with_page_token},
 };
 
 #[derive(Serialize, Deserialize, Debug, FromRow)]

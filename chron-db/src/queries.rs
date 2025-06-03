@@ -1,10 +1,9 @@
 use std::pin::Pin;
 
 use futures::Stream;
-use sea_query::{Asterisk, Expr, Iden, PostgresQueryBuilder, Query, SimpleExpr};
+use sea_query::{Asterisk, Expr, PostgresQueryBuilder, Query, SimpleExpr};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
-use sqlx::postgres::PgRow;
 use time::OffsetDateTime;
 
 use crate::{

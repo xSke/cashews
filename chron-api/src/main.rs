@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, Mutex, RwLock, atomic::AtomicBool},
-    time::{Duration, Instant},
-};
+use std::time::Duration;
 
 use axum::{
     Router,
@@ -9,8 +6,9 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use chron_base::load_config;
+use chron_base::{cache::SwrCache2, load_config};
 use chron_db::{ChronDb, derived::PercentileStats};
+use derived_api::refresh_league_aggregate;
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
@@ -24,7 +22,7 @@ mod derived_api;
 #[derive(Clone)]
 pub struct AppState {
     db: ChronDb,
-    percentile_cache: Arc<RwLock<(Option<(Vec<PercentileStats>, Instant)>, bool)>>,
+    percentile_cache: SwrCache2<(), Vec<PercentileStats>, AppState>,
 }
 
 pub struct AppError(anyhow::Error);
@@ -48,8 +46,11 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState {
         db,
-        percentile_cache: Arc::new(RwLock::new((None, false))),
+        percentile_cache: SwrCache2::new(Duration::from_secs(10), 10, move |_, ctx| {
+            refresh_league_aggregate(ctx)
+        }),
     };
+    state.percentile_cache.set_context(state.clone());
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET])
@@ -60,8 +61,6 @@ async fn main() -> anyhow::Result<()> {
         .on_response(DefaultOnResponse::new());
 
     let app = Router::new()
-        // .route("/v0/game-events", get(api::get_game_events))
-        // .route("/v0/events", get(api::get_events))
         .route("/chron/v0/entities", get(chron_api::get_entities))
         .route("/chron/v0/versions", get(chron_api::get_versions))
         .route("/games", get(derived_api::get_games))
@@ -73,10 +72,9 @@ async fn main() -> anyhow::Result<()> {
             "/league-aggregate-stats",
             get(derived_api::league_aggregate),
         )
-        // todo: is the order here right?
         .layer(cors)
         .layer(CompressionLayer::new())
-        // .layer(trace)
+        .layer(trace)
         .with_state(state);
 
     let addr = "0.0.0.0:3001";
