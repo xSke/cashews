@@ -1,4 +1,7 @@
-use std::{collections::BTreeMap, time::{Duration, Instant}};
+use std::{
+    collections::BTreeMap,
+    time::{Duration, Instant},
+};
 
 use anyhow::anyhow;
 use axum::{
@@ -11,6 +14,7 @@ use chron_db::{
     queries::{PaginatedResult, SortOrder},
 };
 use serde::{Deserialize, Serialize};
+use sqlx::FromRow;
 use tracing::{error, info};
 
 use crate::{AppError, AppState};
@@ -110,10 +114,10 @@ pub async fn league_aggregate(
         let _lock = ctx.percentile_cache.read().unwrap();
 
         if let Some((ref data, ref expiry)) = (*_lock).0 {
-                    (data.clone(), Instant::now() > *expiry )
-            } else {
-                (Vec::new(), true)
-            }   
+            (data.clone(), Instant::now() > *expiry)
+        } else {
+            (Vec::new(), true)
+        }
     };
 
     if should_recalc {
@@ -139,6 +143,27 @@ pub async fn league_aggregate(
     }
 
     Ok(Json(data))
+}
+
+#[derive(FromRow, Serialize)]
+pub struct ScorigamiEntry {
+    min: i32,
+    max: i32,
+    count: i32,
+    first: String,
+}
+
+pub async fn scorigami(State(ctx): State<AppState>) -> Result<Json<Vec<ScorigamiEntry>>, AppError> {
+    let r = fetch_scorigami(&ctx).await?;
+    Ok(Json(r))
+}
+
+async fn fetch_scorigami(ctx: &AppState) -> anyhow::Result<Vec<ScorigamiEntry>> {
+    // inline sql here is a bit nasty but we ball
+    let r = sqlx::query_as(r"with games2 as (select least((last_update->>'home_score')::int, (last_update->>'away_score')::int) as min, greatest((last_update->>'home_score')::int, (last_update->>'away_score')::int) as max, game_id from games where state = 'Complete') select min(game_id) as first, min, max, count(*)::int as count from games2 group by (min, max);")
+    .fetch_all(&ctx.db.pool)
+    .await?;
+    Ok(r)
 }
 
 async fn refresh_league_aggregate(ctx: &AppState) -> anyhow::Result<()> {
