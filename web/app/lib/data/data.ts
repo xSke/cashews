@@ -35,7 +35,9 @@ export interface Team {}
 //   return teams[id];
 // }
 
-const API_BASE = "/api";
+const API_BASE = import.meta.env.SSR
+  ? (process.env.API_BASE ?? "http://localhost:3000/api")
+  : "/api";
 
 export async function getEntity<T>(
   kind: string,
@@ -60,18 +62,14 @@ export async function getEntities<T>(
 }
 
 export async function getBasicTeams(): Promise<Record<string, BasicTeam>> {
-  const resp = await fetch(API_BASE + `/teams`, {
-    cache: "force-cache",
-  });
+  const resp = await fetch(API_BASE + `/teams`, {});
   const data = (await resp.json()) as ChronPaginatedResponse<BasicTeam>;
 
   return Object.fromEntries(data.items.map((x) => [x.team_id, x]));
 }
 
 export async function getBasicLeagues(): Promise<Record<string, BasicLeague>> {
-  const resp = await fetch(API_BASE + `/leagues`, {
-    cache: "force-cache",
-  });
+  const resp = await fetch(API_BASE + `/leagues`, {});
   const data = (await resp.json()) as ChronPaginatedResponse<BasicLeague>;
 
   return Object.fromEntries(data.items.map((x) => [x.league_id, x]));
@@ -120,6 +118,19 @@ export function useAllLeagues() {
     staleTime: 60 * 1000,
   });
   return data;
+}
+
+export async function getScorigami() {
+  const resp = await fetch(API_BASE + `/scorigami`);
+  const data = (await resp.json()) as ScorigamiEntry[];
+  return data;
+}
+
+export interface ScorigamiEntry {
+  min: number;
+  max: number;
+  count: number;
+  first: string;
 }
 
 // export function useTeams(ids: string[]) {
