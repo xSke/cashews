@@ -35,11 +35,8 @@ export interface Team {}
 //   return teams[id];
 // }
 
-const API_BASE =
-  typeof window !== "undefined"
-    ? process.env.NEXT_PUBLIC_API_BASE || "http://localhost:3001"
-    : process.env.API_BASE || "http://localhost:3001";
-console.log("API BASE IS", API_BASE);
+const API_BASE = "/api";
+
 export async function getEntity<T>(
   kind: string,
   id: string
