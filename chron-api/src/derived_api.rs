@@ -1,9 +1,5 @@
-use std::{
-    collections::BTreeMap,
-    time::{Duration, Instant},
-};
+use std::{collections::BTreeMap, sync::Arc};
 
-use anyhow::anyhow;
 use axum::{
     Json,
     extract::{Query, State},
@@ -15,7 +11,7 @@ use chron_db::{
 };
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
-use tracing::{error, info};
+use tracing::info;
 
 use crate::{AppError, AppState};
 
@@ -108,40 +104,8 @@ pub async fn get_player_stats(
 
 pub async fn league_aggregate(
     State(ctx): State<AppState>,
-) -> Result<Json<Vec<PercentileStats>>, AppError> {
-    // this caching code is stupid, redo with a proper lib at some point...
-    let (data, should_recalc) = {
-        let _lock = ctx.percentile_cache.read().unwrap();
-
-        if let Some((ref data, ref expiry)) = (*_lock).0 {
-            (data.clone(), Instant::now() > *expiry)
-        } else {
-            (Vec::new(), true)
-        }
-    };
-
-    if should_recalc {
-        let should_spawn = {
-            let mut _lock = ctx.percentile_cache.write().unwrap();
-            if !_lock.1 {
-                _lock.1 = true;
-                true
-            } else {
-                false
-            }
-        };
-        if should_spawn {
-            tokio::spawn(async move {
-                if let Err(e) = refresh_league_aggregate(&ctx).await {
-                    error!("error refreshing league aggregates: {}", e);
-                }
-
-                let mut _lock = ctx.percentile_cache.write().unwrap();
-                _lock.1 = false;
-            });
-        }
-    }
-
+) -> Result<Json<Arc<Vec<PercentileStats>>>, AppError> {
+    let data = ctx.percentile_cache.get(()).await?;
     Ok(Json(data))
 }
 
@@ -166,16 +130,12 @@ async fn fetch_scorigami(ctx: &AppState) -> anyhow::Result<Vec<ScorigamiEntry>> 
     Ok(r)
 }
 
-async fn refresh_league_aggregate(ctx: &AppState) -> anyhow::Result<()> {
+pub async fn refresh_league_aggregate(ctx: AppState) -> anyhow::Result<Vec<PercentileStats>> {
     info!("refreshing league aggregates");
     let percentiles = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95];
     let res = ctx.db.get_league_percentiles(&percentiles).await?;
 
-    let expiry = Instant::now() + Duration::from_secs(5);
-    let mut lock = ctx.percentile_cache.write().unwrap();
-    lock.0 = Some((res, expiry));
-
-    Ok(())
+    Ok(res)
 }
 
 #[derive(Serialize, Debug)]

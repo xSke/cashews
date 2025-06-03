@@ -1,9 +1,9 @@
 use std::{
-    io::{Cursor, Write},
-    sync::{Arc, Mutex, atomic::AtomicU32},
+    io::Write,
+    sync::{Arc, Mutex},
 };
 
-use brotli::{CompressorWriter, enc::BrotliEncoderParams};
+use brotli::CompressorWriter;
 use dashmap::DashMap;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -44,7 +44,7 @@ pub async fn crunch(ctx: &WorkerContext) -> anyhow::Result<()> {
 }
 
 async fn do_crunch(
-    ctx: &WorkerContext,
+    _ctx: &WorkerContext,
     row: sqlx::Result<(Uuid, serde_json::Value)>,
     key_map: Arc<DashMap<String, u32>>,
     next: Arc<Mutex<u32>>,
