@@ -10,6 +10,7 @@ chron-base = { workspace = true }
 chron-db = { workspace = true }
 moka = { version = "0.12.10", features = ["future"] }
 serde = { workspace = true }
+sqlx.workspace = true
 time = { workspace = true }
 tokio = { workspace = true }
 tower-http = { workspace = true }

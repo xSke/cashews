@@ -62,7 +62,13 @@ impl ChronDb {
         let mut tx = pool.acquire().await?;
         tx.execute(include_str!("../migrations/functions.sql"))
             .await?;
-        tx.execute(include_str!("../migrations/views.sql")).await?;
+
+        // run the matviews in a separate worker, hope we don't race them or something
+        tokio::spawn(async move {
+            if let Err(e) = tx.execute(include_str!("../migrations/views.sql")).await {
+                tracing::error!("error setting up views: {:?}", e);
+            }
+        });
 
         Ok(ChronDb {
             pool,
