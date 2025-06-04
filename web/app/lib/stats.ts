@@ -1,4 +1,5 @@
-import { PlayerStatsEntry, StatPercentile } from "./data";
+import { PercentileStats, PlayerStatsEntry, StatPercentile } from "./data";
+import { findValueAtPercentile } from "./percentile";
 
 export interface AdvancedStats {
   at_bats: number;
@@ -34,9 +35,18 @@ export interface AdvancedStats {
   hr9: number;
 }
 
-export function calculateAdvancedStats(data: PlayerStatsEntry, aggs: StatPercentile[]): AdvancedStats {
+export function calculateAdvancedStats(
+  data: PlayerStatsEntry,
+  leagueStats: PercentileStats
+): AdvancedStats {
   // TODO: make this use the MEAN, not the MEDIAN!
-  const median = aggs.find((x) => x.percentile === 0.5)!;
+  const medianOps = findValueAtPercentile(leagueStats.ops, 0.5, false);
+  const medianEra = findValueAtPercentile(leagueStats.era, 0.5, true);
+  const medianFipConst = findValueAtPercentile(
+    leagueStats.fip_const,
+    0.5,
+    true
+  );
 
   const singles = data.stats.singles ?? 0;
   const doubles = data.stats.doubles ?? 0;
@@ -68,12 +78,13 @@ export function calculateAdvancedStats(data: PlayerStatsEntry, aggs: StatPercent
   const obp = (hits + walked + hit_by_pitch) / pas;
   const slg = (singles + doubles * 2 + triples * 3 + home_runs * 4) / abs;
   const ops = obp + slg;
-  const ops_plus = 100 * ops / median.ops;
+  const ops_plus = (100 * ops) / medianOps;
 
   const era = (9 * earned_runs) / ip;
-  const era_minus = 100 * era / median.era;
-  const fip_base = (13 * home_runs_allowed + 3 * (walks + hit_batters) - 2 * strikeouts) / ip;
-  const fip = fip_base + median.fip_const;
+  const era_minus = (100 * era) / medianEra;
+  const fip_base =
+    (13 * home_runs_allowed + 3 * (walks + hit_batters) - 2 * strikeouts) / ip;
+  const fip = fip_base + medianFipConst;
   const whip = (walks + hits_allowed) / ip;
   const hr9 = (9 * home_runs_allowed) / ip;
   const bb9 = (9 * walks) / ip;

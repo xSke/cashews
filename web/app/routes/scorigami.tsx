@@ -1,4 +1,4 @@
-import { getScorigami } from "@/lib/data/data";
+import { getScorigami } from "@/lib/data";
 import { createFileRoute } from "@tanstack/react-router";
 import chroma from "chroma-js";
 import colors from "tailwindcss/colors";

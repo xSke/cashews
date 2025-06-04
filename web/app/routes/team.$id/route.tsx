@@ -1,4 +1,5 @@
-import { getEntity, MmolbTeam } from "@/lib/data/data";
+import { getEntity, MmolbTeam } from "@/lib/data";
+
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/team/$id")({

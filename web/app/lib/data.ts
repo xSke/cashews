@@ -8,6 +8,7 @@ import {
   useSuspenseQuery,
 } from "@tanstack/react-query";
 import { cache } from "react";
+import { PercentileStat } from "./percentile";
 
 // export function useTeams(): UseQueryResult<any> {
 //     return useQuery({
@@ -95,10 +96,27 @@ export async function getTeamStats(team: string): Promise<PlayerStatsEntry[]> {
   const data = (await resp.json()) as PlayerStatsEntry[];
   return data;
 }
+export interface PercentileStats {
+  ba: PercentileStat;
+  obp: PercentileStat;
+  slg: PercentileStat;
+  ops: PercentileStat;
+  era: PercentileStat;
+  whip: PercentileStat;
+  h9: PercentileStat;
+  k9: PercentileStat;
+  bb9: PercentileStat;
+  hr9: PercentileStat;
+  fip_const: PercentileStat;
+}
 
-export async function getLeagueAggregates(): Promise<StatPercentile[]> {
+export interface PercentileResponse {
+  leagues: Record<string, PercentileStats>;
+}
+
+export async function getLeagueAggregates(): Promise<PercentileResponse> {
   const resp = await fetch(API_BASE + `/league-aggregate-stats`);
-  const data = (await resp.json()) as StatPercentile[];
+  const data = (await resp.json()) as PercentileResponse;
   return data;
 }
 

@@ -5,7 +5,7 @@ import {
   getTeamStats,
   MmolbPlayer,
   MmolbTeam,
-} from "@/lib/data/data";
+} from "@/lib/data";
 import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/team/$id/stats")({
@@ -21,21 +21,13 @@ export const Route = createFileRoute("/team/$id/stats")({
 
     const thisTeam = teams[params.id]!;
     const aggs = await getLeagueAggregates();
-    const filteredAggs = aggs
-      .filter(
-        (x) =>
-          x.season === 0 &&
-          x.league_id === thisTeam.League &&
-          [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95].includes(x.percentile)
-      )
-      .sort((a, b) => a.percentile - b.percentile);
 
-    return { stats, players, teams, filteredAggs };
+    return { stats, players, teams, aggs };
   },
 });
 
 function RouteComponent() {
-  const { stats, players, teams, filteredAggs } = Route.useLoaderData();
+  const { stats, players, teams, aggs } = Route.useLoaderData();
   return (
     <div>
       <h2 className="mb-2">Batting</h2>
@@ -43,7 +35,7 @@ function RouteComponent() {
         data={stats}
         players={players}
         teams={teams}
-        aggs={filteredAggs}
+        aggs={aggs}
         type="batting"
       />
 
@@ -52,12 +44,9 @@ function RouteComponent() {
         data={stats}
         players={players}
         teams={teams}
-        aggs={filteredAggs}
+        aggs={aggs}
         type="pitching"
       />
     </div>
   );
-
-  const posts = Route.useLoaderData();
-  return <div>Hello "/team/$id/stats"!</div>;
 }
