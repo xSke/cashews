@@ -13,12 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  BasicLeague,
-  BasicTeam,
-  useAllLeagues,
-  useAllTeams,
-} from "@/lib/data/data";
+import { BasicLeague, BasicTeam, useAllLeagues, useAllTeams } from "@/lib/data";
 import {
   CellContext,
   ColumnDef,

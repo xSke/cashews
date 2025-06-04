@@ -8,7 +8,7 @@ use axum::{
 };
 use chron_base::{cache::SwrCache2, load_config};
 use chron_db::{ChronDb, derived::PercentileStats};
-use derived_api::refresh_league_aggregate;
+use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
@@ -22,7 +22,7 @@ mod derived_api;
 #[derive(Clone)]
 pub struct AppState {
     db: ChronDb,
-    percentile_cache: SwrCache2<(), Vec<PercentileStats>, AppState>,
+    percentile_cache: SwrCache2<(), LeagueAggregateResponse, AppState>,
 }
 
 pub struct AppError(anyhow::Error);

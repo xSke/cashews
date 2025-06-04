@@ -3,10 +3,11 @@
 import {
   MmolbPlayer,
   MmolbTeam,
+  PercentileResponse,
   PlayerStatsEntry,
   StatPercentile,
-} from "@/lib/data/data";
-import { AdvancedStats, calculateAdvancedStats } from "@/lib/data/stats";
+} from "@/lib/data";
+import { AdvancedStats, calculateAdvancedStats } from "@/lib/stats";
 import {
   CellContext,
   ColumnDef,
@@ -29,52 +30,27 @@ import {
 import { useMemo, useState } from "react";
 import { Button } from "./ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import { findPercentile } from "@/lib/percentile";
+import chroma from "chroma-js";
+const lightScale = chroma.scale("RdYlGn");
+const darkScale = chroma.scale("PiYG");
 
 interface StatsTableProps {
   data: PlayerStatsEntry[];
   players: Record<string, MmolbPlayer>;
   teams: Record<string, MmolbTeam>;
   type: "batting" | "pitching";
-  aggs: StatPercentile[];
+  aggs: PercentileResponse;
 }
 
 type RowData = {
   id: string;
   name: string;
   position: string | null;
+  team: string;
+  league: string;
 } & AdvancedStats;
-
-function getColorClass(
-  value: number,
-  aggs: StatPercentile[],
-  aggKey: string,
-  inverse: boolean
-): string {
-  const colors = [
-    "text-red-700",
-    "text-orange-700",
-    "text-amber-700",
-    "text-lime-700",
-    "text-green-700",
-    "text-emerald-700",
-    "text-teal-800",
-    "text-cyan-800",
-  ];
-
-  for (let i = 0; i < aggs.length; i++) {
-    if (inverse) {
-      if (((aggs[aggs.length - i - 1] as any)[aggKey] as number) > value)
-        return colors[aggs.length - i] ?? "";
-    } else {
-      if (((aggs[i] as any)[aggKey] as number) > value) return colors[i] ?? "";
-    }
-  }
-  if (inverse) {
-    return colors[0];
-  } else {
-    return colors[colors.length - 1];
-  }
-}
 
 function StatCell(
   digits: number,
@@ -83,13 +59,30 @@ function StatCell(
 ) {
   return (props: CellContext<RowData, unknown>) => {
     const data = props.getValue() as number;
+    const orig = props.row.original;
 
-    const aggs = (props.table.options.meta as any).aggs as StatPercentile[];
-    const statKey = aggKey ? getColorClass(data, aggs, aggKey, inverse) : "";
+    const aggs = (props.table.options.meta as any).aggs as PercentileResponse;
+
+    let percentile = 0;
+    if (aggKey && aggs.leagues[orig.league][aggKey]) {
+      percentile = findPercentile(
+        aggs.leagues[orig.league][aggKey],
+        data,
+        inverse
+      );
+    }
+
+    const lightColor = lightScale(percentile);
+    const darkColor = darkScale(percentile);
 
     return (
       <div
-        className={`text-right tabular-nums p-2 ${statKey && "font-medium"} ${statKey}`}
+        className={`text-right tabular-nums p-2 ${aggKey && "font-medium"}`}
+        style={{
+          color: aggKey
+            ? `light-dark(${lightColor.css()}, ${darkColor.css()})`
+            : undefined,
+        }}
       >
         {data.toFixed(digits)}
       </div>
@@ -249,7 +242,7 @@ const columnsBatting: ColumnDef<RowData>[] = [
   {
     header: SortableHeader("OPS+"),
     accessorKey: "ops_plus",
-    cell: StatCell(0, "ops_plus"),
+    cell: StatCell(0, null),
   },
 ];
 const columnsPitching: ColumnDef<RowData>[] = [
@@ -306,12 +299,12 @@ const columnsPitching: ColumnDef<RowData>[] = [
   {
     header: SortableHeader("ERA-"),
     accessorKey: "era_minus",
-    cell: StatCell(0, "era_minus"),
+    cell: StatCell(0, null),
   },
   {
     header: SortableHeader("FIP"),
     accessorKey: "fip",
-    cell: StatCell(2, "fip", true),
+    cell: StatCell(2, null, true),
   },
   {
     header: SortableHeader("WHIP"),
@@ -435,7 +428,12 @@ export default function StatsTable(props: StatsTableProps) {
 function processStats(props: StatsTableProps): RowData[] {
   const data: RowData[] = [];
   for (let row of props.data) {
-    const stats = calculateAdvancedStats(row, props.aggs);
+    const team_data = props.teams[row.team_id];
+
+    const stats = calculateAdvancedStats(
+      row,
+      props.aggs.leagues[team_data.League]
+    );
     if (props.type == "batting" && stats.plate_appearances == 0) continue;
     if (props.type == "pitching" && stats.ip == 0) continue;
 
@@ -443,7 +441,15 @@ function processStats(props: StatsTableProps): RowData[] {
     const name = player.FirstName + " " + player.LastName;
     const position = player.Position;
     const id = row.player_id;
-    data.push({ ...stats, name, position, id });
+
+    data.push({
+      ...stats,
+      name,
+      position,
+      id,
+      team: row.team_id,
+      league: team_data.League,
+    });
   }
   return data;
 }

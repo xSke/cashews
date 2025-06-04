@@ -5,7 +5,7 @@ use axum::{
     extract::{Query, State},
 };
 use chron_db::{
-    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam, PercentileStats},
+    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam},
     models::PageToken,
     queries::{PaginatedResult, SortOrder},
 };
@@ -104,7 +104,7 @@ pub async fn get_player_stats(
 
 pub async fn league_aggregate(
     State(ctx): State<AppState>,
-) -> Result<Json<Arc<Vec<PercentileStats>>>, AppError> {
+) -> Result<Json<Arc<LeagueAggregateResponse>>, AppError> {
     let data = ctx.percentile_cache.get(()).await?;
     Ok(Json(data))
 }
@@ -130,12 +130,64 @@ async fn fetch_scorigami(ctx: &AppState) -> anyhow::Result<Vec<ScorigamiEntry>> 
     Ok(r)
 }
 
-pub async fn refresh_league_aggregate(ctx: AppState) -> anyhow::Result<Vec<PercentileStats>> {
+#[derive(Clone, Serialize)]
+pub struct LeagueAggregateResponse {
+    leagues: BTreeMap<String, LeagueAggregateLeague>,
+}
+
+#[derive(Default, Serialize, Clone)]
+pub struct LeagueAggregateLeague {
+    pub ba: LeagueAggregateStat,
+    pub obp: LeagueAggregateStat,
+    pub slg: LeagueAggregateStat,
+    pub ops: LeagueAggregateStat,
+    pub era: LeagueAggregateStat,
+    pub whip: LeagueAggregateStat,
+    pub fip_base: LeagueAggregateStat,
+    pub fip_const: LeagueAggregateStat,
+    pub h9: LeagueAggregateStat,
+    pub k9: LeagueAggregateStat,
+    pub bb9: LeagueAggregateStat,
+    pub hr9: LeagueAggregateStat,
+}
+
+#[derive(Default, Serialize, Clone)]
+pub struct LeagueAggregateStat {
+    percentiles: Vec<(f32, f32)>,
+}
+
+pub async fn refresh_league_aggregate(ctx: AppState) -> anyhow::Result<LeagueAggregateResponse> {
     info!("refreshing league aggregates");
-    let percentiles = [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95];
+    let mut percentiles = Vec::with_capacity(101);
+    for i in 0..=100 {
+        percentiles.push((i as f32) / 100.0);
+    }
     let res = ctx.db.get_league_percentiles(&percentiles).await?;
 
-    Ok(res)
+    // we should really just "transpose" this logic all the way through...
+    let mut leagues = BTreeMap::new();
+    for entry in res {
+        let league: &mut LeagueAggregateLeague = leagues.entry(entry.league_id).or_default();
+
+        for (stat, val) in [
+            (&mut league.ba, entry.ba),
+            (&mut league.obp, entry.obp),
+            (&mut league.slg, entry.slg),
+            (&mut league.ops, entry.ops),
+            (&mut league.era, entry.era),
+            (&mut league.whip, entry.whip),
+            (&mut league.fip_base, entry.fip_base),
+            (&mut league.fip_const, entry.fip_const),
+            (&mut league.h9, entry.h9),
+            (&mut league.k9, entry.k9),
+            (&mut league.bb9, entry.bb9),
+            (&mut league.hr9, entry.hr9),
+        ] {
+            stat.percentiles.push((entry.percentile, val));
+        }
+    }
+
+    Ok(LeagueAggregateResponse { leagues })
 }
 
 #[derive(Serialize, Debug)]
