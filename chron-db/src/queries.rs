@@ -224,11 +224,8 @@ pub fn paginate(
 
 pub fn paginate_simple(order: SortOrder, id_col: Idens, page_token: PageToken) -> SimpleExpr {
     let (ls, rs) = {
-        let ls = Expr::tuple([Expr::col(id_col).into()]);
-        let rs = Expr::tuple([
-            Expr::value(page_token.timestamp),
-            Expr::value(page_token.entity_id),
-        ]);
+        let ls = Expr::col(id_col);
+        let rs = Expr::value(page_token.entity_id);
         (ls, rs)
     };
 
