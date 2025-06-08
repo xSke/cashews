@@ -1,20 +1,25 @@
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
+use chron_db::models::IsoDateTime;
 use chron_db::{ChronDb, models::EntityKind};
 use futures::StreamExt;
 use futures::stream;
 use reqwest::IntoUrl;
+use time::{OffsetDateTime, Time};
 use tokio::time::Interval;
 use tracing::error;
 use uuid::Uuid;
 
 use crate::http::{ClientResponse, DataClient};
+use crate::models::MmolbTime;
 
 pub mod crunch;
 pub mod games;
 pub mod import;
 pub mod league;
 pub mod matviews;
+pub mod message;
 
 #[derive(Clone)]
 pub struct WorkerContext {
@@ -33,6 +38,25 @@ impl WorkerContext {
     //     let mut s = self.sim.write().expect("should never be poisoned");
     //     *s = new_state;
     // }
+
+    pub async fn try_update_time(&self) -> anyhow::Result<MmolbTime> {
+        let latest_time = self
+            .db
+            .get_latest_observation(EntityKind::Time, "time")
+            .await?;
+        if let Some(latest) = latest_time {
+            let buffer = Duration::from_secs(30);
+            if latest.timestamp.0 + buffer > OffsetDateTime::now_utc() {
+                // cache is valid
+                return latest.parse();
+            }
+        }
+
+        let res = self
+            .fetch_and_save("https://mmolb.com/api/time", EntityKind::Time, "time")
+            .await?;
+        res.parse()
+    }
 
     pub async fn fetch_and_save(
         &self,
