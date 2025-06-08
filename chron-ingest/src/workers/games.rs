@@ -40,8 +40,14 @@ impl IntervalWorker for PollNewCurrentGames {
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        let time = ctx.client.fetch("https://mmolb.com/api/time").await?;
-        let time = time.parse::<MmolbTime>()?;
+        let time = ctx.try_update_time().await?;
+        match time.season_status.to_ascii_lowercase().as_str() {
+            "preseason" | "holiday" => {
+                info!("season status is {}, skipping", time.season_status);
+                return Ok(());
+            }
+            _ => {}
+        }
 
         // get all games already in db for the current season/day
         // we could probably do this entire query in sql if we wanted, ig...
@@ -74,12 +80,11 @@ impl IntervalWorker for PollNewCurrentGames {
 
 impl IntervalWorker for PollLiveGames {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(5))
+        interval(Duration::from_secs(4))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        let time = ctx.client.fetch("https://mmolb.com/api/time").await?;
-        let time = time.parse::<MmolbTime>()?;
+        let time = ctx.try_update_time().await?;
 
         let known_games_today = ctx
             .db

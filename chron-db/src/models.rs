@@ -24,6 +24,7 @@ pub enum EntityKind {
     Election = 13,
     GamesEndpoint = 14,
     PostseasonBracket = 15,
+    Message = 16,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
@@ -36,6 +37,20 @@ pub struct EntityVersion {
 }
 
 impl EntityVersion {
+    pub fn parse<T: DeserializeOwned>(&self) -> anyhow::Result<T> {
+        Ok(T::deserialize(&self.data)?)
+    }
+}
+
+#[derive(Debug, Clone, FromRow, Serialize)]
+pub struct EntityObservation {
+    pub kind: EntityKind,
+    pub entity_id: String,
+    pub timestamp: IsoDateTime,
+    pub data: serde_json::Value,
+}
+
+impl EntityObservation {
     pub fn parse<T: DeserializeOwned>(&self) -> anyhow::Result<T> {
         Ok(T::deserialize(&self.data)?)
     }

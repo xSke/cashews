@@ -16,6 +16,11 @@ use workers::{
     matviews::RefreshMatviews,
 };
 
+use crate::workers::{
+    games::{PollLiveGames, PollNewCurrentGames},
+    message::PollMessage,
+};
+
 mod http;
 mod models;
 mod workers;
@@ -66,6 +71,9 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollLeague);
         spawn(ctx.clone(), PollNewPlayers);
         spawn(ctx.clone(), RefreshMatviews);
+        spawn(ctx.clone(), PollMessage);
+        spawn(ctx.clone(), PollNewCurrentGames);
+        spawn(ctx.clone(), PollLiveGames);
         // spawn(ctx, PollAllGames);
 
         loop {

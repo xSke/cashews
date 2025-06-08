@@ -19,15 +19,15 @@ pub struct PollNewPlayers;
 
 impl IntervalWorker for PollLeague {
     fn interval() -> tokio::time::Interval {
-        tokio::time::interval(Duration::from_secs(5 * 60))
+        tokio::time::interval(Duration::from_secs(10 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         let state_resp = ctx
             .fetch_and_save("https://mmolb.com/api/state", EntityKind::State, "state")
             .await?;
-        ctx.fetch_and_save("https://mmolb.com/api/time", EntityKind::Time, "time")
-            .await?;
+
+        let _time = ctx.try_update_time().await?;
 
         let state: MmolbState = state_resp.parse()?;
 
@@ -59,7 +59,7 @@ impl IntervalWorker for PollNewPlayers {
         let player_object_ids = HashSet::from_iter(player_object_ids);
 
         let new_players = player_ids.difference(&player_object_ids).cloned();
-        ctx.process_many(new_players, 20, fetch_player).await;
+        ctx.process_many(new_players, 10, fetch_player).await;
 
         Ok(())
     }
