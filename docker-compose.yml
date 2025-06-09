@@ -23,7 +23,7 @@ services:
       - ./mnt:/mnt
       - ./config.toml:/app/config.toml
     environment:
-      - MAPS_API_KEY=${MAPS_API_KEY}
+      - CHRON_MAPS_API_KEY=${CHRON_MAPS_API_KEY}
       - CHRON_DATABASE_URI=postgres://postgres:password@postgres:5432/postgres
   postgres:
     image: postgres:17-alpine 
