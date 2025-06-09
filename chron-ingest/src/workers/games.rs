@@ -17,11 +17,11 @@ use crate::models::{MmolbGame, MmolbGameByTeam, MmolbTime};
 
 use super::{IntervalWorker, WorkerContext};
 
-pub struct PollAllGames;
+pub struct PollAllScheduledGames;
 pub struct PollSchedules;
 pub struct PollLiveGames;
 
-impl IntervalWorker for PollAllGames {
+impl IntervalWorker for PollAllScheduledGames {
     fn interval() -> tokio::time::Interval {
         interval(Duration::from_secs(60 * 60))
     }

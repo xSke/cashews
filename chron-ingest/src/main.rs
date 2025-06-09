@@ -17,7 +17,8 @@ use workers::{
 };
 
 use crate::workers::{
-    games::{PollLiveGames, PollSchedules},
+    games::{PollAllScheduledGames, PollLiveGames, PollSchedules},
+    league::PollAllPlayers,
     message::PollMessage,
 };
 
@@ -74,7 +75,8 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollMessage);
         spawn(ctx.clone(), PollSchedules);
         spawn(ctx.clone(), PollLiveGames);
-        // spawn(ctx, PollAllGames);
+        spawn(ctx.clone(), PollAllPlayers);
+        spawn(ctx.clone(), PollAllScheduledGames);
 
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;

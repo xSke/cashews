@@ -15,7 +15,7 @@ use super::{IntervalWorker, WorkerContext};
 
 pub struct PollLeague;
 pub struct PollNewPlayers;
-// pub struct PollLeague;
+pub struct PollAllPlayers;
 
 impl IntervalWorker for PollLeague {
     fn interval() -> tokio::time::Interval {
@@ -46,10 +46,6 @@ impl IntervalWorker for PollLeague {
         info!("got {} team ids", team_ids.len());
         ctx.process_many(team_ids, 10, fetch_team).await;
 
-        // let player_ids = get_all_known_player_ids(ctx).await?;
-        // info!("got {} player ids", player_ids.len());
-        // ctx.process_many(player_ids, 50, fetch_player).await;
-
         Ok(())
     }
 }
@@ -67,6 +63,20 @@ impl IntervalWorker for PollNewPlayers {
 
         let new_players = player_ids.difference(&player_object_ids).cloned();
         ctx.process_many(new_players, 10, fetch_player).await;
+
+        Ok(())
+    }
+}
+
+impl IntervalWorker for PollAllPlayers {
+    fn interval() -> tokio::time::Interval {
+        tokio::time::interval(Duration::from_secs(60 * 15))
+    }
+
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
+        let player_ids = get_all_known_player_ids(ctx).await?;
+        info!("got {} player ids", player_ids.len());
+        ctx.process_many(player_ids, 50, fetch_player).await;
 
         Ok(())
     }
