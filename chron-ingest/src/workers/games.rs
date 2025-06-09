@@ -8,6 +8,7 @@ use chron_db::{
     models::{EntityKind, EntityVersion},
 };
 use futures::StreamExt;
+use serde::Deserialize;
 use time::OffsetDateTime;
 use tokio::time::interval;
 use tracing::{error, info, warn};
@@ -17,7 +18,7 @@ use crate::models::{MmolbGame, MmolbGameByTeam, MmolbTime};
 use super::{IntervalWorker, WorkerContext};
 
 pub struct PollAllGames;
-pub struct PollNewCurrentGames;
+pub struct PollSchedules;
 pub struct PollLiveGames;
 
 impl IntervalWorker for PollAllGames {
@@ -26,17 +27,20 @@ impl IntervalWorker for PollAllGames {
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
-        let game_ids = get_all_known_game_ids(ctx).await?;
+        // let game_ids = get_all_known_game_ids(ctx).await?;
 
-        ctx.process_many(game_ids, 50, poll_game_by_id).await;
+        // ctx.process_many(game_ids, 50, poll_game_by_id).await;
+        let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
+        ctx.process_many(team_ids, 50, poll_schedule_for_team_for_all_games)
+            .await;
 
         Ok(())
     }
 }
 
-impl IntervalWorker for PollNewCurrentGames {
+impl IntervalWorker for PollSchedules {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(10))
+        interval(Duration::from_secs(5 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -49,38 +53,17 @@ impl IntervalWorker for PollNewCurrentGames {
             _ => {}
         }
 
-        // get all games already in db for the current season/day
-        // we could probably do this entire query in sql if we wanted, ig...
-        let known_games_today = ctx
-            .db
-            .get_games(GetGamesQuery {
-                count: 99999, // ignore pagination for now?
-                season: Some(time.season_number),
-                day: Some(time.season_day),
-                order: chron_db::queries::SortOrder::Asc,
-                page: None,
-                team: None,
-            })
-            .await?;
-        info!("found {} games in db today", known_games_today.items.len());
-
-        // filter teams that we already have known games for
         let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
-        let mut team_ids = BTreeSet::from_iter(team_ids);
-        for g in known_games_today.items {
-            team_ids.remove(&g.away_team_id);
-            team_ids.remove(&g.home_team_id);
-        }
 
-        info!("found {} teams without any games", team_ids.len());
-        ctx.process_many(team_ids, 10, poll_game_for_team).await;
+        ctx.process_many(team_ids, 10, poll_schedule_for_team_for_new_games)
+            .await;
         Ok(())
     }
 }
 
 impl IntervalWorker for PollLiveGames {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(4))
+        interval(Duration::from_secs(15))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -91,7 +74,7 @@ impl IntervalWorker for PollLiveGames {
             .get_games(GetGamesQuery {
                 count: 99999, // ignore pagination for now?
                 season: Some(time.season_number),
-                day: Some(time.season_day),
+                day: None,
                 order: chron_db::queries::SortOrder::Asc,
                 page: None,
                 team: None,
@@ -104,20 +87,47 @@ impl IntervalWorker for PollLiveGames {
             .collect::<Vec<_>>();
         info!("found {} live games in db", live_games.len());
 
-        ctx.process_many(live_games, 50, poll_live_game).await;
+        ctx.process_many(live_games, 25, poll_live_game).await;
 
         Ok(())
     }
 }
 
-async fn poll_game_for_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
-    let url = format!("https://mmolb.com/api/game-by-team/{}", &id);
-    let resp = ctx.client.try_fetch(url).await?;
-    if let Some(resp) = resp {
-        let game_by_team = resp.parse::<MmolbGameByTeam>()?;
-        poll_game_by_id(ctx, game_by_team.game_id).await?;
-    } else {
-        warn!("team {} has no game in api", id);
+async fn poll_schedule_for_team_for_new_games(
+    ctx: &WorkerContext,
+    id: String,
+) -> anyhow::Result<()> {
+    let url = format!("https://mmolb.com/api/team-schedule/{}", &id);
+    let resp = ctx.fetch_and_save(url, EntityKind::Schedule, &id).await?;
+
+    let sched = resp.parse::<TeamSchedule>()?;
+    for ele in sched.games {
+        if let Some(game_id) = ele.game_id {
+            let knows_about_game = ctx
+                .db
+                .get_latest(EntityKind::Game, &game_id)
+                .await?
+                .is_some();
+            if !knows_about_game {
+                poll_game_by_id(ctx, game_id).await?;
+            }
+        }
+    }
+    Ok(())
+}
+
+async fn poll_schedule_for_team_for_all_games(
+    ctx: &WorkerContext,
+    id: String,
+) -> anyhow::Result<()> {
+    let url = format!("https://mmolb.com/api/team-schedule/{}", &id);
+    let resp = ctx.fetch_and_save(url, EntityKind::Schedule, &id).await?;
+
+    let sched = resp.parse::<TeamSchedule>()?;
+    for ele in sched.games {
+        if let Some(game_id) = ele.game_id {
+            poll_game_by_id(ctx, game_id).await?;
+        }
     }
     Ok(())
 }
@@ -131,9 +141,10 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
     );
     let resp = ctx.client.fetch(&url).await?;
 
-    let events = resp.parse::<Vec<serde_json::Value>>()?;
+    let events = resp.parse::<LiveResponse>()?;
 
     let events_indexed = events
+        .entries
         .iter()
         .enumerate()
         .map(|(idx, value)| (idx as i32 + current_count, value))
@@ -155,13 +166,13 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
         }
         return false;
     }
-    let new_state = if events.iter().any(is_game_over_event) {
+    let new_state = if events.entries.iter().any(is_game_over_event) {
         "Complete".to_string()
     } else {
         game.state
     };
 
-    if let Some(last_update) = events.last() {
+    if let Some(last_update) = events.entries.last() {
         ctx.db
             .update_game(DbGameSaveModel {
                 game_id: &game.game_id,
@@ -170,7 +181,7 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
                 home_team_id: &game.home_team_id,
                 away_team_id: &game.away_team_id,
                 state: &new_state,
-                event_count: current_count + events.len() as i32,
+                event_count: current_count + events.entries.len() as i32,
                 last_update: Some(last_update),
             })
             .await?;
@@ -296,4 +307,21 @@ pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     let game_ids = get_all_known_game_ids(ctx).await?;
     ctx.process_many(game_ids, 50, poll_game_by_id).await;
     Ok(())
+}
+
+#[derive(Deserialize)]
+pub struct TeamSchedule {
+    games: Vec<TeamScheduleGame>,
+}
+
+#[derive(Deserialize)]
+pub struct TeamScheduleGame {
+    day: i32,
+    state: String,
+    game_id: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct LiveResponse {
+    entries: Vec<serde_json::Value>,
 }

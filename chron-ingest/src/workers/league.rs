@@ -27,6 +27,13 @@ impl IntervalWorker for PollLeague {
             .fetch_and_save("https://mmolb.com/api/state", EntityKind::State, "state")
             .await?;
 
+        ctx.fetch_and_save(
+            "https://mmolb.com/api/spotlight",
+            EntityKind::Spotlight,
+            "spotlight",
+        )
+        .await?;
+
         let _time = ctx.try_update_time().await?;
 
         let state: MmolbState = state_resp.parse()?;
