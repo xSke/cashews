@@ -89,6 +89,7 @@ pub struct PercentileStats {
     pub obp: f32,
     pub slg: f32,
     pub ops: f32,
+    pub sb_success: f32,
     pub era: f32,
     pub whip: f32,
     pub fip_base: f32,
@@ -161,7 +162,7 @@ impl ChronDb {
         q.push_str("select season, league_id,");
 
         for col in
-            "ba obp slg ops era whip fip_base fip_const h9 k9 bb9 hr9".split_ascii_whitespace()
+            "ba obp slg ops sb_success era whip fip_base fip_const h9 k9 bb9 hr9".split_ascii_whitespace()
         {
             q.push_str(&format!("unnest({}) as {}, ", col, col));
         }

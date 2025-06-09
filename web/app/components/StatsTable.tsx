@@ -121,7 +121,7 @@ function SortableHeader(name: string) {
     return (
       //   TODO: make the headers right align somehow, and then put the chevron on the left?
       <div
-        className="flex items-center cursor-pointer"
+        className="flex text-right items-center cursor-pointer"
         onClick={() => props.column.toggleSorting()}
       >
         {name}
@@ -244,7 +244,23 @@ const columnsBatting: ColumnDef<RowData>[] = [
     accessorKey: "ops_plus",
     cell: StatCell(0, null),
   },
+  {
+    header: SortableHeader("SB"),
+    accessorKey: "stolen_bases",
+    cell: StatCell(0, null),
+  },
+  {
+    header: SortableHeader("CS"),
+    accessorKey: "caught_stealing",
+    cell: StatCell(0, null),
+  },
+  {
+    header: SortableHeader("SB%"),
+    accessorKey: "sb_success",
+    cell: StatCell(2, "sb_success"),
+  },
 ];
+
 const columnsPitching: ColumnDef<RowData>[] = [
   {
     header: SortableHeader("G"),
