@@ -16,6 +16,10 @@ export interface AdvancedStats {
   ops: number;
   ops_plus: number;
 
+  stolen_bases: number;
+  caught_stealing: number;
+  sb_success: number;
+
   ip: number;
   appearances: number;
   starts: number;
@@ -63,6 +67,10 @@ export function calculateAdvancedStats(
   const hit_by_pitch = data.stats.hit_by_pitch ?? 0;
   const hit_batters = data.stats.hit_batters ?? 0;
 
+  const stolen_bases = data.stats.stolen_bases ?? 0;
+  const caught_stealing = data.stats.caught_stealing ?? 0;
+  const sb_success = stolen_bases / (stolen_bases + caught_stealing);
+
   const ip = outs / 3;
   const appearances = data.stats.appearances ?? 0;
   const starts = data.stats.starts ?? 0;
@@ -105,6 +113,10 @@ export function calculateAdvancedStats(
     slg,
     ops,
     ops_plus,
+
+    stolen_bases,
+    caught_stealing,
+    sb_success,
 
     ip,
     appearances,
