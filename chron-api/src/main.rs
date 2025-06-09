@@ -68,6 +68,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/leagues", get(derived_api::get_leagues))
         .route("/player-stats", get(derived_api::get_player_stats))
         .route("/scorigami", get(derived_api::scorigami))
+        .route("/locations", get(derived_api::locations))
         .route(
             "/league-aggregate-stats",
             get(derived_api::league_aggregate),

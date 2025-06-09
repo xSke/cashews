@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
+use chron_base::ChronConfig;
 use chron_db::models::IsoDateTime;
 use chron_db::{ChronDb, models::EntityKind};
 use futures::StreamExt;
@@ -18,12 +19,14 @@ pub mod crunch;
 pub mod games;
 pub mod import;
 pub mod league;
+pub mod map;
 pub mod matviews;
 pub mod message;
 
 #[derive(Clone)]
 pub struct WorkerContext {
     pub _sim: Arc<RwLock<SimState>>,
+    pub config: Arc<ChronConfig>,
     pub db: ChronDb,
     pub client: DataClient,
 }

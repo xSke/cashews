@@ -4,12 +4,18 @@ use anyhow::anyhow;
 use config::Config;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
+use unicode_normalization::UnicodeNormalization;
 
 pub mod cache;
 
 #[derive(Deserialize)]
 pub struct ChronConfig {
     pub database_uri: String,
+    pub maps_api_key: Option<String>,
+}
+
+pub fn normalize_location(s: &str) -> String {
+    s.to_lowercase().nfkc().to_string()
 }
 
 pub fn load_config() -> anyhow::Result<ChronConfig> {
