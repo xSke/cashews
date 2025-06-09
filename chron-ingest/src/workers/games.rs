@@ -158,7 +158,7 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
         if let Some(obj) = e.as_object() {
             if let Some(event_val) = obj.get("event") {
                 if let Some(event_str) = event_val.as_str() {
-                    if event_str == "GameOver" {
+                    if event_str == "Recordkeeping" || event_str == "GameOver" {
                         return true;
                     }
                 }
