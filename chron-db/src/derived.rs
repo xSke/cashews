@@ -157,19 +157,25 @@ impl ChronDb {
     pub async fn get_league_percentiles(
         &self,
         percentiles: &[f32],
+        season: i32,
     ) -> anyhow::Result<Vec<PercentileStats>> {
         let mut q = String::new();
         q.push_str("select season, league_id,");
 
-        for col in
-            "ba obp slg ops sb_success era whip fip_base fip_const h9 k9 bb9 hr9".split_ascii_whitespace()
-        {
+        let cols = "ba obp slg ops sb_success era whip fip_base fip_const h9 k9 bb9 hr9";
+        for col in cols.split_ascii_whitespace() {
             q.push_str(&format!("unnest({}) as {}, ", col, col));
         }
-        q.push_str(" unnest($1) as percentile from league_percentiles($1::real[])");
+        q.push_str(" unnest($1) as percentile from league_percentiles($1::real[]) where ");
+
+        for col in cols.split_ascii_whitespace() {
+            q.push_str(&format!("{} is distinct from null and ", col));
+        }
+        q.push_str(" season = $2");
 
         let res = sqlx::query_as(&q)
             .bind(&percentiles)
+            .bind(season)
             .fetch_all(&self.pool)
             .await?;
         Ok(res)
