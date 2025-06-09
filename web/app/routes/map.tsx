@@ -126,7 +126,7 @@ function RouteComponent() {
           <Marker key={team.team.team_id} position={m} icon={icon}>
             <Popup>
               <a
-                className="flex flex-col items-center hover:underline"
+                className="flex flex-col items-center text-center hover:underline"
                 href={`https://mmolb.com/team/${team.team.team_id}`}
               >
                 <strong className="">
