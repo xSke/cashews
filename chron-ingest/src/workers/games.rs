@@ -186,6 +186,11 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
             })
             .await?;
     }
+
+    if new_state == "Complete" {
+        // if the game just finished, poll the whole thing properly, which should fill in stats and such
+        poll_game_by_id(ctx, game.game_id).await?;
+    }
     Ok(())
 }
 
