@@ -17,7 +17,7 @@ use workers::{
 };
 
 use crate::workers::{
-    games::{PollLiveGames, PollNewCurrentGames},
+    games::{PollLiveGames, PollSchedules},
     message::PollMessage,
 };
 
@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollNewPlayers);
         spawn(ctx.clone(), RefreshMatviews);
         spawn(ctx.clone(), PollMessage);
-        spawn(ctx.clone(), PollNewCurrentGames);
+        spawn(ctx.clone(), PollSchedules);
         spawn(ctx.clone(), PollLiveGames);
         // spawn(ctx, PollAllGames);
 

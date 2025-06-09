@@ -25,6 +25,7 @@ pub enum EntityKind {
     GamesEndpoint = 14,
     PostseasonBracket = 15,
     Message = 16,
+    Schedule = 17,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
