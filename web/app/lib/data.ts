@@ -144,11 +144,22 @@ export async function getScorigami() {
   return data;
 }
 
+export async function getLocations() {
+  const resp = await fetch(API_BASE + `/locations`);
+  const data = (await resp.json()) as MapLocation[];
+  return data;
+}
+
 export interface ScorigamiEntry {
   min: number;
   max: number;
   count: number;
   first: string;
+}
+
+export interface MapLocation {
+  team: BasicTeam;
+  location: { lat: number; long: number } | null;
 }
 
 // export function useTeams(ids: string[]) {
@@ -232,6 +243,7 @@ export interface BasicTeam {
   league_id: string;
   name: string;
   location: string;
+  full_location: string;
   emoji: string;
   color: string;
   abbreviation: string;

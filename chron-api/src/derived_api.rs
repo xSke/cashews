@@ -4,6 +4,7 @@ use axum::{
     Json,
     extract::{Query, State},
 };
+use chron_base::normalize_location;
 use chron_db::{
     derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam},
     models::PageToken,
@@ -107,6 +108,76 @@ pub async fn league_aggregate(
 ) -> Result<Json<Arc<LeagueAggregateResponse>>, AppError> {
     let data = ctx.percentile_cache.get(()).await?;
     Ok(Json(data))
+}
+
+#[derive(Serialize)]
+pub struct TeamLocation {
+    team: DbTeam,
+    location: Option<MapsLocation>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct MapsLocation {
+    lat: f64,
+    long: f64,
+}
+
+pub async fn locations(State(ctx): State<AppState>) -> Result<Json<Vec<TeamLocation>>, AppError> {
+    Ok(Json(locations_inner(ctx).await?))
+}
+
+#[derive(Deserialize)]
+struct MapsLocationRaw {
+    location: MapsLocationLatLong,
+    #[serde(rename = "formattedAddress")]
+    formatted_address: String,
+    // #[serde(rename = "shortFormattedAddress")]
+    // short_formatted_address: String,
+}
+
+#[derive(Deserialize)]
+struct MapsLocationLatLong {
+    latitude: f64,
+    longitude: f64,
+}
+
+pub async fn locations_inner(ctx: AppState) -> anyhow::Result<Vec<TeamLocation>> {
+    let data: Vec<(String, serde_json::Value)> = sqlx::query_as("select loc, data from locations")
+        .fetch_all(&ctx.db.pool)
+        .await?;
+
+    let mut locations_map = BTreeMap::new();
+    for (location_str, location_json) in data {
+        if let Ok(loc) = MapsLocationRaw::deserialize(&location_json) {
+            locations_map.insert(
+                normalize_location(&loc.formatted_address),
+                MapsLocation {
+                    lat: loc.location.latitude,
+                    long: loc.location.longitude,
+                },
+            );
+            locations_map.insert(
+                normalize_location(&location_str),
+                MapsLocation {
+                    lat: loc.location.latitude,
+                    long: loc.location.longitude,
+                },
+            );
+        }
+    }
+
+    let teams = ctx.db.get_teams().await?;
+    let teams_augmented = teams
+        .into_iter()
+        .map(|team| TeamLocation {
+            location: locations_map
+                .get(&normalize_location(&team.full_location))
+                .cloned(),
+            team: team,
+        })
+        .filter(|x| x.location.is_some())
+        .collect();
+    Ok(teams_augmented)
 }
 
 #[derive(FromRow, Serialize)]

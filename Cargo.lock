@@ -272,6 +272,7 @@ dependencies = [
  "chron-db",
  "moka",
  "serde",
+ "serde_json",
  "sqlx",
  "time",
  "tokio",
@@ -297,6 +298,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "unicode-normalization",
  "uuid",
 ]
 
@@ -341,6 +343,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "unicode-normalization",
  "uuid",
  "zstd",
 ]

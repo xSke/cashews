@@ -4,9 +4,11 @@ import {
   createRootRoute,
   HeadContent,
   Scripts,
+  useLocation,
 } from "@tanstack/react-router";
 
 import appCss from "@/styles/app.css?url";
+
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { ThemeProvider } from "next-themes";
@@ -44,16 +46,18 @@ function RootComponent() {
 }
 
 function RootDocument({ children }: Readonly<{ children: ReactNode }>) {
+  const location = useLocation();
+
   return (
     <html suppressHydrationWarning>
       <head>
         <HeadContent />
       </head>
-      <body className="flex flex-col">
+      <body className="flex flex-col h-screen">
         <ThemeProvider attribute="class">
           <Navbar />
           {children}
-          <Footer />
+          {location.href != "/map" && <Footer />}
           <Scripts />
         </ThemeProvider>
       </body>

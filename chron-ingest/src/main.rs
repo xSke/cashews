@@ -19,6 +19,7 @@ use workers::{
 use crate::workers::{
     games::{PollAllScheduledGames, PollLiveGames, PollSchedules},
     league::PollAllPlayers,
+    map::{self, LookupMapLocations},
     message::PollMessage,
 };
 
@@ -50,12 +51,13 @@ fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let config = load_config()?;
+    let config = Arc::new(load_config()?);
 
     let client = DataClient::new()?;
     let ctx = WorkerContext {
         client,
         db: ChronDb::new(&config).await?,
+        config: config,
         _sim: Arc::new(RwLock::new(SimState {
             _season: Uuid::default(),
             _day: -1,
@@ -69,14 +71,15 @@ async fn main() -> anyhow::Result<()> {
         }
         Ok(())
     } else {
-        spawn(ctx.clone(), PollLeague);
-        spawn(ctx.clone(), PollNewPlayers);
-        spawn(ctx.clone(), RefreshMatviews);
-        spawn(ctx.clone(), PollMessage);
-        spawn(ctx.clone(), PollSchedules);
-        spawn(ctx.clone(), PollLiveGames);
-        spawn(ctx.clone(), PollAllPlayers);
-        spawn(ctx.clone(), PollAllScheduledGames);
+        // spawn(ctx.clone(), PollLeague);
+        // spawn(ctx.clone(), PollNewPlayers);
+        // spawn(ctx.clone(), RefreshMatviews);
+        // spawn(ctx.clone(), PollMessage);
+        // spawn(ctx.clone(), PollSchedules);
+        // spawn(ctx.clone(), PollLiveGames);
+        // spawn(ctx.clone(), PollAllPlayers);
+        // spawn(ctx.clone(), PollAllScheduledGames);
+        spawn(ctx.clone(), LookupMapLocations);
 
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;

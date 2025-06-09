@@ -39,6 +39,7 @@ pub struct DbTeam {
     pub league_id: String,
     pub name: String,
     pub location: String,
+    pub full_location: String,
     pub emoji: String,
     pub color: String,
     pub abbreviation: String,

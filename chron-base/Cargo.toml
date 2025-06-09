@@ -18,4 +18,5 @@ time = { workspace = true }
 tokio.workspace = true
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
+unicode-normalization = "0.1.24"
 uuid = { workspace = true }
