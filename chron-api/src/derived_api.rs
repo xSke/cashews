@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, fmt::Display, str::FromStr, sync::Arc};
 
 use axum::{
     Json,
@@ -11,6 +11,7 @@ use chron_db::{
     queries::{PaginatedResult, SortOrder},
 };
 use serde::{Deserialize, Serialize};
+use serde_with::{DeserializeFromStr, SerializeDisplay, serde_as};
 use sqlx::FromRow;
 use tracing::info;
 
@@ -75,8 +76,8 @@ pub async fn get_leagues(
 
 #[derive(Deserialize, Debug)]
 pub struct GetPlayerStatsQuery {
-    pub start: Option<i32>,
-    pub end: Option<i32>,
+    pub start: Option<SeasonDay>,
+    pub end: Option<SeasonDay>,
 
     pub player: Option<String>,
     pub team: Option<String>,
@@ -93,8 +94,8 @@ pub async fn get_player_stats(
     let stats = ctx
         .db
         .get_player_stats(chron_db::derived::GetPlayerStatsQuery {
-            start: q.start.map(|x| (0, x)),
-            end: q.end.map(|x| (0, x)),
+            start: q.start.map(Into::into),
+            end: q.end.map(Into::into),
             player: q.player,
             team: q.team,
         })
@@ -322,5 +323,41 @@ fn fake_paginate<T>(data: Vec<T>) -> PaginatedResult<T> {
     PaginatedResult {
         items: data,
         next_page: None,
+    }
+}
+
+// todo: move into chron-base?
+#[derive(SerializeDisplay, DeserializeFromStr, Debug, Clone, Copy)]
+pub struct SeasonDay {
+    season: i32,
+    day: i32,
+}
+
+impl Into<(i32, i32)> for SeasonDay {
+    fn into(self) -> (i32, i32) {
+        (self.season, self.day)
+    }
+}
+
+impl FromStr for SeasonDay {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some((left_str, right_str)) = s.split_once(",") else {
+            return Err(anyhow::anyhow!("season/day must contain a ,"));
+        };
+
+        let left = i32::from_str(left_str)?;
+        let right = i32::from_str(right_str)?;
+        return Ok(SeasonDay {
+            season: left,
+            day: right,
+        });
+    }
+}
+
+impl Display for SeasonDay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{},{}", self.season, self.day)
     }
 }
