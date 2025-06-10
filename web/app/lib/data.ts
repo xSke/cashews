@@ -120,8 +120,12 @@ export interface PercentileResponse {
   leagues: Record<string, PercentileStats>;
 }
 
-export async function getLeagueAggregates(): Promise<PercentileResponse> {
-  const resp = await fetch(API_BASE + `/league-aggregate-stats`);
+export async function getLeagueAggregates(
+  season: number
+): Promise<PercentileResponse> {
+  const resp = await fetch(
+    API_BASE + `/league-aggregate-stats?season=${season}`
+  );
   const data = (await resp.json()) as PercentileResponse;
   return data;
 }
