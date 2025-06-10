@@ -104,11 +104,26 @@ pub async fn get_player_stats(
     Ok(Json(aggregate_player_stats(&stats)))
 }
 
+#[derive(Deserialize, Debug)]
+pub struct LeagueAggregateQuery {
+    pub season: i32,
+}
+
 pub async fn league_aggregate(
     State(ctx): State<AppState>,
-) -> Result<Json<Arc<LeagueAggregateResponse>>, AppError> {
+    Query(q): Query<LeagueAggregateQuery>,
+) -> Result<Json<LeagueAggregateResponse>, AppError> {
     let data = ctx.percentile_cache.get(()).await?;
-    Ok(Json(data))
+
+    if q.season < 0 {
+        return Err(AppError(anyhow::anyhow!("invalid season")));
+    }
+
+    if let Some(data) = data.get(q.season as usize) {
+        Ok(Json(data.clone()))
+    } else {
+        Err(AppError(anyhow::anyhow!("invalid season")))
+    }
 }
 
 #[derive(Serialize)]
@@ -229,7 +244,9 @@ pub struct LeagueAggregateStat {
     percentiles: Vec<(f32, f32)>,
 }
 
-pub async fn refresh_league_aggregate(ctx: AppState) -> anyhow::Result<LeagueAggregateResponse> {
+pub async fn refresh_league_aggregate(
+    ctx: AppState,
+) -> anyhow::Result<Vec<LeagueAggregateResponse>> {
     info!("refreshing league aggregates");
     let mut percentiles = Vec::with_capacity(101);
     for i in 0..=100 {
@@ -237,33 +254,38 @@ pub async fn refresh_league_aggregate(ctx: AppState) -> anyhow::Result<LeagueAgg
     }
 
     // todo: don't hardcode season
-    let res = ctx.db.get_league_percentiles(&percentiles, 1).await?;
+    let mut seasons = Vec::new();
+    for season in [0, 1] {
+        let res = ctx.db.get_league_percentiles(&percentiles, season).await?;
 
-    // we should really just "transpose" this logic all the way through...
-    let mut leagues = BTreeMap::new();
-    for entry in res {
-        let league: &mut LeagueAggregateLeague = leagues.entry(entry.league_id).or_default();
+        // we should really just "transpose" this logic all the way through...
+        let mut leagues = BTreeMap::new();
+        for entry in res {
+            let league: &mut LeagueAggregateLeague = leagues.entry(entry.league_id).or_default();
 
-        for (stat, val) in [
-            (&mut league.ba, entry.ba),
-            (&mut league.obp, entry.obp),
-            (&mut league.slg, entry.slg),
-            (&mut league.ops, entry.ops),
-            (&mut league.sb_success, entry.sb_success),
-            (&mut league.era, entry.era),
-            (&mut league.whip, entry.whip),
-            (&mut league.fip_base, entry.fip_base),
-            (&mut league.fip_const, entry.fip_const),
-            (&mut league.h9, entry.h9),
-            (&mut league.k9, entry.k9),
-            (&mut league.bb9, entry.bb9),
-            (&mut league.hr9, entry.hr9),
-        ] {
-            stat.percentiles.push((entry.percentile, val));
+            for (stat, val) in [
+                (&mut league.ba, entry.ba),
+                (&mut league.obp, entry.obp),
+                (&mut league.slg, entry.slg),
+                (&mut league.ops, entry.ops),
+                (&mut league.sb_success, entry.sb_success),
+                (&mut league.era, entry.era),
+                (&mut league.whip, entry.whip),
+                (&mut league.fip_base, entry.fip_base),
+                (&mut league.fip_const, entry.fip_const),
+                (&mut league.h9, entry.h9),
+                (&mut league.k9, entry.k9),
+                (&mut league.bb9, entry.bb9),
+                (&mut league.hr9, entry.hr9),
+            ] {
+                stat.percentiles.push((entry.percentile, val));
+            }
         }
+
+        seasons.push(LeagueAggregateResponse { leagues });
     }
 
-    Ok(LeagueAggregateResponse { leagues })
+    Ok(seasons)
 }
 
 #[derive(Serialize, Debug)]

@@ -78,7 +78,7 @@ export const Route = createFileRoute("/team/$id/stats")({
   loader: async ({ params, deps }) => {
     const [stats, aggs, lineupOrder] = await Promise.all([
       getTeamStats(params.id, deps.season ?? defaultSeason),
-      getLeagueAggregates(),
+      getLeagueAggregates(1),
       getLineupOrder(params.id),
     ]);
 
