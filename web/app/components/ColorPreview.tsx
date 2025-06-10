@@ -4,20 +4,22 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
   // this is unfinished !!!
   const gradient = useMemo(() => {
     let stops: string[] = [];
-    for (let i = 0; i <= 100; i += 1) {
+    const step = 0.1;
+    for (let i = 0; i <= 100; i += step) {
       stops.push(`${props.scale(i / 100).css()} ${i}%`);
+      // stops.push(`${props.scale((i - 0.0001) / 100).css()} ${i}%`);
     }
     let gradient = `linear-gradient(to right, ${stops.join(",")})`;
     return gradient;
   }, [props.scale]);
 
-  const stops = [0.25, 0.5, 0.75];
+  const stops = [0.1, 0.35, 0.5, 0.65, 0.9];
   return (
     <div className="flex flex-col relative">
       <div className="h-[24px] w-full rounded" style={{ background: gradient }}>
         {stops.map((x) => (
           <div
-            className="border-r-2 border-white dark:border-black"
+            className="border-l-3 border-white dark:border-black w-0"
             key={x}
             style={{
               position: "absolute",
@@ -38,7 +40,7 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
             left: "0%",
           }}
         >
-          0% (worst)
+          worst
         </div>
         {stops.map((x) => {
           return (
@@ -48,7 +50,7 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
               style={{
                 position: "absolute",
                 left: `${x * 100}%`,
-                transform: "translateX(-25%)",
+                transform: "translateX(-40%)",
               }}
             >
               {Math.round(x * 100)}%
@@ -62,7 +64,7 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
             right: "0%",
           }}
         >
-          100% (best)
+          best
         </div>
       </div>
     </div>
