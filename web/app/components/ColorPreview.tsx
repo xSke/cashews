@@ -37,7 +37,7 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
             left: "0%",
           }}
         >
-          0%
+          0% (worst)
         </div>
         {stops.map((x) => {
           return (
@@ -61,7 +61,7 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
             right: "0%",
           }}
         >
-          100%
+          100% (best)
         </div>
       </div>
     </div>
