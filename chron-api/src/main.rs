@@ -46,7 +46,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState {
         db,
-        percentile_cache: SwrCache2::new(Duration::from_secs(10), 10, move |_, ctx| {
+        percentile_cache: SwrCache2::new(Duration::from_secs(60 * 10), 10, move |_, ctx| {
             refresh_league_aggregate(ctx)
         }),
     };
