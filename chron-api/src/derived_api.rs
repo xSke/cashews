@@ -237,7 +237,7 @@ pub async fn refresh_league_aggregate(ctx: AppState) -> anyhow::Result<LeagueAgg
     }
 
     // todo: don't hardcode season
-    let res = ctx.db.get_league_percentiles(&percentiles, 0).await?;
+    let res = ctx.db.get_league_percentiles(&percentiles, 1).await?;
 
     // we should really just "transpose" this logic all the way through...
     let mut leagues = BTreeMap::new();
