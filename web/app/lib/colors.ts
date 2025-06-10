@@ -18,11 +18,13 @@ export const orangeBlue: ColorScale = {
   light: chroma
     .scale([colors.amber[700], colors.neutral[600], colors.blue[700]])
     .domain([0, 0.5, 1])
-    .mode("lab"),
+    .mode("lab")
+    .classes(5),
   dark: chroma
     .scale([colors.amber[500], colors.neutral[200], colors.blue[500]])
     .domain([0, 0.5, 1])
-    .mode("lab"),
+    .mode("lab")
+    .classes([0, 0.1, 0.35, 0.65, 0.9, 1]),
 };
 
 export const defaultScale: ColorScale = orangeBlue;
