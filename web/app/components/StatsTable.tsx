@@ -2,6 +2,7 @@
 
 import {
   MmolbPlayer,
+  MmolbRosterSlot,
   MmolbTeam,
   PercentileResponse,
   PlayerStatsEntry,
@@ -49,6 +50,7 @@ type RowData = {
   position: string | null;
   team: string;
   league: string;
+  rosterIndex: number;
 } & AdvancedStats;
 
 function StatCell(
@@ -173,8 +175,11 @@ const columnsBase: ColumnDef<RowData>[] = [
     cell: NameCell,
   },
   {
-    header: "Pos.",
+    header: SortableHeader("Pos."),
     accessorKey: "position",
+    sortingFn: (a, b) => {
+      return a.original.rosterIndex - b.original.rosterIndex;
+    },
     cell: NormalCell(),
   },
 ];
@@ -370,7 +375,9 @@ export default function StatsTable(props: StatsTableProps) {
     return columnsBase;
   }, [props.type]);
 
-  const [sorting, setSorting] = useState<SortingState>([]);
+  const [sorting, setSorting] = useState<SortingState>([
+    { desc: false, id: "position" },
+  ]);
 
   const table = useReactTable({
     data,
@@ -454,6 +461,15 @@ export default function StatsTable(props: StatsTableProps) {
     </div>
   );
 }
+
+function findSlot(
+  team: MmolbTeam,
+  playerId: string
+): { slot: MmolbRosterSlot | undefined; index: number } {
+  const index = team.Players.findIndex((x) => x.PlayerID === playerId);
+  return { slot: team.Players[index], index: index };
+}
+
 function processStats(props: StatsTableProps): RowData[] {
   const data: RowData[] = [];
   for (let row of props.data) {
@@ -468,13 +484,15 @@ function processStats(props: StatsTableProps): RowData[] {
 
     const player = props.players[row.player_id]!;
     const name = player.FirstName + " " + player.LastName;
-    const position = player.Position;
+    const { slot, index: slotIndex } = findSlot(team_data, row.player_id);
+    const position = slot?.Slot ?? player.Position;
     const id = row.player_id;
 
     data.push({
       ...stats,
       name,
       position,
+      rosterIndex: slotIndex,
       id,
       team: row.team_id,
       league: team_data.League,

@@ -19,6 +19,7 @@ import { Route as IndexImport } from './routes/index'
 import { Route as TeamIdRouteImport } from './routes/team.$id/route'
 import { Route as TeamIdIndexImport } from './routes/team.$id/index'
 import { Route as TeamIdStatsImport } from './routes/team.$id/stats'
+import { Route as TeamIdGamesImport } from './routes/team.$id/games'
 
 // Create/Update Routes
 
@@ -70,6 +71,12 @@ const TeamIdStatsRoute = TeamIdStatsImport.update({
   getParentRoute: () => TeamIdRouteRoute,
 } as any)
 
+const TeamIdGamesRoute = TeamIdGamesImport.update({
+  id: '/games',
+  path: '/games',
+  getParentRoute: () => TeamIdRouteRoute,
+} as any)
+
 // Populate the FileRoutesByPath interface
 
 declare module '@tanstack/react-router' {
@@ -116,6 +123,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TeamIdRouteImport
       parentRoute: typeof rootRoute
     }
+    '/team/$id/games': {
+      id: '/team/$id/games'
+      path: '/games'
+      fullPath: '/team/$id/games'
+      preLoaderRoute: typeof TeamIdGamesImport
+      parentRoute: typeof TeamIdRouteImport
+    }
     '/team/$id/stats': {
       id: '/team/$id/stats'
       path: '/stats'
@@ -136,11 +150,13 @@ declare module '@tanstack/react-router' {
 // Create and export the route tree
 
 interface TeamIdRouteRouteChildren {
+  TeamIdGamesRoute: typeof TeamIdGamesRoute
   TeamIdStatsRoute: typeof TeamIdStatsRoute
   TeamIdIndexRoute: typeof TeamIdIndexRoute
 }
 
 const TeamIdRouteRouteChildren: TeamIdRouteRouteChildren = {
+  TeamIdGamesRoute: TeamIdGamesRoute,
   TeamIdStatsRoute: TeamIdStatsRoute,
   TeamIdIndexRoute: TeamIdIndexRoute,
 }
@@ -156,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/team/$id': typeof TeamIdRouteRouteWithChildren
+  '/team/$id/games': typeof TeamIdGamesRoute
   '/team/$id/stats': typeof TeamIdStatsRoute
   '/team/$id/': typeof TeamIdIndexRoute
 }
@@ -166,6 +183,7 @@ export interface FileRoutesByTo {
   '/players': typeof PlayersRoute
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
+  '/team/$id/games': typeof TeamIdGamesRoute
   '/team/$id/stats': typeof TeamIdStatsRoute
   '/team/$id': typeof TeamIdIndexRoute
 }
@@ -178,6 +196,7 @@ export interface FileRoutesById {
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/team/$id': typeof TeamIdRouteRouteWithChildren
+  '/team/$id/games': typeof TeamIdGamesRoute
   '/team/$id/stats': typeof TeamIdStatsRoute
   '/team/$id/': typeof TeamIdIndexRoute
 }
@@ -191,6 +210,7 @@ export interface FileRouteTypes {
     | '/scorigami'
     | '/teams'
     | '/team/$id'
+    | '/team/$id/games'
     | '/team/$id/stats'
     | '/team/$id/'
   fileRoutesByTo: FileRoutesByTo
@@ -200,6 +220,7 @@ export interface FileRouteTypes {
     | '/players'
     | '/scorigami'
     | '/teams'
+    | '/team/$id/games'
     | '/team/$id/stats'
     | '/team/$id'
   id:
@@ -210,6 +231,7 @@ export interface FileRouteTypes {
     | '/scorigami'
     | '/teams'
     | '/team/$id'
+    | '/team/$id/games'
     | '/team/$id/stats'
     | '/team/$id/'
   fileRoutesById: FileRoutesById
@@ -269,9 +291,14 @@ export const routeTree = rootRoute
     "/team/$id": {
       "filePath": "team.$id/route.tsx",
       "children": [
+        "/team/$id/games",
         "/team/$id/stats",
         "/team/$id/"
       ]
+    },
+    "/team/$id/games": {
+      "filePath": "team.$id/games.tsx",
+      "parent": "/team/$id"
     },
     "/team/$id/stats": {
       "filePath": "team.$id/stats.tsx",

@@ -207,6 +207,15 @@ export interface MmolbTeam {
   Emoji: string;
   Color: string;
   League: string;
+  Players: MmolbRosterSlot[];
+}
+
+export interface MmolbRosterSlot {
+  Slot: string;
+  PlayerID: string;
+  Position: string;
+  PositionType: string;
+  Number: number;
 }
 
 export interface MmolbLeague {

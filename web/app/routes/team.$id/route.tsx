@@ -26,6 +26,7 @@ function RouteComponent() {
   const pages = [
     { name: "Info", url: "/team/$id" },
     { name: "Stats", url: "/team/$id/stats" },
+    // { name: "Games", url: "/team/$id/games" },
   ];
 
   return (
