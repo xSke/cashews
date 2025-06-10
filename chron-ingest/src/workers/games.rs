@@ -31,7 +31,7 @@ impl IntervalWorker for PollAllScheduledGames {
 
         // ctx.process_many(game_ids, 50, poll_game_by_id).await;
         let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
-        ctx.process_many(team_ids, 50, poll_schedule_for_team_for_all_games)
+        ctx.process_many(team_ids, 3, poll_schedule_for_team_for_all_games)
             .await;
 
         Ok(())
