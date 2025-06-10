@@ -42,6 +42,7 @@ interface StatsTableProps {
   teams: Record<string, MmolbTeam>;
   type: "batting" | "pitching";
   aggs: PercentileResponse;
+  lineupOrder: (string | null)[];
 }
 
 type RowData = {
@@ -51,6 +52,7 @@ type RowData = {
   team: string;
   league: string;
   rosterIndex: number;
+  lineupIndex: number;
 } & AdvancedStats;
 
 function StatCell(
@@ -179,6 +181,17 @@ const columnsBase: ColumnDef<RowData>[] = [
     accessorKey: "position",
     sortingFn: (a, b) => {
       return a.original.rosterIndex - b.original.rosterIndex;
+    },
+    cell: NormalCell(),
+  },
+];
+
+const preColumnsBatting: ColumnDef<RowData>[] = [
+  {
+    header: SortableHeader("#"),
+    accessorKey: "lineupIndex",
+    sortingFn: (a, b) => {
+      return a.original.lineupIndex - b.original.lineupIndex;
     },
     cell: NormalCell(),
   },
@@ -370,7 +383,8 @@ export default function StatsTable(props: StatsTableProps) {
   }, [props.data, props.players, props.teams]);
 
   const columns = useMemo(() => {
-    if (props.type === "batting") return [...columnsBase, ...columnsBatting];
+    if (props.type === "batting")
+      return [...preColumnsBatting, ...columnsBase, ...columnsBatting];
     if (props.type === "pitching") return [...columnsBase, ...columnsPitching];
     return columnsBase;
   }, [props.type]);
@@ -488,6 +502,8 @@ function processStats(props: StatsTableProps): RowData[] {
     const position = slot?.Slot ?? player.Position;
     const id = row.player_id;
 
+    const lineupIndex = props.lineupOrder.findIndex((x) => x === id) + 1;
+
     data.push({
       ...stats,
       name,
@@ -496,6 +512,7 @@ function processStats(props: StatsTableProps): RowData[] {
       id,
       team: row.team_id,
       league: team_data.League,
+      lineupIndex,
     });
   }
   return data;

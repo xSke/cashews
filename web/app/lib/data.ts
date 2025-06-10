@@ -216,6 +216,8 @@ export interface MmolbRosterSlot {
   Position: string;
   PositionType: string;
   Number: number;
+  FirstName: string;
+  LastName: string;
 }
 
 export interface MmolbLeague {
@@ -239,6 +241,8 @@ export interface MmolbGameEvent {
   away_score: number;
   home_score: number;
   inning_side: number;
+  event: string;
+  message: string;
 }
 
 export interface PlayerStatsEntry {
@@ -281,4 +285,12 @@ export interface StatPercentile {
   fip_const: number;
   era: number;
   ops: number;
+}
+
+export interface MmolbGame {
+  AwaySP: string;
+  HomeSP: string;
+  AwayTeamID: string;
+  HomeTeamID: string;
+  EventLog: MmolbGameEvent[];
 }

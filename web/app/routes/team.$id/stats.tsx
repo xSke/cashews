@@ -10,8 +10,12 @@ import {
 import { darkScale, lightScale } from "@/lib/colors";
 import {
   getEntities,
+  getEntity,
+  getGames,
   getLeagueAggregates,
   getTeamStats,
+  MmolbGame,
+  MmolbGameEvent,
   MmolbPlayer,
   MmolbTeam,
 } from "@/lib/data";
@@ -26,28 +30,74 @@ const stateSchema = z.object({
 
 type StateParams = z.infer<typeof stateSchema>;
 
+async function getLineupOrder(teamId: string): Promise<(string | null)[]> {
+  // TODO: this is awful code :p
+  // need to not waterfall as hard
+
+  const [games, team] = await Promise.all([
+    getGames({ season: 1, team: teamId }),
+    getEntity<MmolbTeam>("team", teamId),
+  ]);
+  // lol
+  // also, todo: handle pagination?
+  games.items.sort((x) => x.season * 1000 + x.day);
+  const lastGame = games.items[games.items.length - 1];
+
+  const gameData = await getEntity<MmolbGame>("game", lastGame.game_id);
+
+  let lineupEvent: MmolbGameEvent | undefined = undefined;
+  if (gameData.data.AwayTeamID === teamId) {
+    lineupEvent = gameData.data.EventLog.find((x) => x.event === "AwayLineup");
+  } else {
+    lineupEvent = gameData.data.EventLog.find((x) => x.event === "HomeLineup");
+  }
+
+  if (lineupEvent) {
+    const lineupLines = lineupEvent.message.split("<br>");
+    const batters = team.data.Players.filter(
+      (x) => x.PositionType === "Batter"
+    );
+
+    const lineupIds: (string | null)[] = [];
+    for (let line of lineupLines) {
+      const batter = batters.find((b) =>
+        line.includes(`${b.FirstName} ${b.LastName}`)
+      );
+      lineupIds.push(batter?.PlayerID ?? null);
+    }
+    return lineupIds;
+  } else {
+    return [];
+  }
+}
+
 export const Route = createFileRoute("/team/$id/stats")({
   component: RouteComponent,
   validateSearch: (search) => stateSchema.parse(search),
   loaderDeps: ({ search: { season } }) => ({ season }),
   loader: async ({ params, deps }) => {
-    const stats = await getTeamStats(params.id, deps.season ?? defaultSeason);
+    const [stats, aggs, lineupOrder] = await Promise.all([
+      getTeamStats(params.id, deps.season ?? defaultSeason),
+      getLeagueAggregates(),
+      getLineupOrder(params.id),
+    ]);
 
     const playerIds = [...new Set(stats.map((x) => x.player_id))];
-    const players = await getEntities<MmolbPlayer>("player_lite", playerIds);
-
     const teamIds = [...new Set(stats.map((x) => x.team_id))];
-    const teams = await getEntities<MmolbTeam>("team", teamIds);
+
+    const [players, teams] = await Promise.all([
+      getEntities<MmolbPlayer>("player_lite", playerIds),
+      getEntities<MmolbTeam>("team", teamIds),
+    ]);
 
     const thisTeam = teams[params.id]!;
-    const aggs = await getLeagueAggregates();
 
-    return { stats, players, teams, aggs };
+    return { stats, players, teams, aggs, lineupOrder };
   },
 });
 
 function RouteComponent() {
-  const { stats, players, teams, aggs } = Route.useLoaderData();
+  const { stats, players, teams, aggs, lineupOrder } = Route.useLoaderData();
   const { season } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
   const theme = useTheme();
@@ -83,6 +133,7 @@ function RouteComponent() {
           players={players}
           teams={teams}
           aggs={aggs}
+          lineupOrder={lineupOrder}
           type="batting"
         />
       </div>
@@ -94,6 +145,7 @@ function RouteComponent() {
           players={players}
           teams={teams}
           aggs={aggs}
+          lineupOrder={lineupOrder}
           type="pitching"
         />
       </div>
