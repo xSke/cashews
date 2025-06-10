@@ -18,6 +18,7 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
         {stops.map((x) => (
           <div
             className="border-r-2 border-white dark:border-black"
+            key={x}
             style={{
               position: "absolute",
               left: `${x * 100}%`,
