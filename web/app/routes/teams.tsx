@@ -121,6 +121,7 @@ const columns: ColumnDef<BasicTeam>[] = [
   {
     id: "id",
     accessorKey: "team_id",
+    sortingFn: "text", // don't do "numeric sorting"
     header: SortableHeader("ID"),
     cell: IdCell,
   },

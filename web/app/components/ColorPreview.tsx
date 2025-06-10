@@ -1,0 +1,69 @@
+import { useMemo } from "react";
+
+export default function ColorPreview(props: { scale: chroma.Scale }) {
+  // this is unfinished !!!
+  const gradient = useMemo(() => {
+    let stops: string[] = [];
+    for (let i = 0; i <= 100; i += 1) {
+      stops.push(`${props.scale(i / 100).css()} ${i}%`);
+    }
+    let gradient = `linear-gradient(to right, ${stops.join(",")})`;
+    return gradient;
+  }, [props.scale]);
+
+  const stops = [0.25, 0.5, 0.75];
+  return (
+    <div className="flex flex-col relative">
+      <div className="flex flex-row mb-1">
+        <div>&nbsp;</div>
+        <div
+          style={{
+            position: "absolute",
+            left: "0%",
+          }}
+        >
+          0%
+        </div>
+        {stops.map((x) => {
+          return (
+            <div
+              key={x}
+              className="text-center"
+              style={{
+                position: "absolute",
+                left: `${x * 100}%`,
+                transform: "translateX(-25%)",
+              }}
+            >
+              {Math.round(x * 100)}%
+            </div>
+          );
+        })}
+        <div
+          className="text-right"
+          style={{
+            position: "absolute",
+            right: "0%",
+          }}
+        >
+          100%
+        </div>
+      </div>
+      <div className="h-[24px] w-full rounded" style={{ background: gradient }}>
+        {stops.map((x) => (
+          <div
+            className="border-r-2 border-white dark:border-black"
+            style={{
+              position: "absolute",
+              left: `${x * 100}%`,
+              //   transform: "translateX(-50%)",
+            }}
+          >
+            &nbsp;
+          </div>
+        ))}
+        <div>&nbsp;</div>
+      </div>
+    </div>
+  );
+}
