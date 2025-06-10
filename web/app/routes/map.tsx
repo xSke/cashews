@@ -4,7 +4,7 @@ import { Circle, MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
 
 import mapCss from "../styles/map.css?url";
 
-import { Canvas, DivIcon, Icon, LatLng, Point } from "leaflet";
+import { DivIcon, Icon, LatLng, Point } from "leaflet";
 import { useMemo } from "react";
 
 // thanks https://stackoverflow.com/questions/2450954/how-to-randomize-shuffle-a-javascript-array

@@ -91,8 +91,14 @@ export async function getGames(q: {
   return data;
 }
 
-export async function getTeamStats(team: string): Promise<PlayerStatsEntry[]> {
-  const resp = await fetch(API_BASE + `/player-stats?team=${team}`);
+export async function getTeamStats(
+  team: string,
+  season: number
+): Promise<PlayerStatsEntry[]> {
+  const resp = await fetch(
+    API_BASE +
+      `/player-stats?team=${team}&start=${season},0&end=${season + 1},0`
+  );
   const data = (await resp.json()) as PlayerStatsEntry[];
   return data;
 }
