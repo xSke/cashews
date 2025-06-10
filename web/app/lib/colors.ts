@@ -16,7 +16,7 @@ export const hotCold: ColorScale = {
 export const orangeBlue: ColorScale = {
   name: "Orange-Blue",
   light: chroma
-    .scale([colors.amber[700], colors.neutral[600], colors.blue[700]])
+    .scale([colors.amber[600], colors.neutral[600], colors.blue[600]])
     .domain([0, 0.5, 1])
     .mode("lab")
     .classes([0, 0.1, 0.35, 0.65, 0.9, 1]),

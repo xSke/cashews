@@ -1,16 +1,22 @@
+import { ColorScale } from "@/lib/colors";
 import { useMemo } from "react";
 
-export default function ColorPreview(props: { scale: chroma.Scale }) {
-  // this is unfinished !!!
+function generateGradient(scale: ColorScale): string {
+  let stops: string[] = [];
+  const step = 0.1;
+  for (let i = 0; i <= 100; i += step) {
+    const light = scale.light(i / 100).css();
+    const dark = scale.dark(i / 100).css();
+    stops.push(`light-dark(${light}, ${dark}) ${i}%`);
+    // stops.push(`${props.scale((i - 0.0001) / 100).css()} ${i}%`);
+  }
+  const gradient = `linear-gradient(to right, ${stops.join(",")})`;
+  return gradient;
+}
+
+export default function ColorPreview(props: { scale: ColorScale }) {
   const gradient = useMemo(() => {
-    let stops: string[] = [];
-    const step = 0.1;
-    for (let i = 0; i <= 100; i += step) {
-      stops.push(`${props.scale(i / 100).css()} ${i}%`);
-      // stops.push(`${props.scale((i - 0.0001) / 100).css()} ${i}%`);
-    }
-    let gradient = `linear-gradient(to right, ${stops.join(",")})`;
-    return gradient;
+    return generateGradient(props.scale);
   }, [props.scale]);
 
   const stops = [0.1, 0.35, 0.5, 0.65, 0.9];
