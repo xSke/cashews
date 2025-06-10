@@ -103,7 +103,6 @@ function RouteComponent() {
   const { stats, players, teams, aggs, lineupOrder } = Route.useLoaderData();
   const { season } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
-  const theme = useTheme();
 
   const seasons = [1, 0];
 
@@ -160,9 +159,7 @@ function RouteComponent() {
 
       <div>
         <h2 className="mb-2 font-medium text-lg">Color Scale (percentiles)</h2>
-        <ColorPreview
-          scale={theme.theme === "dark" ? scale.dark : scale.light}
-        />
+        <ColorPreview scale={scale} />
       </div>
     </div>
   );
