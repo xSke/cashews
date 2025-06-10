@@ -1,5 +1,6 @@
 import ColorPreview from "@/components/ColorPreview";
-import StatsTable from "@/components/StatsTable";
+import StatsTable, { StatDisplay } from "@/components/StatsTable";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -7,7 +8,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { darkScale, lightScale } from "@/lib/colors";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { defaultScale, hotCold } from "@/lib/colors";
 import {
   getEntities,
   getEntity,
@@ -21,6 +23,7 @@ import {
 } from "@/lib/data";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
+import { useState } from "react";
 import { z } from "zod";
 
 const defaultSeason = 1;
@@ -104,6 +107,9 @@ function RouteComponent() {
 
   const seasons = [1, 0];
 
+  const [display, setDisplay] = useState<StatDisplay>("stat");
+  const scale = defaultScale;
+
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-row place-content-end">
@@ -133,6 +139,7 @@ function RouteComponent() {
           players={players}
           teams={teams}
           aggs={aggs}
+          display={display}
           lineupOrder={lineupOrder}
           type="batting"
         />
@@ -145,6 +152,7 @@ function RouteComponent() {
           players={players}
           teams={teams}
           aggs={aggs}
+          display={display}
           lineupOrder={lineupOrder}
           type="pitching"
         />
@@ -152,7 +160,9 @@ function RouteComponent() {
 
       <div>
         <h2 className="mb-2 font-medium text-lg">Color Scale (percentiles)</h2>
-        <ColorPreview scale={theme.theme === "dark" ? darkScale : lightScale} />
+        <ColorPreview
+          scale={theme.theme === "dark" ? scale.dark : scale.light}
+        />
       </div>
     </div>
   );

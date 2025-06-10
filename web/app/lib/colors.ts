@@ -1,12 +1,38 @@
 import chroma from "chroma-js";
 import colors from "tailwindcss/colors";
 
-export const lightScale = chroma
-  .scale([colors.blue[500], colors.neutral[600], colors.red[500]])
-  .domain([0, 0.5, 1])
-  .mode("lab");
+export const hotCold: ColorScale = {
+  name: "Hot-Cold",
+  light: chroma
+    .scale([colors.blue[500], colors.neutral[600], colors.red[500]])
+    .domain([0, 0.5, 1])
+    .mode("lab"),
+  dark: chroma
+    .scale([colors.blue[500], colors.neutral[200], colors.red[500]])
+    .domain([0, 0.5, 1])
+    .mode("lab"),
+};
 
-export const darkScale = chroma
-  .scale([colors.blue[500], colors.neutral[200], colors.red[500]])
-  .domain([0, 0.5, 1])
-  .mode("lab");
+export const orangeBlue: ColorScale = {
+  name: "Orange-Blue",
+  light: chroma
+    .scale([colors.orange[700], colors.neutral[600], colors.blue[700]])
+    .domain([0, 0.5, 1])
+    .mode("lab"),
+  dark: chroma
+    .scale([colors.orange[500], colors.neutral[200], colors.blue[500]])
+    .domain([0, 0.5, 1])
+    .mode("lab"),
+};
+
+export const defaultScale: ColorScale = orangeBlue;
+
+export const scales = { orangeBlue, hotCold };
+
+export type ScaleId = keyof typeof scales;
+
+export interface ColorScale {
+  name: string;
+  light: chroma.Scale;
+  dark: chroma.Scale;
+}
