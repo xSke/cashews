@@ -76,10 +76,6 @@ function RouteComponent() {
         </Select>
       </div>
 
-      <div className="">
-        <ColorPreview scale={theme.theme === "dark" ? darkScale : lightScale} />
-      </div>
-
       <div>
         <h2 className="mb-2 font-medium text-lg">Batting</h2>
         <StatsTable
@@ -100,6 +96,11 @@ function RouteComponent() {
           aggs={aggs}
           type="pitching"
         />
+      </div>
+
+      <div>
+        <h2 className="mb-2 font-medium text-lg">Color Scale (percentiles)</h2>
+        <ColorPreview scale={theme.theme === "dark" ? darkScale : lightScale} />
       </div>
     </div>
   );

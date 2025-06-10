@@ -14,6 +14,21 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
   const stops = [0.25, 0.5, 0.75];
   return (
     <div className="flex flex-col relative">
+      <div className="h-[24px] w-full rounded" style={{ background: gradient }}>
+        {stops.map((x) => (
+          <div
+            className="border-r-2 border-white dark:border-black"
+            style={{
+              position: "absolute",
+              left: `${x * 100}%`,
+              //   transform: "translateX(-50%)",
+            }}
+          >
+            &nbsp;
+          </div>
+        ))}
+        <div>&nbsp;</div>
+      </div>
       <div className="flex flex-row mb-1">
         <div>&nbsp;</div>
         <div
@@ -48,21 +63,6 @@ export default function ColorPreview(props: { scale: chroma.Scale }) {
         >
           100%
         </div>
-      </div>
-      <div className="h-[24px] w-full rounded" style={{ background: gradient }}>
-        {stops.map((x) => (
-          <div
-            className="border-r-2 border-white dark:border-black"
-            style={{
-              position: "absolute",
-              left: `${x * 100}%`,
-              //   transform: "translateX(-50%)",
-            }}
-          >
-            &nbsp;
-          </div>
-        ))}
-        <div>&nbsp;</div>
       </div>
     </div>
   );
