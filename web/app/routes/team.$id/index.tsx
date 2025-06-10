@@ -5,5 +5,5 @@ export const Route = createFileRoute("/team/$id/")({
 });
 
 function RouteComponent() {
-  return <div>Hello "/team/$id/"! Index</div>;
+  return <div>please imagine index page</div>;
 }

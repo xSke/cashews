@@ -211,6 +211,7 @@ export interface MmolbTeam {
 
 export interface MmolbLeague {
   Name: string;
+  Emoji: string;
 }
 
 export interface ChronGame {
