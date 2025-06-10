@@ -154,7 +154,7 @@ function NameCell(props: CellContext<RowData, unknown>) {
   return (
     <a
       href={`https://mmolb.com/player/${player.id}`}
-      className="p-2 hover:underline"
+      className="p-2 hover:underline font-semibold"
     >
       {props.getValue()?.toString()}
     </a>

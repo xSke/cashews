@@ -1,5 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getEntity, MmolbTeam } from "@/lib/data";
+import { getEntity, MmolbLeague, MmolbTeam } from "@/lib/data";
 
 import {
   createFileRoute,
@@ -14,26 +14,27 @@ export const Route = createFileRoute("/team/$id")({
   component: RouteComponent,
   loader: async ({ params }) => {
     const team = await getEntity<MmolbTeam>("team", params.id);
-    return { team };
+    const league = await getEntity<MmolbLeague>("league", team.data.League);
+    return { team, league };
   },
 });
 
 function RouteComponent() {
-  const { team } = Route.useLoaderData();
+  const { team, league } = Route.useLoaderData();
   const matchRoute = useMatchRoute();
 
   const pages = [
+    { name: "Info", url: "/team/$id" },
     { name: "Stats", url: "/team/$id/stats" },
-    { name: "Todo", url: "/team/$id/other" },
-    { name: "Other Page", url: "/team/$id/other" },
-    { name: "Please Imagine", url: "/team/$id/other" },
   ];
 
   return (
     <div className="container mx-auto flex flex-col h-full py-4 gap-2">
-      <h1 className="text-xl font-semibold">
-        {team.data.Emoji} {team.data.Location} {team.data.Name}
-      </h1>
+      <div>
+        <h1 className="text-xl font-semibold px-4 md:px-0">
+          {team.data.Emoji} {team.data.Location} {team.data.Name}
+        </h1>
+      </div>
 
       <nav className="text-sm font-medium text-center text-gray-700 border-b border-gray-200 dark:text-gray-400 dark:border-gray-700">
         <ul className="flex flex-wrap -mb-px">
@@ -59,7 +60,7 @@ function RouteComponent() {
           })}
         </ul>
       </nav>
-      <main className="flex-3">
+      <main className="flex-3 px-4 md:px-0">
         <Outlet />
       </main>
     </div>
