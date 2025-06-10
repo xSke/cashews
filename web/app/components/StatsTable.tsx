@@ -29,12 +29,18 @@ import {
   TableRow,
 } from "./ui/table";
 import { useMemo, useState } from "react";
-import { Button } from "./ui/button";
-import { ChevronDown, ChevronUp } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
+import {
+  ArrowDown,
+  ArrowUp,
+  ChevronDown,
+  ChevronUp,
+  MoveHorizontal,
+} from "lucide-react";
 import { findPercentile } from "@/lib/percentile";
 import clsx from "clsx";
-import { darkScale, lightScale } from "@/lib/colors";
+import { defaultScale, scales } from "@/lib/colors";
+
+export type StatDisplay = "percentile" | "stat" | "vibes";
 
 interface StatsTableProps {
   data: PlayerStatsEntry[];
@@ -42,6 +48,7 @@ interface StatsTableProps {
   teams: Record<string, MmolbTeam>;
   type: "batting" | "pitching";
   aggs: PercentileResponse;
+  display: StatDisplay;
   lineupOrder: (string | null)[];
 }
 
@@ -55,6 +62,67 @@ type RowData = {
   lineupIndex: number;
 } & AdvancedStats;
 
+function PercentileVibes(props: { percentile: number }) {
+  // this is a joke
+  const cls = "flex flex-row place-content-end";
+
+  const UpArrow = () => <ArrowUp size={16} className="mr-[-4px]" />;
+  const DownArrow = () => <ArrowDown size={16} className="mr-[-4px]" />;
+  const MidArrow = () => <MoveHorizontal size={16} />;
+
+  if (props.percentile > 0.9)
+    return (
+      <span className={cls + " text-green-700"}>
+        <UpArrow />
+        <UpArrow />
+        <UpArrow />
+      </span>
+    );
+  if (props.percentile > 0.75)
+    return (
+      <span className={cls + " text-green-600"}>
+        <UpArrow />
+        <UpArrow />
+      </span>
+    );
+  if (props.percentile > 0.6)
+    return (
+      <span className={cls + " text-green-500"}>
+        <UpArrow />
+      </span>
+    );
+
+  if (props.percentile > 0.4)
+    return (
+      <span className={cls + " text-gray-500"}>
+        <MidArrow />
+      </span>
+    );
+
+  if (props.percentile > 0.25)
+    return (
+      <span className={cls + " text-red-400"}>
+        <DownArrow />
+      </span>
+    );
+
+  if (props.percentile > 0.1)
+    return (
+      <span className={cls + " text-red-600"}>
+        <DownArrow />
+        <DownArrow />
+      </span>
+    );
+
+  return (
+    <span className={cls + " text-red-800"}>
+      <DownArrow />
+      <DownArrow />
+      <DownArrow />
+    </span>
+  );
+}
+
 function StatCell(
   digits: number,
   aggKey: string | null = null,
@@ -65,8 +133,9 @@ function StatCell(
     const orig = props.row.original;
 
     const aggs = (props.table.options.meta as any).aggs as PercentileResponse;
+    const display = (props.table.options.meta as any).display as StatDisplay;
 
-    let percentile = 0;
+    let percentile: number | undefined = undefined;
     if (aggKey && aggs.leagues[orig.league][aggKey]) {
       percentile = findPercentile(
         aggs.leagues[orig.league][aggKey],
@@ -75,8 +144,10 @@ function StatCell(
       );
     }
 
-    const lightColor = lightScale(percentile);
-    const darkColor = darkScale(percentile);
+    const scale = defaultScale;
+
+    const lightColor = scale.light(percentile ?? 0);
+    const darkColor = scale.dark(percentile ?? 0);
 
     return (
       <div
@@ -90,7 +161,15 @@ function StatCell(
             : undefined,
         }}
       >
-        {data === undefined || isNaN(data) ? "-" : data.toFixed(digits)}
+        {data === undefined || isNaN(data) ? (
+          "-"
+        ) : display === "percentile" && percentile !== undefined ? (
+          (percentile * 100).toFixed(0) + "%"
+        ) : display === "vibes" && percentile !== undefined ? (
+          <PercentileVibes percentile={percentile} />
+        ) : (
+          data.toFixed(digits)
+        )}
       </div>
     );
   };
@@ -404,6 +483,7 @@ export default function StatsTable(props: StatsTableProps) {
     },
     meta: {
       aggs: props.aggs,
+      display: props.display,
     },
   });
 
