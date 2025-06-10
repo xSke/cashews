@@ -70,13 +70,15 @@ impl IntervalWorker for PollNewPlayers {
 
 impl IntervalWorker for PollAllPlayers {
     fn interval() -> tokio::time::Interval {
-        tokio::time::interval(Duration::from_secs(60 * 15))
+        tokio::time::interval(Duration::from_secs(60 * 30))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         let player_ids = get_all_known_player_ids(ctx).await?;
         info!("got {} player ids", player_ids.len());
-        ctx.process_many(player_ids, 50, fetch_player).await;
+
+        // this one can go slowly, that's fine
+        ctx.process_many(player_ids, 5, fetch_player).await;
 
         Ok(())
     }
