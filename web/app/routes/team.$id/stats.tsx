@@ -1,17 +1,33 @@
 import StatsTable from "@/components/StatsTable";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   getEntities,
   getLeagueAggregates,
   getTeamStats,
   MmolbPlayer,
   MmolbTeam,
 } from "@/lib/data";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { z } from "zod";
+
+const stateSchema = z.object({
+  season: z.number().catch(1).default(1),
+});
+
+type StateParams = z.infer<typeof stateSchema>;
 
 export const Route = createFileRoute("/team/$id/stats")({
   component: RouteComponent,
-  loader: async ({ params }) => {
-    const stats = await getTeamStats(params.id);
+  validateSearch: (search) => stateSchema.parse(search),
+  loaderDeps: ({ search: { season } }) => ({ season }),
+  loader: async ({ params, deps }) => {
+    const stats = await getTeamStats(params.id, deps.season);
 
     const playerIds = [...new Set(stats.map((x) => x.player_id))];
     const players = await getEntities<MmolbPlayer>("player_lite", playerIds);
@@ -28,8 +44,33 @@ export const Route = createFileRoute("/team/$id/stats")({
 
 function RouteComponent() {
   const { stats, players, teams, aggs } = Route.useLoaderData();
+  const { season } = Route.useSearch();
+  const navigate = useNavigate({ from: Route.fullPath });
+
+  const seasons = [1, 0];
+
   return (
-    <div>
+    <div className="gap-2">
+      <div className="flex flex-row place-content-end">
+        <Select
+          value={season.toString()}
+          onValueChange={(val) => {
+            navigate({
+              search: (prev) => ({ ...prev, season: parseInt(val) ?? 0 }),
+            });
+          }}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Season..."></SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {seasons.map((s) => (
+              <SelectItem value={s.toString()}>Season {s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <h2 className="mb-2">Batting</h2>
       <StatsTable
         data={stats}
