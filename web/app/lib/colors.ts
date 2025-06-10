@@ -19,7 +19,7 @@ export const orangeBlue: ColorScale = {
     .scale([colors.amber[700], colors.neutral[600], colors.blue[700]])
     .domain([0, 0.5, 1])
     .mode("lab")
-    .classes(5),
+    .classes([0, 0.1, 0.35, 0.65, 0.9, 1]),
   dark: chroma
     .scale([colors.amber[500], colors.neutral[200], colors.blue[500]])
     .domain([0, 0.5, 1])
