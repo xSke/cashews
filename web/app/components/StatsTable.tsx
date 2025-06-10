@@ -32,9 +32,8 @@ import { Button } from "./ui/button";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { findPercentile } from "@/lib/percentile";
-import chroma from "chroma-js";
-const lightScale = chroma.scale("RdYlGn");
-const darkScale = chroma.scale("PiYG");
+import clsx from "clsx";
+import { darkScale, lightScale } from "@/lib/colors";
 
 interface StatsTableProps {
   data: PlayerStatsEntry[];
@@ -77,14 +76,17 @@ function StatCell(
 
     return (
       <div
-        className={`text-right tabular-nums p-2 ${aggKey && "font-medium"}`}
+        className={clsx(
+          `text-right tabular-nums p-2`,
+          aggKey && "font-semibold dark:font-medium"
+        )}
         style={{
           color: aggKey
             ? `light-dark(${lightColor.css()}, ${darkColor.css()})`
             : undefined,
         }}
       >
-        {data.toFixed(digits)}
+        {data === undefined || isNaN(data) ? "-" : data.toFixed(digits)}
       </div>
     );
   };
@@ -109,29 +111,35 @@ function InningsCell() {
     const innings = Math.floor(data);
     const outs = Math.floor(data * 3) % 3;
     return (
-      <div className="tabular-nums p-2 font-medium">
+      <div className="tabular-nums p-2 font-medium text-right">
         {innings}.{outs}
       </div>
     );
   };
 }
 
-function SortableHeader(name: string) {
+function SortableHeader(name: string, alignRight: boolean = false) {
   return (props: HeaderContext<RowData, unknown>) => {
     return (
       //   TODO: make the headers right align somehow, and then put the chevron on the left?
       <div
-        className="flex text-right items-center cursor-pointer"
+        className={clsx(
+          "flex items-center cursor-pointer gap-1",
+          alignRight ? "flex-row-reverse" : "flex-row"
+        )}
         onClick={() => props.column.toggleSorting()}
       >
-        {name}
-
+        <span>{name}</span>
         {props.column.getIsSorted() === "asc" && (
-          <ChevronUp className="h-4 w-4 ml-0.5" />
+          <ChevronUp className="h-4 w-4" />
         )}
         {props.column.getIsSorted() === "desc" && (
-          <ChevronDown className="h-4 w-4 ml-0.5" />
+          <ChevronDown className="h-4 w-4" />
         )}
+        {props.column.getIsSorted() !== "asc" &&
+          props.column.getIsSorted() !== "desc" && (
+            <div className="h-4 w-4"></div>
+          )}
       </div>
     );
   };
@@ -173,177 +181,179 @@ const columnsBase: ColumnDef<RowData>[] = [
 
 const columnsBatting: ColumnDef<RowData>[] = [
   {
-    header: SortableHeader("PAs"),
+    header: SortableHeader("PAs", true),
     accessorKey: "plate_appearances",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("ABs"),
+    header: SortableHeader("ABs", true),
     accessorKey: "at_bats",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("H"),
+    header: SortableHeader("H", true),
     accessorKey: "hits",
     cell: StatCell(0),
     // footer: StatFooter(),
   },
   {
-    header: SortableHeader("2B"),
+    header: SortableHeader("2B", true),
     accessorKey: "doubles",
     cell: StatCell(0),
     // footer: StatFooter(),
   },
   {
-    header: SortableHeader("3B"),
+    header: SortableHeader("3B", true),
     accessorKey: "triples",
     cell: StatCell(0),
     // footer: StatFooter(),
   },
   {
-    header: SortableHeader("HR"),
+    header: SortableHeader("HR", true),
     accessorKey: "home_runs",
     cell: StatCell(0),
     // footer: StatFooter(),
   },
   {
-    header: SortableHeader("BB"),
+    header: SortableHeader("BB", true),
     accessorKey: "walked",
     cell: StatCell(0),
     // footer: StatFooter(),
   },
   {
-    header: SortableHeader("K"),
+    header: SortableHeader("K", true),
     accessorKey: "struck_out",
     cell: StatCell(0),
     // footer: StatFooter(),
   },
   {
-    header: SortableHeader("BA"),
+    header: SortableHeader("BA", true),
     accessorKey: "ba",
     cell: StatCell(3, "ba"),
     // footer: StatFooter(),
   },
   {
-    header: SortableHeader("OBP"),
+    header: SortableHeader("OBP", true),
     accessorKey: "obp",
     cell: StatCell(3, "obp"),
   },
   {
-    header: SortableHeader("SLG"),
+    header: SortableHeader("SLG", true),
     accessorKey: "slg",
     cell: StatCell(3, "slg"),
   },
   {
-    header: SortableHeader("OPS"),
+    header: SortableHeader("OPS", true),
     accessorKey: "ops",
     cell: StatCell(3, "ops"),
   },
   {
-    header: SortableHeader("OPS+"),
+    header: SortableHeader("OPS+", true),
     accessorKey: "ops_plus",
     cell: StatCell(0, null),
   },
   {
-    header: SortableHeader("SB"),
+    header: SortableHeader("SB", true),
     accessorKey: "stolen_bases",
     cell: StatCell(0, null),
   },
   {
-    header: SortableHeader("CS"),
+    header: SortableHeader("CS", true),
     accessorKey: "caught_stealing",
     cell: StatCell(0, null),
   },
   {
-    header: SortableHeader("SB%"),
-    accessorKey: "sb_success",
+    id: "sb_success",
+    header: SortableHeader("SB%", true),
+    accessorFn: (data) =>
+      isNaN(data.sb_success) ? undefined : data.sb_success,
     cell: StatCell(2, "sb_success"),
   },
 ];
 
 const columnsPitching: ColumnDef<RowData>[] = [
   {
-    header: SortableHeader("G"),
+    header: SortableHeader("G", true),
     accessorKey: "appearances",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("GS"),
+    header: SortableHeader("GS", true),
     accessorKey: "starts",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("IP"),
+    header: SortableHeader("IP", true),
     accessorKey: "ip",
     cell: InningsCell(),
   },
   {
-    header: SortableHeader("W"),
+    header: SortableHeader("W", true),
     accessorKey: "wins",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("L"),
+    header: SortableHeader("L", true),
     accessorKey: "losses",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("H"),
+    header: SortableHeader("H", true),
     accessorKey: "hits_allowed",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("HR"),
+    header: SortableHeader("HR", true),
     accessorKey: "home_runs_allowed",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("K"),
+    header: SortableHeader("K", true),
     accessorKey: "strikeouts",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("BB"),
+    header: SortableHeader("BB", true),
     accessorKey: "walks",
     cell: StatCell(0),
   },
   {
-    header: SortableHeader("ERA"),
+    header: SortableHeader("ERA", true),
     accessorKey: "era",
     cell: StatCell(2, "era", true),
   },
   {
-    header: SortableHeader("ERA-"),
+    header: SortableHeader("ERA-", true),
     accessorKey: "era_minus",
     cell: StatCell(0, null),
   },
   {
-    header: SortableHeader("FIP"),
+    header: SortableHeader("FIP", true),
     accessorKey: "fip",
     cell: StatCell(2, null, true),
   },
   {
-    header: SortableHeader("WHIP"),
+    header: SortableHeader("WHIP", true),
     accessorKey: "whip",
     cell: StatCell(2, "whip", true),
   },
   {
-    header: SortableHeader("H/9"),
+    header: SortableHeader("H/9", true),
     accessorKey: "h9",
     cell: StatCell(2, "h9", true),
   },
   {
-    header: SortableHeader("HR/9"),
+    header: SortableHeader("HR/9", true),
     accessorKey: "hr9",
     cell: StatCell(2, "hr9", true),
   },
   {
-    header: SortableHeader("K/9"),
+    header: SortableHeader("K/9", true),
     accessorKey: "k9",
     cell: StatCell(2, "k9"),
   },
   {
-    header: SortableHeader("BB/9"),
+    header: SortableHeader("BB/9", true),
     accessorKey: "bb9",
     cell: StatCell(2, "bb9", true),
   },
@@ -384,7 +394,10 @@ export default function StatsTable(props: StatsTableProps) {
             <TableRow key={headerGroup.id}>
               {headerGroup.headers.map((header) => {
                 return (
-                  <TableHead key={header.id} className="font-semibold">
+                  <TableHead
+                    key={header.id}
+                    className="font-semibold text-left"
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(
