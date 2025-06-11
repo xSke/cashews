@@ -123,6 +123,8 @@ const columns: ColumnDef<RowData>[] = [
   },
   { header: SortableHeader("Likes"), accessorKey: "Likes" },
   { header: SortableHeader("Dislikes"), accessorKey: "Dislikes" },
+  { header: SortableHeader("Bats"), accessorKey: "Bats" },
+  { header: SortableHeader("Throws"), accessorKey: "Throws" },
   {
     id: "mods",
     header: SortableHeader("Mods"),
