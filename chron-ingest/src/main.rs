@@ -77,15 +77,15 @@ async fn main() -> anyhow::Result<()> {
         }
         Ok(())
     } else {
-        // spawn(ctx.clone(), PollLeague);
-        // spawn(ctx.clone(), PollNewPlayers);
-        // spawn(ctx.clone(), RefreshMatviews);
-        // spawn(ctx.clone(), PollMessage);
+        spawn(ctx.clone(), PollLeague);
+        spawn(ctx.clone(), PollNewPlayers);
+        spawn(ctx.clone(), RefreshMatviews);
+        spawn(ctx.clone(), PollMessage);
         spawn(ctx.clone(), PollSchedules);
         spawn(ctx.clone(), PollLiveGames);
-        // spawn(ctx.clone(), PollAllPlayers);
-        // spawn(ctx.clone(), PollAllScheduledGames);
-        // spawn(ctx.clone(), LookupMapLocations);
+        spawn(ctx.clone(), PollAllPlayers);
+        spawn(ctx.clone(), PollAllScheduledGames);
+        spawn(ctx.clone(), LookupMapLocations);
 
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;
