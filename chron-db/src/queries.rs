@@ -68,6 +68,21 @@ impl ChronDb {
         Ok(res)
     }
 
+    pub async fn get_entity_at(
+        &self,
+        kind: EntityKind,
+        entity_id: &str,
+        timestamp: &OffsetDateTime,
+    ) -> anyhow::Result<Option<EntityVersion>> {
+        let res = sqlx::query_as("select kind, entity_id, valid_from, null as valid_to, data from versions inner join objects using (hash) where kind = $1 and entity_id = $2 and $3 >= valid_from and $3 < coalesce(valid_to, 'infinity')")
+            .bind(kind)
+            .bind(entity_id)
+            .bind(timestamp)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(res)
+    }
+
     pub async fn get_latest_observation(
         &self,
         kind: EntityKind,

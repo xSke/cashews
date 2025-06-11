@@ -11,6 +11,7 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
 };
 use time::{Duration, OffsetDateTime};
+use tracing::info;
 use util::HashingWriter;
 use uuid::Uuid;
 
@@ -57,7 +58,9 @@ impl ChronDb {
         let conn_opts = PgConnectOptions::from_str(&config.database_uri)?;
         let pool = pool_opts.connect_with(conn_opts).await?;
 
+        info!("migrating...");
         sqlx::migrate!("./migrations").run(&pool).await?;
+        info!("migrating done");
 
         let mut tx = pool.acquire().await?;
         tx.execute(include_str!("../migrations/functions.sql"))

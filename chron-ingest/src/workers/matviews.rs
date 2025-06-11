@@ -15,6 +15,7 @@ impl IntervalWorker for RefreshMatviews {
         let matviews = [
             "game_player_stats_league_aggregate",
             "game_player_stats_global_aggregate",
+            "pitches",
         ];
 
         for matview in matviews {

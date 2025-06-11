@@ -12,6 +12,9 @@ pub mod cache;
 pub struct ChronConfig {
     pub database_uri: String,
     pub maps_api_key: Option<String>,
+
+    #[serde(default)]
+    pub jitter: bool,
 }
 
 pub fn normalize_location(s: &str) -> String {

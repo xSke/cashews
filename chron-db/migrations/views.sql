@@ -1,5 +1,6 @@
 drop materialized view if exists game_player_stats_league_aggregate cascade;
 drop materialized view if exists game_player_stats_global_aggregate cascade;
+drop materialized view if exists pitches cascade;
  
 drop view if exists league_percentiles;
 drop view if exists game_player_stats_advanced;
@@ -667,3 +668,12 @@ from game_player_stats_advanced h
 group by (season);
 $$
     language sql;
+
+create materialized view if not exists pitches as
+    select 
+        *,
+        split_part(data->>'pitch_info', ' ', 1)::real as pitch_speed,
+        split_part(data->>'pitch_info', 'MPH ', 2) as pitch_type,
+        nullif(data->>'zone', '')::smallint as pitch_zone
+    from game_events
+        where pitcher_id is distinct from null and data->>'event' = 'Pitch';

@@ -248,22 +248,32 @@ impl ChronDb {
     pub async fn update_game_events(
         &self,
         game_id: &str,
+        season: i32,
+        day: i32,
         timestamp: &OffsetDateTime,
-        events: &[(i32, &serde_json::Value)],
-    ) -> anyhow::Result<()> {
-        let mut indexes = Vec::with_capacity(events.len());
-        let mut datas = Vec::with_capacity(events.len());
-        for (idx, data) in events {
-            indexes.push(*idx);
-            datas.push(data);
-        }
 
-        sqlx::query("insert into game_events (game_id, index, data, observed_at) select $1 as game_id, unnest($2::int[]) as index, unnest($3::jsonb[]) as data, $4 as observed_at on conflict (game_id, index) do update set observed_at = excluded.observed_at where (game_events.observed_at is null or excluded.observed_at < game_events.observed_at)")
-            .bind(game_id)
-            .bind(&indexes)
-            .bind(&datas)
-            .bind(timestamp)
-            .execute(&self.pool).await?;
+        event_indexes: &[i32],
+        event_datas: &[&serde_json::Value],
+        event_pitchers: &[Option<String>],
+        event_batters: &[Option<String>],
+    ) -> anyhow::Result<()> {
+        assert!(event_indexes.len() == event_datas.len());
+        assert!(event_indexes.len() == event_pitchers.len());
+        assert!(event_indexes.len() == event_batters.len());
+        
+        let chunk_size = 100;
+        for i in (0..event_indexes.len()).step_by(chunk_size) {
+            sqlx::query("insert into game_events (game_id, index, data, pitcher_id, batter_id, observed_at, season, day) select $1 as game_id, unnest($2::int[]) as index, unnest($3::jsonb[]) as data, unnest($4::text[]) as pitcher_id, unnest($5::text[]) as batter_id, $6 as observed_at, $7 as season, $8 as day on conflict (game_id, index) do update set observed_at = excluded.observed_at, pitcher_id = excluded.pitcher_id, batter_id = excluded.batter_id, season = excluded.season, day = excluded.day where (game_events.observed_at is null or excluded.observed_at <= game_events.observed_at)")
+                .bind(game_id)
+                .bind(&event_indexes[i..(i+chunk_size).min(event_indexes.len())])
+                .bind(&event_datas[i..(i+chunk_size).min(event_indexes.len())])
+                .bind(&event_pitchers[i..(i+chunk_size).min(event_indexes.len())])
+                .bind(&event_batters[i..(i+chunk_size).min(event_indexes.len())])
+                .bind(timestamp)
+                .bind(season as i16)
+                .bind(day as i16)
+                .execute(&self.pool).await?;
+        }
 
         Ok(())
     }
