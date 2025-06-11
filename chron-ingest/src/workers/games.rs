@@ -19,7 +19,7 @@ use crate::models::{MmolbGame, MmolbGameEvent, MmolbTeam};
 use super::{IntervalWorker, WorkerContext};
 
 pub struct PollAllScheduledGames;
-pub struct PollSchedules;
+pub struct PollTodayGames;
 pub struct PollLiveGames;
 
 impl IntervalWorker for PollAllScheduledGames {
@@ -28,9 +28,6 @@ impl IntervalWorker for PollAllScheduledGames {
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
-        // let game_ids = get_all_known_game_ids(ctx).await?;
-
-        // ctx.process_many(game_ids, 50, poll_game_by_id).await;
         let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
         ctx.process_many(team_ids, 1, poll_schedule_for_team_for_all_games)
             .await;
@@ -39,9 +36,14 @@ impl IntervalWorker for PollAllScheduledGames {
     }
 }
 
-impl IntervalWorker for PollSchedules {
+#[derive(Deserialize)]
+struct TodayGame {
+    game_id: String
+}
+
+impl IntervalWorker for PollTodayGames {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(15 * 60))
+        interval(Duration::from_secs(1 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -54,9 +56,9 @@ impl IntervalWorker for PollSchedules {
             _ => {}
         }
 
-        let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
-
-        ctx.process_many(team_ids, 1, poll_schedule_for_team_for_new_games)
+        let resp = ctx.client.fetch("https://mmolb.com/api/today-games").await?;
+        let today_games = resp.parse::<Vec<TodayGame>>()?;
+        ctx.process_many(today_games.into_iter().map(|x| x.game_id), 5, check_today_games_for_new_games)
             .await;
         Ok(())
     }
@@ -114,6 +116,19 @@ async fn poll_schedule_for_team_for_new_games(
             }
         }
     }
+    Ok(())
+}
+
+async fn check_today_games_for_new_games(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
+    let knows_about_game = ctx
+        .db
+        .get_latest(EntityKind::Game, &game_id)
+        .await?
+        .is_some();
+    if !knows_about_game {
+        poll_game_by_id(ctx, game_id).await?;
+    }
+
     Ok(())
 }
 
