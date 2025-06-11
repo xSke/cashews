@@ -40,7 +40,7 @@ impl IntervalWorker for PollAllScheduledGames {
 
 impl IntervalWorker for PollSchedules {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(10 * 60))
+        interval(Duration::from_secs(15 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -55,7 +55,7 @@ impl IntervalWorker for PollSchedules {
 
         let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
 
-        ctx.process_many(team_ids, 5, poll_schedule_for_team_for_new_games)
+        ctx.process_many(team_ids, 1, poll_schedule_for_team_for_new_games)
             .await;
         Ok(())
     }
