@@ -44,7 +44,7 @@ impl IntervalWorker for PollLeague {
 
         let team_ids = get_all_known_team_ids(ctx).await?;
         info!("got {} team ids", team_ids.len());
-        ctx.process_many(team_ids, 10, fetch_team).await;
+        ctx.process_many(team_ids, 3, fetch_team).await;
 
         Ok(())
     }
@@ -62,7 +62,7 @@ impl IntervalWorker for PollNewPlayers {
         let player_object_ids = HashSet::from_iter(player_object_ids);
 
         let new_players = player_ids.difference(&player_object_ids).cloned();
-        ctx.process_many(new_players, 10, fetch_player).await;
+        ctx.process_many(new_players, 3, fetch_player).await;
 
         Ok(())
     }
