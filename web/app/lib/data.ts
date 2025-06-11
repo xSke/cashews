@@ -272,6 +272,8 @@ export interface MmolbPlayer {
         Head: MmolbEquipment | null;
       }
     | undefined;
+  Throws: string;
+  Bats: string;
 }
 
 export interface MmolbEquipment {
