@@ -35,9 +35,11 @@ fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
         // add some jitter
-        let jitter_amount = rand::random_range(0.1..=1.0);
-        tokio::time::sleep(interval.period().div_f64(jitter_amount)).await;
-        interval.reset_immediately();
+        if ctx.config.jitter {
+            let jitter_amount = rand::random_range(0.1..=1.0);
+            tokio::time::sleep(interval.period().div_f64(jitter_amount)).await;
+            interval.reset_immediately();
+        }
 
         let type_name = std::any::type_name::<T>().split("::").last().unwrap();
         loop {
@@ -75,15 +77,15 @@ async fn main() -> anyhow::Result<()> {
         }
         Ok(())
     } else {
-        spawn(ctx.clone(), PollLeague);
-        spawn(ctx.clone(), PollNewPlayers);
-        spawn(ctx.clone(), RefreshMatviews);
-        spawn(ctx.clone(), PollMessage);
+        // spawn(ctx.clone(), PollLeague);
+        // spawn(ctx.clone(), PollNewPlayers);
+        // spawn(ctx.clone(), RefreshMatviews);
+        // spawn(ctx.clone(), PollMessage);
         spawn(ctx.clone(), PollSchedules);
         spawn(ctx.clone(), PollLiveGames);
-        spawn(ctx.clone(), PollAllPlayers);
-        spawn(ctx.clone(), PollAllScheduledGames);
-        spawn(ctx.clone(), LookupMapLocations);
+        // spawn(ctx.clone(), PollAllPlayers);
+        // spawn(ctx.clone(), PollAllScheduledGames);
+        // spawn(ctx.clone(), LookupMapLocations);
 
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;

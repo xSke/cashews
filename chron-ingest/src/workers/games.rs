@@ -1,9 +1,10 @@
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::HashSet,
     time::Duration,
 };
 
 use chron_db::{
+    ChronDb,
     derived::{DbGame, DbGameSaveModel, GetGamesQuery},
     models::{EntityKind, EntityVersion},
 };
@@ -13,7 +14,7 @@ use time::OffsetDateTime;
 use tokio::time::interval;
 use tracing::{error, info, warn};
 
-use crate::models::{MmolbGame, MmolbGameByTeam, MmolbTime};
+use crate::models::{MmolbGame, MmolbGameEvent, MmolbTeam};
 
 use super::{IntervalWorker, WorkerContext};
 
@@ -132,6 +133,116 @@ async fn poll_schedule_for_team_for_all_games(
     Ok(())
 }
 
+async fn try_get_team(
+    db: &ChronDb,
+    team_id: &str,
+    timestamp: &OffsetDateTime,
+) -> anyhow::Result<Option<MmolbTeam>> {
+    Ok(db
+        .get_entity_at(EntityKind::Team, &team_id, timestamp)
+        .await?
+        .map(|x| x.parse())
+        .transpose()?)
+}
+
+fn try_find_player_by_name(
+    team: &MmolbTeam,
+    player_name: &str,
+    position_type: &str,
+) -> Option<String> {
+    let mut result: Option<&str> = None;
+    for slot in &team.players {
+        // todo: remove alloc?
+        let full_name = format!("{} {}", slot.first_name, slot.last_name);
+        if full_name == player_name && slot.position_type == position_type {
+            if result.is_some() {
+                // we found two valid players, abort
+                return None;
+            }
+            result = Some(&slot.player_id);
+        }
+    }
+    result.map(|x| x.to_string())
+}
+
+// todo: this is nasty
+struct GenericGame<'a> {
+    game_id: &'a str,
+    season: i32,
+    day: i32,
+    home_team_id: &'a str,
+    away_team_id: &'a str,
+}
+struct EnrichedGameEvent {
+    pitcher_id: Option<String>,
+    batter_id: Option<String>,
+}
+
+async fn save_game_events(
+    ctx: &WorkerContext,
+    timestamp: OffsetDateTime,
+    game: &GenericGame<'_>,
+    raw_events: &[serde_json::Value],
+    start_idx: i32,
+) -> anyhow::Result<()> {
+    let away_team = try_get_team(&ctx.db, &game.away_team_id, &timestamp).await?;
+    let home_team = try_get_team(&ctx.db, &game.home_team_id, &timestamp).await?;
+
+    let mut indexes = Vec::new();
+    let mut datas = Vec::new();
+    let mut pitchers = Vec::new();
+    let mut batters = Vec::new();
+    for (idx, evt) in raw_events.iter().enumerate() {
+        let absolute_idx = idx as i32 + start_idx;
+
+        let enriched: Option<EnrichedGameEvent> = match MmolbGameEvent::deserialize(evt) {
+            Ok(parsed_event) => {
+                let (pitching_team, batting_team) = if parsed_event.inning_side == 0 {
+                    (home_team.as_ref(), away_team.as_ref())
+                } else {
+                    (away_team.as_ref(), home_team.as_ref())
+                };
+
+                let pitcher_id = pitching_team.zip(parsed_event.pitcher.as_ref())
+                    .and_then(|(t, name)| try_find_player_by_name(t, name, "Pitcher"));
+                let batter_id = batting_team.zip(parsed_event.batter.as_ref())
+                    .and_then(|(t, name)| try_find_player_by_name(t, name, "Batter"));
+                Some(EnrichedGameEvent {
+                    pitcher_id,
+                    batter_id,
+                })
+            }
+            Err(e) => {
+                let s = serde_json::to_string(evt);
+                warn!(
+                    "couldn't parse game event {}/{} ({:?}): {:?}",
+                    game.game_id, absolute_idx, s, e
+                );
+                None
+            }
+        };
+
+        indexes.push(absolute_idx);
+        datas.push(evt);
+        pitchers.push(enriched.as_ref().and_then(|x| x.pitcher_id.clone()));
+        batters.push(enriched.as_ref().and_then(|x| x.batter_id.clone()));
+    }
+
+    ctx.db
+        .update_game_events(
+            &game.game_id,
+            game.season,
+            game.day,
+            &timestamp,
+            &indexes,
+            &datas,
+            &pitchers,
+            &batters,
+        )
+        .await?;
+    Ok(())
+}
+
 async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()> {
     let current_count = game.event_count;
 
@@ -143,15 +254,21 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
 
     let events = resp.parse::<LiveResponse>()?;
 
-    let events_indexed = events
-        .entries
-        .iter()
-        .enumerate()
-        .map(|(idx, value)| (idx as i32 + current_count, value))
-        .collect::<Vec<_>>();
-    ctx.db
-        .update_game_events(&game.game_id, &resp.timestamp(), &events_indexed)
-        .await?;
+    let generic_game = GenericGame {
+        away_team_id: &game.away_team_id,
+        home_team_id: &game.home_team_id,
+        game_id: &game.game_id,
+        season: game.season,
+        day: game.day,
+    };
+    save_game_events(
+        ctx,
+        resp.timestamp(),
+        &generic_game,
+        &events.entries,
+        current_count,
+    )
+    .await?;
 
     fn is_game_over_event(e: &serde_json::Value) -> bool {
         // oh no
@@ -236,13 +353,14 @@ async fn process_game_data(
         })
         .await?;
 
-    let events = game
-        .event_log
-        .iter()
-        .enumerate()
-        .map(|(idx, data)| (idx as i32, data))
-        .collect::<Vec<_>>();
-    ctx.db.update_game_events(&id, timestamp, &events).await?;
+    let generic_game = GenericGame {
+        away_team_id: &game.away_team_id,
+        home_team_id: &game.home_team_id,
+        game_id: &id,
+        season: game.season,
+        day: game.day,
+    };
+    save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
 
     if let Some(game_stats) = &game.stats {
         let mut stats = Vec::new();
@@ -263,7 +381,7 @@ pub async fn rebuild_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     // get game ids separately because "all game objects" is gonna be massive
     let all_game_ids = ctx.db.get_all_entity_ids(EntityKind::Game).await?;
 
-    ctx.process_many(all_game_ids, 100, rebuild_game).await;
+    ctx.process_many(all_game_ids, 20, rebuild_game).await;
     Ok(())
 }
 
@@ -299,6 +417,7 @@ async fn rebuild_games_slow_inner(
 }
 
 async fn rebuild_game(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
+    info!("rebuilding game {}", game_id);
     let game_data = ctx.db.get_latest(EntityKind::Game, &game_id).await?;
     if let Some(game_data) = game_data {
         let parsed = game_data.parse()?;

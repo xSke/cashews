@@ -65,6 +65,16 @@ pub struct MmolbTeam {
 pub struct MmolbTeamPlayer {
     #[serde(rename = "PlayerID")]
     pub player_id: String,
+
+    #[serde(rename = "FirstName")]
+    pub first_name: String,
+
+    #[serde(rename = "LastName")]
+    pub last_name: String,
+
+    #[serde(rename = "PositionType")]
+    // "Batter" or "Pitcher" - todo: enum?
+    pub position_type: String,
 }
 
 #[derive(Deserialize, Debug)]
@@ -96,6 +106,15 @@ pub struct MmolbGame {
 
     #[serde(rename = "EventLog")]
     pub event_log: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct MmolbGameEvent {
+    pub event: String, // event type
+    pub pitcher: Option<String>,
+    pub batter: Option<String>,
+    pub inning: i32,
+    pub inning_side: i32,
 }
 
 #[derive(Debug, Deserialize)]
