@@ -31,6 +31,7 @@ import {
   getPaginationRowModel,
   getSortedRowModel,
   HeaderContext,
+  Row,
   RowExpanding,
   SortingState,
   useReactTable,
@@ -50,7 +51,7 @@ export const Route = createFileRoute("/players")({
   },
 });
 
-type RowData = MmolbPlayer & { id: string };
+type RowData = MmolbPlayer & { id: string; teamName: string };
 
 function SortableHeader(name: string) {
   return (props: HeaderContext<RowData, unknown>) => {
@@ -99,8 +100,7 @@ const columns: ColumnDef<RowData>[] = [
   },
   {
     header: SortableHeader("Team"),
-    accessorKey: "TeamID",
-
+    accessorKey: "teamName",
     cell: (props) => {
       const teamId = props.row.original.TeamID;
       if (!teamId) return <span>Null Team</span>;
@@ -213,7 +213,11 @@ function RouteComponent() {
     return (data?.pages ?? [])
       .flatMap((x) => x.items)
       .filter((x) => !!x.data.TeamID)
-      .map((x) => ({ ...x.data, id: x.entity_id }));
+      .map((x) => {
+        const team = teams[x.data.TeamID ?? ""];
+        const teamName = team ? `${team.location} ${team.name}` : "";
+        return { ...x.data, id: x.entity_id, teamName: teamName };
+      });
   }, [data]);
 
   const [sorting, setSorting] = useState<SortingState>([]);
