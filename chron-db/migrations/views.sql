@@ -677,3 +677,4 @@ create materialized view if not exists pitches as
         nullif(data->>'zone', '')::smallint as pitch_zone
     from game_events
         where pitcher_id is distinct from null and data->>'event' = 'Pitch';
+create unique index pitches_idx on pitches(game_id, index);

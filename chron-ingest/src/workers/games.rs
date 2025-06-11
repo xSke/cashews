@@ -1,5 +1,5 @@
 use std::{
-    collections::HashSet,
+    collections::{BTreeSet, HashSet},
     time::Duration,
 };
 
@@ -21,10 +21,11 @@ use super::{IntervalWorker, WorkerContext};
 pub struct PollAllScheduledGames;
 pub struct PollTodayGames;
 pub struct PollLiveGames;
+pub struct PollFinishedGamesFromFeed;
 
 impl IntervalWorker for PollAllScheduledGames {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(60 * 60))
+        interval(Duration::from_secs(15 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
@@ -58,7 +59,7 @@ impl IntervalWorker for PollTodayGames {
 
         let resp = ctx.client.fetch("https://mmolb.com/api/today-games").await?;
         let today_games = resp.parse::<Vec<TodayGame>>()?;
-        ctx.process_many(today_games.into_iter().map(|x| x.game_id), 5, check_today_games_for_new_games)
+        ctx.process_many(today_games.into_iter().map(|x| x.game_id), 5, fetch_game_if_new)
             .await;
         Ok(())
     }
@@ -96,6 +97,55 @@ impl IntervalWorker for PollLiveGames {
     }
 }
 
+#[derive(Deserialize)]
+// using different struct type here for resilience
+struct TeamWithOnlyFeed {
+    #[serde(rename="Feed")]
+    feed: Option<Vec<FeedItem>>
+}
+
+#[derive(Deserialize)]
+struct FeedItem {
+    #[serde(rename="type")]
+    kind: String,
+    text: String,
+    links: Vec<FeedItemLink>
+}
+
+#[derive(Deserialize)]
+struct FeedItemLink {
+    #[serde(rename="type")]
+    kind: String,
+    id: String,
+}
+
+impl IntervalWorker for PollFinishedGamesFromFeed {
+    fn interval() -> tokio::time::Interval {
+        interval(Duration::from_secs(5 * 60))
+    }
+
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
+        let teams = ctx.db.get_all_latest(EntityKind::Team).await?;
+        
+        let mut game_ids = BTreeSet::new();
+        // just eat every game id we can find
+        for team in teams {
+            let parsed = team.parse::<TeamWithOnlyFeed>()?;
+            for item in parsed.feed.unwrap_or_default() {
+                for link in item.links {
+                    if link.kind == "game" {
+                        game_ids.insert(link.id);
+                    }
+                }
+            }
+        }
+        
+        ctx.process_many(game_ids, 5, fetch_game_if_not_completed).await;
+
+        Ok(())
+    }
+}
+
 async fn poll_schedule_for_team_for_new_games(
     ctx: &WorkerContext,
     id: String,
@@ -119,13 +169,32 @@ async fn poll_schedule_for_team_for_new_games(
     Ok(())
 }
 
-async fn check_today_games_for_new_games(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
+async fn fetch_game_if_new(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
     let knows_about_game = ctx
         .db
         .get_latest(EntityKind::Game, &game_id)
         .await?
         .is_some();
     if !knows_about_game {
+        poll_game_by_id(ctx, game_id).await?;
+    }
+
+    Ok(())
+}
+
+async fn fetch_game_if_not_completed(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
+    let known_game = ctx
+        .db
+        .get_latest(EntityKind::Game, &game_id)
+        .await?;
+    let should_poll = if let Some(game) = known_game {
+        let game: MmolbGame = game.parse()?;
+        game.state != "Complete"
+    } else {
+        true
+    };
+
+    if should_poll {
         poll_game_by_id(ctx, game_id).await?;
     }
 
@@ -169,7 +238,7 @@ fn try_find_player_by_name(
     for slot in &team.players {
         // todo: remove alloc?
         let full_name = format!("{} {}", slot.first_name, slot.last_name);
-        if full_name == player_name && slot.position_type == position_type {
+        if full_name == player_name && slot.position_type.as_deref().unwrap_or("") == position_type {
             if result.is_some() {
                 // we found two valid players, abort
                 return None;
