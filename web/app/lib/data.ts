@@ -36,7 +36,7 @@ export interface Team {}
 //   return teams[id];
 // }
 
-const API_BASE = import.meta.env.SSR
+export const API_BASE = import.meta.env.SSR
   ? (process.env.API_BASE ?? "http://localhost:3000/api")
   : "/api";
 
@@ -260,6 +260,30 @@ export interface MmolbPlayer {
   LastName: string;
   Number: number;
   Position: string;
+  TeamID: string | null;
+  LesserBoon: MmolbBoon | null;
+  Modifications: MmolbBoon[];
+  Equipment:
+    | {
+        Accessory: MmolbEquipment | null;
+        Body: MmolbEquipment | null;
+        Feet: MmolbEquipment | null;
+        Hands: MmolbEquipment | null;
+        Head: MmolbEquipment | null;
+      }
+    | undefined;
+}
+
+export interface MmolbEquipment {
+  Effects: string[];
+  Emoji: string;
+  Name: string;
+}
+
+export interface MmolbBoon {
+  Description: string;
+  Emoji: string;
+  Name: string;
 }
 
 export interface BasicTeam {
