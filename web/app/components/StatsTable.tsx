@@ -204,7 +204,6 @@ function InningsCell() {
 function SortableHeader(name: string, alignRight: boolean = false) {
   return (props: HeaderContext<RowData, unknown>) => {
     return (
-      //   TODO: make the headers right align somehow, and then put the chevron on the left?
       <div
         className={clsx(
           "flex items-center cursor-pointer gap-1",
