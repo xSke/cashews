@@ -17,9 +17,9 @@ use workers::{
 };
 
 use crate::workers::{
-    games::{PollAllScheduledGames, PollLiveGames, PollTodayGames},
+    games::{PollFinishedGamesFromFeed, PollLiveGames, PollTodayGames},
     league::PollAllPlayers,
-    map::{self, LookupMapLocations},
+    map::{LookupMapLocations},
     message::PollMessage,
 };
 
@@ -84,8 +84,11 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollTodayGames);
         spawn(ctx.clone(), PollLiveGames);
         spawn(ctx.clone(), PollAllPlayers);
-        spawn(ctx.clone(), PollAllScheduledGames);
+        spawn(ctx.clone(), PollFinishedGamesFromFeed);
         spawn(ctx.clone(), LookupMapLocations);
+
+        // retiring this one for now, server's slow
+        // spawn(ctx.clone(), PollAllScheduledGames);
 
         loop {
             tokio::time::sleep(Duration::from_secs(1)).await;

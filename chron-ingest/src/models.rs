@@ -74,7 +74,7 @@ pub struct MmolbTeamPlayer {
 
     #[serde(rename = "PositionType")]
     // "Batter" or "Pitcher" - todo: enum?
-    pub position_type: String,
+    pub position_type: Option<String>,
 }
 
 #[derive(Deserialize, Debug)]
