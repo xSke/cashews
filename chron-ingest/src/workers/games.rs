@@ -31,7 +31,7 @@ impl IntervalWorker for PollAllScheduledGames {
 
         // ctx.process_many(game_ids, 50, poll_game_by_id).await;
         let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
-        ctx.process_many(team_ids, 3, poll_schedule_for_team_for_all_games)
+        ctx.process_many(team_ids, 1, poll_schedule_for_team_for_all_games)
             .await;
 
         Ok(())
@@ -40,7 +40,7 @@ impl IntervalWorker for PollAllScheduledGames {
 
 impl IntervalWorker for PollSchedules {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(5 * 60))
+        interval(Duration::from_secs(10 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -55,7 +55,7 @@ impl IntervalWorker for PollSchedules {
 
         let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
 
-        ctx.process_many(team_ids, 10, poll_schedule_for_team_for_new_games)
+        ctx.process_many(team_ids, 5, poll_schedule_for_team_for_new_games)
             .await;
         Ok(())
     }
@@ -63,7 +63,7 @@ impl IntervalWorker for PollSchedules {
 
 impl IntervalWorker for PollLiveGames {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(15))
+        interval(Duration::from_secs(30))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -87,7 +87,7 @@ impl IntervalWorker for PollLiveGames {
             .collect::<Vec<_>>();
         info!("found {} live games in db", live_games.len());
 
-        ctx.process_many(live_games, 25, poll_live_game).await;
+        ctx.process_many(live_games, 5, poll_live_game).await;
 
         Ok(())
     }
