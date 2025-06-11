@@ -198,6 +198,7 @@ function RouteComponent() {
     initialPageParam: null,
     getNextPageParam: (lastPage, _) => lastPage.next_page ?? undefined,
     maxPages,
+    staleTime: 30 * 60 * 1000,
   });
 
   const shouldTriggerNextPage =
