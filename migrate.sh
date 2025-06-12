@@ -1,2 +1,2 @@
 #!/bin/sh
-docker compose run --rm ingest migrate
+docker compose run --build --rm ingest migrate
