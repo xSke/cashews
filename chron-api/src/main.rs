@@ -73,6 +73,7 @@ async fn main() -> anyhow::Result<()> {
             "/league-aggregate-stats",
             get(derived_api::league_aggregate),
         )
+        .route("/league-averages", get(derived_api::league_averages))
         .layer(cors)
         .layer(CompressionLayer::new())
         .layer(trace)
