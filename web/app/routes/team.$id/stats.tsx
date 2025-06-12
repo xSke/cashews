@@ -14,7 +14,7 @@ import {
   getEntities,
   getEntity,
   getGames,
-  getLeagueAggregates,
+  getLeagueAggregates, getLeagueAverages,
   getTeamStats,
   MmolbGame,
   MmolbGameEvent,
@@ -79,9 +79,10 @@ export const Route = createFileRoute("/team/$id/stats")({
   validateSearch: (search) => stateSchema.parse(search),
   loaderDeps: ({ search: { season } }) => ({ season }),
   loader: async ({ params, deps }) => {
-    const [stats, aggs, lineupOrder] = await Promise.all([
+    const [stats, pcts, aggs, lineupOrder] = await Promise.all([
       getTeamStats(params.id, deps.season ?? defaultSeason),
-      getLeagueAggregates(1),
+      getLeagueAggregates(deps.season ?? defaultSeason),
+      getLeagueAverages(deps.season ?? defaultSeason),
       getLineupOrder(params.id),
     ]);
 
@@ -95,12 +96,12 @@ export const Route = createFileRoute("/team/$id/stats")({
 
     const thisTeam = teams[params.id]!;
 
-    return { stats, players, teams, aggs, lineupOrder };
+    return { stats, players, teams, pcts, aggs, lineupOrder };
   },
 });
 
 function RouteComponent() {
-  const { stats, players, teams, aggs, lineupOrder } = Route.useLoaderData();
+  const { stats, players, teams, pcts, aggs, lineupOrder } = Route.useLoaderData();
   const { season } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
@@ -137,6 +138,7 @@ function RouteComponent() {
           data={stats}
           players={players}
           teams={teams}
+          pcts={pcts}
           aggs={aggs}
           display={display}
           lineupOrder={lineupOrder}
@@ -150,6 +152,7 @@ function RouteComponent() {
           data={stats}
           players={players}
           teams={teams}
+          pcts={pcts}
           aggs={aggs}
           display={display}
           lineupOrder={lineupOrder}

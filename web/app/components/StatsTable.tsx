@@ -5,6 +5,7 @@ import {
   MmolbRosterSlot,
   MmolbTeam,
   PercentileResponse,
+  AveragesResponse,
   PlayerStatsEntry,
   StatPercentile,
 } from "@/lib/data";
@@ -47,7 +48,8 @@ interface StatsTableProps {
   players: Record<string, MmolbPlayer>;
   teams: Record<string, MmolbTeam>;
   type: "batting" | "pitching";
-  aggs: PercentileResponse;
+  pcts: PercentileResponse;
+  aggs: AveragesResponse[];
   display: StatDisplay;
   lineupOrder: (string | null)[];
 }
@@ -132,13 +134,13 @@ function StatCell(
     const data = props.getValue() as number;
     const orig = props.row.original;
 
-    const aggs = (props.table.options.meta as any).aggs as PercentileResponse;
+    const pcts = (props.table.options.meta as any).pcts as PercentileResponse;
     const display = (props.table.options.meta as any).display as StatDisplay;
 
     let percentile: number | undefined = undefined;
-    if (aggKey && aggs.leagues[orig.league][aggKey]) {
+    if (aggKey && pcts.leagues[orig.league][aggKey]) {
       percentile = findPercentile(
-        aggs.leagues[orig.league][aggKey],
+        pcts.leagues[orig.league][aggKey],
         data,
         inverse
       );
@@ -429,6 +431,11 @@ const columnsPitching: ColumnDef<RowData>[] = [
     cell: StatCell(2, null, true),
   },
   {
+    header: SortableHeader("FIP-", true),
+    accessorKey: "fip_minus",
+    cell: StatCell(0, null),
+  },
+  {
     header: SortableHeader("WHIP", true),
     accessorKey: "whip",
     cell: StatCell(2, "whip", true),
@@ -482,6 +489,7 @@ export default function StatsTable(props: StatsTableProps) {
     },
     meta: {
       aggs: props.aggs,
+      pcts: props.pcts,
       display: props.display,
     },
   });
@@ -570,7 +578,7 @@ function processStats(props: StatsTableProps): RowData[] {
 
     const stats = calculateAdvancedStats(
       row,
-      props.aggs.leagues[team_data.League]
+      props.aggs.find(x => x.league_id == team_data.League)
     );
     if (props.type == "batting" && stats.plate_appearances == 0) continue;
     if (props.type == "pitching" && stats.ip == 0) continue;
