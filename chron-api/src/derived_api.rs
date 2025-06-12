@@ -6,7 +6,7 @@ use axum::{
 };
 use chron_base::normalize_location;
 use chron_db::{
-    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam},
+    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam, AverageStats},
     models::PageToken,
     queries::{PaginatedResult, SortOrder},
 };
@@ -124,6 +124,24 @@ pub async fn league_aggregate(
     } else {
         Err(AppError(anyhow::anyhow!("invalid season")))
     }
+}
+
+#[derive(Deserialize)]
+pub struct LeagueAveragesQuery {
+    pub season: i16,
+}
+
+pub async fn league_averages(
+    State(ctx): State<AppState>,
+    Query(q): Query<LeagueAveragesQuery>,
+) -> Result<Json<Vec<AverageStats>>, AppError> {
+    if q.season < 0 {
+        return Err(AppError(anyhow::anyhow!("invalid season")));
+    }
+
+    let data = ctx.db.get_league_averages(q.season).await?;
+
+    Ok(Json(data))
 }
 
 #[derive(Serialize)]

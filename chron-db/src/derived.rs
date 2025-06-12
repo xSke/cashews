@@ -101,6 +101,31 @@ pub struct PercentileStats {
     pub hr9: f32,
 }
 
+#[derive(Serialize, Deserialize, Debug, FromRow)]
+pub struct AverageStats {
+    pub season: i16,
+    pub league_id: String,
+
+    pub ip: i64,
+    pub plate_appearances: i64,
+    pub at_bats: i64,
+    pub ba: f32,
+    pub obp: f32,
+    pub slg: f32,
+    pub ops: f32,
+    pub era: f64,
+    pub whip: f64,
+    pub hr9: f64,
+    pub bb9: f64,
+    pub k9: f64,
+    pub h9: f64,
+    pub fip_base: f64,
+    pub sb_attempts: i64,
+    pub sb_success: f32,
+    pub babip: f32,
+    pub fpct: f32
+}
+
 impl ChronDb {
     pub async fn get_teams(&self) -> anyhow::Result<Vec<DbTeam>> {
         let res = sqlx::query_as("select * from teams")
@@ -182,6 +207,15 @@ impl ChronDb {
         Ok(res)
     }
 
+    pub async fn get_league_averages(&self, season: i16) -> anyhow::Result<Vec<AverageStats>> {
+        let res = sqlx::query_as("select * from game_player_stats_league_aggregate where season = $1")
+            .bind(season)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(res)
+    }
+    
     pub async fn get_player_stats(
         &self,
         q: GetPlayerStatsQuery,
