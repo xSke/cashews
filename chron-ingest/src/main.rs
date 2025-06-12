@@ -104,6 +104,7 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "fetch-all-players" => league::fetch_all_players(ctx).await?,
         "import-db" => import::import(ctx, &args[0]).await?,
         "crunch" => crunch::crunch(ctx).await?,
+        "migrate" => ctx.db.migrate().await?,
         _ => panic!("unknown function: {}", name),
     }
 

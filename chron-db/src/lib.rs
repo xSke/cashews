@@ -58,25 +58,31 @@ impl ChronDb {
         let conn_opts = PgConnectOptions::from_str(&config.database_uri)?;
         let pool = pool_opts.connect_with(conn_opts).await?;
 
-        info!("migrating...");
-        sqlx::migrate!("./migrations").run(&pool).await?;
-        info!("migrating done");
-
-        let mut tx = pool.acquire().await?;
-        tx.execute(include_str!("../migrations/functions.sql"))
-            .await?;
-
-        // run the matviews in a separate worker, hope we don't race them or something
-        tokio::spawn(async move {
-            if let Err(e) = tx.execute(include_str!("../migrations/views.sql")).await {
-                tracing::error!("error setting up views: {:?}", e);
-            }
-        });
+        if let Err(_) = pool.execute("select * from _sqlx_migrations").await {
+            return Err(anyhow::anyhow!("database not initialized, run `chron-ingest migrate`?"))?;
+        }
 
         Ok(ChronDb {
             pool,
             saved_objects: Arc::new(DashSet::new()),
         })
+    }
+
+    pub async fn migrate(&self) -> anyhow::Result<()> {
+        info!("migrating...");
+        sqlx::migrate!("./migrations").run(&self.pool).await?;
+
+        info!("updating functions...");
+
+        let mut tx = self.pool.acquire().await?;
+        tx.execute(include_str!("../migrations/functions.sql"))
+            .await?;
+
+        info!("updating views...");
+        tx.execute(include_str!("../migrations/views.sql")).await?;
+        
+        info!("done!");
+        Ok(())
     }
 
     pub async fn rebuild(&self, kind: EntityKind, entity_id: String) -> anyhow::Result<()> {
