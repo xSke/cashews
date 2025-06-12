@@ -120,14 +120,47 @@ export interface PercentileResponse {
   leagues: Record<string, PercentileStats>;
 }
 
+export interface AveragesResponse {
+  season: number;
+  league_id: string;
+  ip: number;
+  plate_appearances: number;
+  at_bats: number;
+  ba: number;
+  obp: number;
+  slg: number;
+  ops: number;
+  era: number;
+  whip: number;
+  hr9: number;
+  bb9: number;
+  k9: number;
+  h9: number;
+  fip_base: number;
+  sb_attempts: number;
+  sb_success: number;
+  babip: number;
+  fpct: number;
+}
+
 export async function getLeagueAggregates(
   season: number
 ): Promise<PercentileResponse> {
   const resp = await fetch(
     API_BASE + `/league-aggregate-stats?season=${season}`
   );
-  const data = (await resp.json()) as PercentileResponse;
-  return data;
+  // const data = (await resp.json()) as PercentileResponse;
+  return (await resp.json()) as PercentileResponse;
+}
+
+export async function getLeagueAverages(
+    season: number
+): Promise<AveragesResponse[]> {
+  const resp = await fetch(
+      API_BASE + `/league-averages?season=${season}`
+  );
+  // const data = (await resp.json()) as AveragesResponse;
+  return (await resp.json()) as AveragesResponse[];
 }
 
 export function useAllTeams() {
