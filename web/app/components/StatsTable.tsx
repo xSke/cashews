@@ -61,7 +61,7 @@ type RowData = {
   team: string;
   league: string;
   rosterIndex: number;
-  lineupIndex: number;
+  lineupIndex: number | undefined;
 } & AdvancedStats;
 
 function PercentileVibes(props: { percentile: number }) {
@@ -260,7 +260,7 @@ const columnsBase: ColumnDef<RowData>[] = [
     header: SortableHeader("Pos."),
     accessorKey: "position",
     sortingFn: (a, b) => {
-      return a.original.rosterIndex - b.original.rosterIndex;
+      return a.original.rosterIndex > b.original.rosterIndex ? 1 : a.original.rosterIndex < b.original.rosterIndex ? -1 : 0;
     },
     cell: NormalCell(),
   },
@@ -270,9 +270,8 @@ const preColumnsBatting: ColumnDef<RowData>[] = [
   {
     header: SortableHeader("#"),
     accessorKey: "lineupIndex",
-    sortingFn: (a, b) => {
-      return a.original.lineupIndex - b.original.lineupIndex;
-    },
+    sortDescFirst: false,
+    sortUndefined: 'last',
     cell: NormalCell(),
   },
 ];
@@ -484,6 +483,7 @@ export default function StatsTable(props: StatsTableProps) {
     getCoreRowModel: getCoreRowModel(),
     onSortingChange: setSorting,
     getSortedRowModel: getSortedRowModel(),
+    enableSortingRemoval: false,
     state: {
       sorting,
     },
@@ -585,11 +585,14 @@ function processStats(props: StatsTableProps): RowData[] {
 
     const player = props.players[row.player_id]!;
     const name = player.FirstName + " " + player.LastName;
-    const { slot, index: slotIndex } = findSlot(team_data, row.player_id);
+    let slot: MmolbRosterSlot | undefined, slotIndex: number;
+    ({slot, index: slotIndex} = findSlot(team_data, row.player_id));
+    if ((props.type == "pitching" && slotIndex < 9)) slotIndex += 999;
     const position = slot?.Slot ?? player.Position;
     const id = row.player_id;
 
-    const lineupIndex = props.lineupOrder.findIndex((x) => x === id) + 1;
+    const arrayIndex = props.lineupOrder.findIndex((x) => x === id)
+    const lineupIndex = arrayIndex < 0 ? undefined : arrayIndex + 1
 
     data.push({
       ...stats,
