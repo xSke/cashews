@@ -25,21 +25,17 @@ pub struct PollFinishedGamesFromFeed;
 
 impl IntervalWorker for PollAllScheduledGames {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(15 * 60))
+        interval(Duration::from_secs(60 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
-        let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
-        ctx.process_many(team_ids, 1, poll_schedule_for_team_for_all_games)
-            .await;
-
-        Ok(())
+        fetch_all_schedules(ctx, 1).await
     }
 }
 
 #[derive(Deserialize)]
 struct TodayGame {
-    game_id: String
+    game_id: String,
 }
 
 impl IntervalWorker for PollTodayGames {
@@ -57,10 +53,17 @@ impl IntervalWorker for PollTodayGames {
             _ => {}
         }
 
-        let resp = ctx.client.fetch("https://mmolb.com/api/today-games").await?;
+        let resp = ctx
+            .client
+            .fetch("https://mmolb.com/api/today-games")
+            .await?;
         let today_games = resp.parse::<Vec<TodayGame>>()?;
-        ctx.process_many(today_games.into_iter().map(|x| x.game_id), 5, fetch_game_if_new)
-            .await;
+        ctx.process_many(
+            today_games.into_iter().map(|x| x.game_id),
+            5,
+            fetch_game_if_new,
+        )
+        .await;
         Ok(())
     }
 }
@@ -100,21 +103,21 @@ impl IntervalWorker for PollLiveGames {
 #[derive(Deserialize)]
 // using different struct type here for resilience
 struct TeamWithOnlyFeed {
-    #[serde(rename="Feed")]
-    feed: Option<Vec<FeedItem>>
+    #[serde(rename = "Feed")]
+    feed: Option<Vec<FeedItem>>,
 }
 
 #[derive(Deserialize)]
 struct FeedItem {
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     kind: String,
     text: String,
-    links: Vec<FeedItemLink>
+    links: Vec<FeedItemLink>,
 }
 
 #[derive(Deserialize)]
 struct FeedItemLink {
-    #[serde(rename="type")]
+    #[serde(rename = "type")]
     kind: String,
     id: String,
 }
@@ -126,7 +129,7 @@ impl IntervalWorker for PollFinishedGamesFromFeed {
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         let teams = ctx.db.get_all_latest(EntityKind::Team).await?;
-        
+
         let mut game_ids = BTreeSet::new();
         // just eat every game id we can find
         for team in teams {
@@ -139,8 +142,9 @@ impl IntervalWorker for PollFinishedGamesFromFeed {
                 }
             }
         }
-        
-        ctx.process_many(game_ids, 5, fetch_game_if_not_completed).await;
+
+        ctx.process_many(game_ids, 5, fetch_game_if_not_completed)
+            .await;
 
         Ok(())
     }
@@ -183,10 +187,7 @@ async fn fetch_game_if_new(ctx: &WorkerContext, game_id: String) -> anyhow::Resu
 }
 
 async fn fetch_game_if_not_completed(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
-    let known_game = ctx
-        .db
-        .get_latest(EntityKind::Game, &game_id)
-        .await?;
+    let known_game = ctx.db.get_latest(EntityKind::Game, &game_id).await?;
     let should_poll = if let Some(game) = known_game {
         let game: MmolbGame = game.parse()?;
         game.state != "Complete"
@@ -238,7 +239,8 @@ fn try_find_player_by_name(
     for slot in &team.players {
         // todo: remove alloc?
         let full_name = format!("{} {}", slot.first_name, slot.last_name);
-        if full_name == player_name && slot.position_type.as_deref().unwrap_or("") == position_type {
+        if full_name == player_name && slot.position_type.as_deref().unwrap_or("") == position_type
+        {
             if result.is_some() {
                 // we found two valid players, abort
                 return None;
@@ -287,9 +289,11 @@ async fn save_game_events(
                     (away_team.as_ref(), home_team.as_ref())
                 };
 
-                let pitcher_id = pitching_team.zip(parsed_event.pitcher.as_ref())
+                let pitcher_id = pitching_team
+                    .zip(parsed_event.pitcher.as_ref())
                     .and_then(|(t, name)| try_find_player_by_name(t, name, "Pitcher"));
-                let batter_id = batting_team.zip(parsed_event.batter.as_ref())
+                let batter_id = batting_team
+                    .zip(parsed_event.batter.as_ref())
                     .and_then(|(t, name)| try_find_player_by_name(t, name, "Batter"));
                 Some(EnrichedGameEvent {
                     pitcher_id,
@@ -514,6 +518,14 @@ async fn rebuild_game(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()
 pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     let game_ids = get_all_known_game_ids(ctx).await?;
     ctx.process_many(game_ids, 50, poll_game_by_id).await;
+    Ok(())
+}
+
+pub async fn fetch_all_schedules(ctx: &WorkerContext, parallel: usize) -> anyhow::Result<()> {
+    let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
+    ctx.process_many(team_ids, parallel, poll_schedule_for_team_for_all_games)
+        .await;
+
     Ok(())
 }
 

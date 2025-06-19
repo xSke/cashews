@@ -54,8 +54,9 @@ export async function getEntities<T>(
   kind: string,
   id: string[]
 ): Promise<Record<string, T>> {
+  const dedupIds = [...new Set(id)];
   const resp = await fetch(
-    API_BASE + `/chron/v0/entities?kind=${kind}&id=${id.join(",")}`
+    API_BASE + `/chron/v0/entities?kind=${kind}&id=${dedupIds.join(",")}`
   );
   const data = (await resp.json()) as ChronPaginatedResponse<ChronEntity<T>>;
 

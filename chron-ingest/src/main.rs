@@ -19,7 +19,7 @@ use workers::{
 use crate::workers::{
     games::{PollFinishedGamesFromFeed, PollLiveGames, PollTodayGames},
     league::PollAllPlayers,
-    map::{LookupMapLocations},
+    map::LookupMapLocations,
     message::PollMessage,
 };
 
@@ -101,6 +101,7 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "rebuild-games" => games::rebuild_games(ctx).await?,
         "rebuild-games-slow" => games::rebuild_games_slow(ctx).await?,
         "fetch-all-games" => games::fetch_all_games(ctx).await?,
+        "fetch-all-schedules" => games::fetch_all_schedules(ctx, 10).await?,
         "fetch-all-players" => league::fetch_all_players(ctx).await?,
         "import-db" => import::import(ctx, &args[0]).await?,
         "crunch" => crunch::crunch(ctx).await?,
