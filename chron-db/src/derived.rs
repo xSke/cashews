@@ -123,7 +123,7 @@ pub struct AverageStats {
     pub sb_attempts: i64,
     pub sb_success: f32,
     pub babip: f32,
-    pub fpct: f32
+    pub fpct: f32,
 }
 
 impl ChronDb {
@@ -208,14 +208,15 @@ impl ChronDb {
     }
 
     pub async fn get_league_averages(&self, season: i16) -> anyhow::Result<Vec<AverageStats>> {
-        let res = sqlx::query_as("select * from game_player_stats_league_aggregate where season = $1")
-            .bind(season)
-            .fetch_all(&self.pool)
-            .await?;
+        let res =
+            sqlx::query_as("select * from game_player_stats_league_aggregate where season = $1")
+                .bind(season)
+                .fetch_all(&self.pool)
+                .await?;
 
         Ok(res)
     }
-    
+
     pub async fn get_player_stats(
         &self,
         q: GetPlayerStatsQuery,
@@ -294,7 +295,7 @@ impl ChronDb {
         assert!(event_indexes.len() == event_datas.len());
         assert!(event_indexes.len() == event_pitchers.len());
         assert!(event_indexes.len() == event_batters.len());
-        
+
         let chunk_size = 100;
         for i in (0..event_indexes.len()).step_by(chunk_size) {
             sqlx::query("insert into game_events (game_id, index, data, pitcher_id, batter_id, observed_at, season, day) select $1 as game_id, unnest($2::int[]) as index, unnest($3::jsonb[]) as data, unnest($4::text[]) as pitcher_id, unnest($5::text[]) as batter_id, $6 as observed_at, $7 as season, $8 as day on conflict (game_id, index) do update set observed_at = excluded.observed_at, pitcher_id = excluded.pitcher_id, batter_id = excluded.batter_id, season = excluded.season, day = excluded.day where (game_events.observed_at is null or excluded.observed_at <= game_events.observed_at)")

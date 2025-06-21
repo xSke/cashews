@@ -3,6 +3,7 @@ use std::{str::FromStr, sync::Arc};
 use anyhow::anyhow;
 use chron_base::ChronConfig;
 use dashmap::DashSet;
+use futures::{StreamExt, stream};
 use models::{EntityKind, NewObject};
 use sea_query::Iden;
 use siphasher::sip128::{Hasher128, SipHasher};
@@ -11,7 +12,7 @@ use sqlx::{
     postgres::{PgConnectOptions, PgPoolOptions},
 };
 use time::{Duration, OffsetDateTime};
-use tracing::info;
+use tracing::{error, info};
 use util::HashingWriter;
 use uuid::Uuid;
 
@@ -70,7 +71,9 @@ impl ChronDb {
         let pool = pool_opts.connect_with(conn_opts).await?;
 
         if let Err(_) = pool.execute("select * from _sqlx_migrations").await {
-            return Err(anyhow::anyhow!("database not initialized, run `chron-ingest migrate`?"))?;
+            return Err(anyhow::anyhow!(
+                "database not initialized, run `chron-ingest migrate`?"
+            ))?;
         }
 
         Ok(ChronDb {
@@ -91,7 +94,7 @@ impl ChronDb {
 
         info!("updating views...");
         tx.execute(include_str!("../migrations/views.sql")).await?;
-        
+
         info!("done!");
         Ok(())
     }
@@ -102,6 +105,26 @@ impl ChronDb {
             .bind(entity_id)
             .execute(&self.pool)
             .await?;
+        Ok(())
+    }
+
+    pub async fn rebuild_all(&self, kind: EntityKind) -> anyhow::Result<()> {
+        // sqlx::query("select rebuild_entity($1::smallint, id) from latest_versions where kind = $1")
+        //     .bind(kind)
+        //     .execute(&self.pool)
+        //     .await?;
+
+        let ids = self.get_all_entity_ids_slow(kind).await?;
+        stream::iter(ids)
+            .map(|x| self.rebuild(kind, x))
+            .buffer_unordered(10)
+            .for_each(|x| async {
+                if let Err(e) = x {
+                    error!("error rebuilding entity: {:?}", e);
+                }
+            })
+            .await;
+
         Ok(())
     }
 
@@ -152,7 +175,7 @@ impl ChronDb {
 
     pub async fn insert_observations_raw_bulk(
         &self,
-        observations: Vec<(EntityKind, std::string::String, OffsetDateTime, f64, Uuid)>,
+        observations: &[(EntityKind, std::string::String, OffsetDateTime, f64, Uuid)],
     ) -> anyhow::Result<()> {
         let kinds = observations.iter().map(|x| x.0).collect::<Vec<_>>();
         let ids = observations.iter().map(|x| x.1.clone()).collect::<Vec<_>>();

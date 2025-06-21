@@ -106,9 +106,12 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
     match name {
         "rebuild-games" => games::rebuild_games(ctx).await?,
         "rebuild-games-slow" => games::rebuild_games_slow(ctx).await?,
+        "fetch-league" => league::poll_league(ctx).await?,
         "fetch-all-games" => games::fetch_all_games(ctx).await?,
         "fetch-all-schedules" => games::fetch_all_schedules(ctx, 10).await?,
         "fetch-all-players" => league::fetch_all_players(ctx).await?,
+        "rebuild-team-lite" => league::rebuild_team_lite(ctx).await?,
+        "rebuild-player-lite" => league::rebuild_player_lite(ctx).await?,
         "import-db" => import::import(ctx, &args[0]).await?,
         "crunch" => crunch::crunch(ctx).await?,
         "migrate" => ctx.db.migrate().await?,

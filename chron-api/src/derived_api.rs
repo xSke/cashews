@@ -6,7 +6,7 @@ use axum::{
 };
 use chron_base::normalize_location;
 use chron_db::{
-    derived::{DbGame, DbGamePlayerStats, DbLeague, DbTeam, AverageStats},
+    derived::{AverageStats, DbGame, DbGamePlayerStats, DbLeague, DbTeam},
     models::PageToken,
     queries::{PaginatedResult, SortOrder},
 };

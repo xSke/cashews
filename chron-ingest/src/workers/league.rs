@@ -4,6 +4,7 @@ use chron_db::{
     derived::{DbLeagueSaveModel, DbTeamSaveModel},
     models::{EntityKind, NewObject},
 };
+use futures::TryStreamExt;
 use tracing::info;
 
 use crate::{
@@ -23,31 +24,35 @@ impl IntervalWorker for PollLeague {
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        let state_resp = ctx
-            .fetch_and_save("https://mmolb.com/api/state", EntityKind::State, "state")
-            .await?;
-
-        ctx.fetch_and_save(
-            "https://mmolb.com/api/spotlight",
-            EntityKind::Spotlight,
-            "spotlight",
-        )
-        .await?;
-
-        let _time = ctx.try_update_time().await?;
-
-        let state: MmolbState = state_resp.parse()?;
-
-        let league_ids = get_league_ids(&state);
-        info!("got {} league ids", league_ids.len());
-        ctx.process_many(league_ids, 3, fetch_league).await;
-
-        let team_ids = get_all_known_team_ids(ctx).await?;
-        info!("got {} team ids", team_ids.len());
-        ctx.process_many(team_ids, 3, fetch_team).await;
-
+        poll_league(ctx).await?;
         Ok(())
     }
+}
+
+pub async fn poll_league(ctx: &WorkerContext) -> anyhow::Result<()> {
+    let state_resp = ctx
+        .fetch_and_save("https://mmolb.com/api/state", EntityKind::State, "state")
+        .await?;
+
+    ctx.fetch_and_save(
+        "https://mmolb.com/api/spotlight",
+        EntityKind::Spotlight,
+        "spotlight",
+    )
+    .await?;
+
+    let _time = ctx.try_update_time().await?;
+
+    let state: MmolbState = state_resp.parse()?;
+
+    let league_ids = get_league_ids(&state);
+    info!("got {} league ids", league_ids.len());
+    ctx.process_many(league_ids, 3, fetch_league).await;
+
+    let team_ids = get_all_known_team_ids(ctx).await?;
+    info!("got {} team ids", team_ids.len());
+    ctx.process_many(team_ids, 3, fetch_team).await;
+    Ok(())
 }
 
 impl IntervalWorker for PollNewPlayers {
@@ -194,19 +199,8 @@ async fn write_team_lite(
     resp: &ClientResponse,
 ) -> anyhow::Result<()> {
     // write a "cleaned" version of the team object without the big Players[x].Stats objects
-    // can we make this code nicer?
     let mut team_data = resp.parse::<serde_json::Value>()?;
-    if let Some(o) = team_data.as_object_mut() {
-        if let Some(players_value) = o.get_mut("Players") {
-            if let Some(players) = players_value.as_array_mut() {
-                for player_value in players {
-                    if let Some(p) = player_value.as_object_mut() {
-                        p.remove("Stats");
-                    }
-                }
-            }
-        }
-    }
+    to_team_lite(&mut team_data);
 
     ctx.db
         .save(NewObject {
@@ -227,10 +221,7 @@ async fn write_player_lite(
 ) -> anyhow::Result<()> {
     // write a "cleaned" version of the player object without the big stats object
     let mut player_data = resp.parse::<serde_json::Value>()?;
-    if let Some(o) = player_data.as_object_mut() {
-        o.remove("Stats");
-    }
-
+    to_player_lite(&mut player_data);
     ctx.db
         .save(NewObject {
             kind: EntityKind::PlayerLite,
@@ -241,5 +232,111 @@ async fn write_player_lite(
         })
         .await?;
 
+    Ok(())
+}
+
+fn to_team_lite(data: &mut serde_json::Value) {
+    // can we make this code nicer?
+    if let Some(o) = data.as_object_mut() {
+        if let Some(players_value) = o.get_mut("Players") {
+            if let Some(players) = players_value.as_array_mut() {
+                for player_value in players {
+                    if let Some(p) = player_value.as_object_mut() {
+                        p.remove("Stats");
+                    }
+                }
+            }
+        }
+        o.remove("Feed");
+    }
+}
+
+fn to_player_lite(data: &mut serde_json::Value) {
+    if let Some(o) = data.as_object_mut() {
+        o.remove("Stats");
+        o.remove("Feed");
+    }
+}
+
+// todo: deduplicate these two?
+pub async fn rebuild_team_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
+    sqlx::query("delete from observations where kind = $1")
+        .bind(EntityKind::TeamLite)
+        .execute(&ctx.db.pool)
+        .await?;
+
+    let mut stream = ctx
+        .db
+        .get_all_versions_stream(EntityKind::TeamLite)
+        .await?
+        .try_chunks(1000);
+
+    let mut i = 0;
+    while let Some(vers) = stream.try_next().await? {
+        let mut chunk = Vec::with_capacity(1000);
+
+        for mut ver in vers {
+            to_team_lite(&mut ver.data);
+            let hash = ctx.db.save_object(ver.data).await?;
+            chunk.push((
+                EntityKind::TeamLite,
+                ver.entity_id,
+                ver.valid_from.0,
+                0.0f64,
+                hash,
+            ));
+        }
+
+        ctx.db.insert_observations_raw_bulk(&chunk).await?;
+
+        i += chunk.len();
+        tracing::info!("rebuilt {} lite observations", i);
+    }
+
+    tracing::info!("rebuilding versions table for teamlite");
+    ctx.db.rebuild_all(EntityKind::TeamLite).await?;
+
+    tracing::info!("done!");
+    Ok(())
+}
+
+pub async fn rebuild_player_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
+    sqlx::query("delete from observations where kind = $1")
+        .bind(EntityKind::PlayerLite)
+        .execute(&ctx.db.pool)
+        .await?;
+
+    let mut stream = ctx
+        .db
+        .get_all_versions_stream(EntityKind::PlayerLite)
+        .await?
+        .try_chunks(1000);
+
+    let mut i = 0;
+    while let Some(vers) = stream.try_next().await? {
+        let mut chunk = Vec::with_capacity(1000);
+
+        for mut ver in vers {
+            to_player_lite(&mut ver.data);
+            let hash = ctx.db.save_object(ver.data).await?;
+            chunk.push((
+                EntityKind::PlayerLite,
+                ver.entity_id,
+                ver.valid_from.0,
+                0.0f64,
+                hash,
+            ));
+        }
+
+        ctx.db.insert_observations_raw_bulk(&chunk).await?;
+
+        i += chunk.len();
+        tracing::info!("rebuilt {} lite observations", i);
+    }
+
+    tracing::info!("rebuilding versions table for teamlite");
+    ctx.db.rebuild_all(EntityKind::PlayerLite).await?;
+
+    tracing::info!("done!");
     Ok(())
 }

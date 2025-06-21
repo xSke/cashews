@@ -179,7 +179,7 @@ async fn submit(
     foo: Vec<anyhow::Result<(EntityKind, std::string::String, OffsetDateTime, f64, Uuid)>>,
 ) -> anyhow::Result<()> {
     ctx.db
-        .insert_observations_raw_bulk(foo.into_iter().filter_map(|x| x.ok()).collect::<Vec<_>>())
+        .insert_observations_raw_bulk(&foo.into_iter().filter_map(|x| x.ok()).collect::<Vec<_>>())
         .await?;
     Ok(())
 }
