@@ -53,6 +53,17 @@ pub struct ChronDb {
 }
 
 impl ChronDb {
+    pub async fn new_from_scratch(config: &ChronConfig) -> anyhow::Result<ChronDb> {
+        let pool_opts = PgPoolOptions::new().max_connections(50);
+        let conn_opts = PgConnectOptions::from_str(&config.database_uri)?;
+        let pool = pool_opts.connect_with(conn_opts).await?;
+
+        Ok(ChronDb {
+            pool,
+            saved_objects: Arc::new(DashSet::new()),
+        })
+    }
+
     pub async fn new(config: &ChronConfig) -> anyhow::Result<ChronDb> {
         let pool_opts = PgPoolOptions::new().max_connections(50);
         let conn_opts = PgConnectOptions::from_str(&config.database_uri)?;

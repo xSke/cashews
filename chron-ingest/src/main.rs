@@ -59,10 +59,17 @@ fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
 async fn main() -> anyhow::Result<()> {
     let config = Arc::new(load_config()?);
 
+    let args = std::env::args().collect::<Vec<_>>();
+    // todo: this is stupid
+    let db = if args.len() > 1 && args[1] == "migrate" {
+        ChronDb::new_from_scratch(&config).await?
+    } else {
+        ChronDb::new(&config).await?
+    };
     let client = DataClient::new()?;
     let ctx = WorkerContext {
         client,
-        db: ChronDb::new(&config).await?,
+        db,
         config: config,
         _sim: Arc::new(RwLock::new(SimState {
             _season: Uuid::default(),
@@ -70,7 +77,6 @@ async fn main() -> anyhow::Result<()> {
         })),
     };
 
-    let args = std::env::args().collect::<Vec<_>>();
     if args.len() > 1 {
         if let Err(e) = handle_fn(&ctx, &args[1], &args[2..]).await {
             error!("error running cli: {:?}", e);
