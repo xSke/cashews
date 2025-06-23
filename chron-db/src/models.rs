@@ -2,7 +2,7 @@ use std::{fmt::Display, str::FromStr};
 
 use base64::Engine;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use sqlx::{FromRow, Type};
+use sqlx::{types::JsonRawValue, FromRow, Type};
 use time::{Duration, OffsetDateTime};
 
 #[repr(i16)]
@@ -34,12 +34,12 @@ pub struct EntityVersion {
     pub entity_id: String,
     pub valid_from: IsoDateTime,
     pub valid_to: Option<IsoDateTime>,
-    pub data: serde_json::Value,
+    pub data: sqlx::types::Json<Box<JsonRawValue>>,
 }
 
 impl EntityVersion {
     pub fn parse<T: DeserializeOwned>(&self) -> anyhow::Result<T> {
-        Ok(T::deserialize(&self.data)?)
+        Ok(T::deserialize(&**self.data)?)
     }
 }
 

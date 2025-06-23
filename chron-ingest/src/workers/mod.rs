@@ -9,7 +9,7 @@ use futures::stream;
 use reqwest::IntoUrl;
 use time::{OffsetDateTime, Time};
 use tokio::time::Interval;
-use tracing::error;
+use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::http::{ClientResponse, DataClient};
@@ -89,6 +89,34 @@ impl WorkerContext {
             .for_each(|res| async {
                 if let Err(e) = res {
                     error!("error processing item: {:?}", e);
+                }
+            })
+            .await
+    }
+
+    // will buffer `values`
+    pub async fn process_many_with_progress<'a, T, F, Fut>(
+        &'a self,
+        values: impl IntoIterator<Item = T>,
+        parallel: usize,
+        name: &'static str,
+        function: F,
+    ) where
+        F: Fn(&'a WorkerContext, T) -> Fut,
+        Fut: Future<Output = anyhow::Result<()>>,
+    {
+        let values = values.into_iter().collect::<Vec<_>>();
+        let count = values.len();
+        let progress_interval = if count > 1000 { 10 } else { 1 };
+        stream::iter(values)
+            .map(|x| function(&self, x))
+            .buffer_unordered(parallel)
+            .enumerate()
+            .for_each(|(i, res)| async move {
+                if let Err(e) = res {
+                    error!("error processing item: {:?}", e);
+                } else if i % progress_interval == 0 {
+                    info!("processed {} ({}/{})", name, i, count);
                 }
             })
             .await
