@@ -37,10 +37,12 @@ pub async fn get_entities(
     State(ctx): State<AppState>,
     Query(q): Query<GetEntitiesQuery>,
 ) -> Result<Json<PaginatedResult<EntityVersion>>, AppError> {
-    let mut count = q.count.unwrap_or(1000).min(1000);
-    if q.kind == EntityKind::Game {
-        count = count.min(100); // games big
-    }
+    let default_count = if q.kind == EntityKind::Game {
+        100 // games big  
+    } else {
+        1000
+    };
+    let count = q.count.unwrap_or(default_count).min(1000);
 
     let events = ctx
         .db
@@ -76,10 +78,13 @@ pub async fn get_versions(
     State(ctx): State<AppState>,
     Query(q): Query<GetVersionsQuery>,
 ) -> Result<Json<PaginatedResult<EntityVersion>>, AppError> {
-    let mut count = q.count.unwrap_or(1000).min(1000);
-    if q.kind == EntityKind::Game {
-        count = count.min(100); // games big
-    }
+    let default_count = if q.kind == EntityKind::Game {
+        100 // games big  
+    } else {
+        1000
+    };
+    let count = q.count.unwrap_or(default_count).min(1000);
+
     let events = ctx
         .db
         .get_versions(chron_db::queries::GetVersionsQuery {
