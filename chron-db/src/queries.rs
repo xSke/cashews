@@ -18,6 +18,8 @@ pub struct GetEntitiesQuery {
     pub count: u64,
     pub order: SortOrder,
     pub page: Option<PageToken>,
+    pub before: Option<OffsetDateTime>,
+    pub after: Option<OffsetDateTime>,
 }
 
 pub struct GetVersionsQuery {
@@ -142,6 +144,18 @@ impl ChronDb {
                     Some(Idens::EntityId),
                     page,
                 ))
+                .to_owned();
+        }
+
+        if let Some(before) = q.before {
+            qq = qq
+                .and_where(Expr::col(Idens::ValidFrom).lte(before))
+                .to_owned();
+        }
+
+        if let Some(after) = q.after {
+            qq = qq
+                .and_where(Expr::col(Idens::ValidFrom).gte(after))
                 .to_owned();
         }
 

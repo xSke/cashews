@@ -334,7 +334,7 @@ pub async fn rebuild_player_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
         tracing::info!("rebuilt {} lite observations", i);
     }
 
-    tracing::info!("rebuilding versions table for teamlite");
+    tracing::info!("rebuilding versions table for playerlite");
     ctx.db.rebuild_all(EntityKind::PlayerLite).await?;
 
     tracing::info!("done!");

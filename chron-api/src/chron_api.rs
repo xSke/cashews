@@ -31,6 +31,9 @@ pub struct GetEntitiesQuery {
     #[serde(default)]
     count: Option<u64>,
     page: Option<PageToken>,
+
+    before: Option<IsoDateTime>,
+    after: Option<IsoDateTime>,
 }
 
 pub async fn get_entities(
@@ -53,6 +56,8 @@ pub async fn get_entities(
             order: q.order,
             count: count,
             page: q.page,
+            before: q.before.map(|x| x.0),
+            after: q.after.map(|x| x.0),
         })
         .await?;
 
