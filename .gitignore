@@ -9,3 +9,4 @@ mnt/
 target/
 .idea/
 web_old/
+/web/.next/

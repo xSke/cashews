@@ -26,7 +26,7 @@ import { useTheme } from "next-themes";
 import { useState } from "react";
 import { z } from "zod";
 
-const defaultSeason = 1;
+const defaultSeason = 2;
 const stateSchema = z.object({
   season: z.number().catch(1).optional(),
 });
@@ -38,7 +38,7 @@ async function getLineupOrder(teamId: string): Promise<(string | null)[]> {
   // need to not waterfall as hard
 
   const [games, team] = await Promise.all([
-    getGames({ season: 1, team: teamId }),
+    getGames({ season: 2, team: teamId }),
     getEntity<MmolbTeam>("team", teamId),
   ]);
   // lol
@@ -105,7 +105,7 @@ function RouteComponent() {
   const { season } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
-  const seasons = [1, 0];
+  const seasons = [2, 1, 0];
 
   const [display, setDisplay] = useState<StatDisplay>("stat");
   const scale = defaultScale;
