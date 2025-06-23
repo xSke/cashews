@@ -1,12 +1,16 @@
+use std::{sync::Arc, time::Duration};
+
 use chron_db::models::{EntityKind, NewObject};
 use reqwest::{Client, ClientBuilder, IntoUrl, StatusCode, Url};
 use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
-use tracing::info;
+use tokio::sync::Semaphore;
+use tracing::{info, warn};
 
 #[derive(Clone)]
 pub struct DataClient {
     client: Client,
+    semaphore: Arc<Semaphore>
     // cached_responses: Arc<DashMap<String, ClientResponse>>,
 }
 
@@ -76,7 +80,9 @@ impl DataClient {
             .gzip(true)
             .build()?;
 
-        Ok(DataClient { client })
+        let semaphore = Arc::new(Semaphore::new(20));
+
+        Ok(DataClient { client, semaphore })
     }
 
     pub async fn try_fetch(
@@ -102,6 +108,8 @@ impl DataClient {
     }
 
     pub async fn fetch(&self, orig_url: impl IntoUrl) -> anyhow::Result<ClientResponse> {
+        let _permit = self.semaphore.acquire().await?;
+
         let request = self.client.get(orig_url);
         // if let Some(cached_etag) = self
         //     .cached_responses
@@ -138,7 +146,14 @@ impl DataClient {
         //     .and_then(|x| x.to_str().ok())
         //     .map(|x| x.to_owned());
         let status_code = response.status();
-
+        if status_code == StatusCode::BAD_GATEWAY {
+            // if we get a 502 from the server, sleep for a second
+            // because we're still within the semaphore, this basically functions as a light "circuit breaker"
+            // and will slow down at least one "slot" of the available permits
+            warn!("received 502 response, sleeping for a bit");
+            let _cb_permit = self.semaphore.acquire_many(self.semaphore.available_permits() as u32).await?;
+            tokio::time::sleep(Duration::from_secs(5)).await;
+        }
         let response = response.error_for_status()?;
 
         // if response.status() == StatusCode::NOT_MODIFIED {
