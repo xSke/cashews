@@ -29,19 +29,20 @@ mod workers;
 
 fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
     tokio::spawn(async move {
-        // let pin_w = pin_w;
-
         let mut interval = T::interval();
         interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
 
-        // add some jitter
+        let type_name = std::any::type_name::<T>().split("::").last().unwrap();
+
+        // add some jitter to prevent hammering the server on ingest startup
         if ctx.config.jitter {
             let jitter_amount = rand::random_range(0.1..=1.0);
-            tokio::time::sleep(interval.period().div_f64(jitter_amount)).await;
+            let sleep_duration = interval.period().mul_f64(jitter_amount);
+            info!("{}: sleeping for {:?}", type_name, sleep_duration);
+            tokio::time::sleep(sleep_duration).await;
             interval.reset_immediately();
         }
 
-        let type_name = std::any::type_name::<T>().split("::").last().unwrap();
         loop {
             interval.tick().await;
 
