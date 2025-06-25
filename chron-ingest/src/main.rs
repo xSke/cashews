@@ -20,7 +20,7 @@ use crate::workers::{
     games::{PollFinishedGamesFromFeed, PollLiveGames, PollTodayGames},
     league::PollAllPlayers,
     map::LookupMapLocations,
-    message::PollMessage,
+    message::PollMessage, misc::PollMiscData,
 };
 
 mod http;
@@ -92,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollLiveGames);
         spawn(ctx.clone(), PollAllPlayers);
         spawn(ctx.clone(), PollFinishedGamesFromFeed);
+        spawn(ctx.clone(), PollMiscData);
         spawn(ctx.clone(), LookupMapLocations);
 
         // retiring this one for now, server's slow

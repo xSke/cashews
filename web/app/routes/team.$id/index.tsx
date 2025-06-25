@@ -70,7 +70,7 @@ export const Route = createFileRoute("/team/$id/")({
     const teamId = params.id;
 
     // todo: paginate, as well
-    const season = 0;
+    const season = 2;
     const games = await getGames({
       season, // todo: season selector
       team: teamId,
@@ -170,6 +170,7 @@ function RouteComponent() {
 
   return (
     <div className="container mx-auto">
+      <div className="text-center italic mb-2">(this page is wip!)</div>
       <WinLossGraph type="wl" season={season} wls={wls} />
       <WinLossGraph type="rd" season={season} wls={wls} />
     </div>
