@@ -1,3 +1,4 @@
+drop materialized view if exists game_player_stats_exploded cascade;
 drop materialized view if exists game_player_stats_league_aggregate cascade;
 drop materialized view if exists game_player_stats_global_aggregate cascade;
 drop materialized view if exists pitches cascade;
@@ -5,6 +6,72 @@ drop materialized view if exists pitches cascade;
 drop view if exists league_percentiles;
 drop view if exists game_player_stats_advanced;
 
+create materialized view game_player_stats_exploded as
+    select gps.season, gps.day, gps.game_id, gps.player_id, gps.team_id, jt.* from game_player_stats gps, json_table(data, '$[*]' columns (
+        allowed_stolen_bases smallint PATH '$.allowed_stolen_bases' default 0 on empty default 0 on error,
+        appearances smallint PATH '$.appearances' default 0 on empty default 0 on error,
+        assists smallint PATH '$.assists' default 0 on empty default 0 on error,
+        at_bats smallint PATH '$.at_bats' default 0 on empty default 0 on error,
+        batters_faced smallint PATH '$.batters_faced' default 0 on empty default 0 on error,
+        blown_saves smallint PATH '$.blown_saves' default 0 on empty default 0 on error,
+        caught_double_play smallint PATH '$.caught_double_play' default 0 on empty default 0 on error,
+        caught_stealing smallint PATH '$.caught_stealing' default 0 on empty default 0 on error,
+        complete_games smallint PATH '$.complete_games' default 0 on empty default 0 on error,
+        double_plays smallint PATH '$.double_plays' default 0 on empty default 0 on error,
+        doubles smallint PATH '$.doubles' default 0 on empty default 0 on error,
+        earned_runs smallint PATH '$.earned_runs' default 0 on empty default 0 on error,
+        errors smallint PATH '$.errors' default 0 on empty default 0 on error,
+        field_out smallint PATH '$.field_out' default 0 on empty default 0 on error,
+        fielders_choice smallint PATH '$.fielders_choice' default 0 on empty default 0 on error,
+        flyouts smallint PATH '$.flyouts' default 0 on empty default 0 on error,
+        force_outs smallint PATH '$.force_outs' default 0 on empty default 0 on error,
+        games_finished smallint PATH '$.games_finished' default 0 on empty default 0 on error,
+        grounded_into_double_play smallint PATH '$.grounded_into_double_play' default 0 on empty default 0 on error,
+        groundouts smallint PATH '$.groundouts' default 0 on empty default 0 on error,
+        hit_batters smallint PATH '$.hit_batters' default 0 on empty default 0 on error,
+        hit_by_pitch smallint PATH '$.hit_by_pitch' default 0 on empty default 0 on error,
+        hits_allowed smallint PATH '$.hits_allowed' default 0 on empty default 0 on error,
+        home_runs smallint PATH '$.home_runs' default 0 on empty default 0 on error,
+        home_runs_allowed smallint PATH '$.home_runs_allowed' default 0 on empty default 0 on error,
+        inherited_runners smallint PATH '$.inherited_runners' default 0 on empty default 0 on error,
+        inherited_runs_allowed smallint PATH '$.inherited_runs_allowed' default 0 on empty default 0 on error,
+        left_on_base smallint PATH '$.left_on_base' default 0 on empty default 0 on error,
+        lineouts smallint PATH '$.lineouts' default 0 on empty default 0 on error,
+        losses smallint PATH '$.losses' default 0 on empty default 0 on error,
+        mound_visits smallint PATH '$.mound_visits' default 0 on empty default 0 on error,
+        no_hitters smallint PATH '$.no_hitters' default 0 on empty default 0 on error,
+        outs smallint PATH '$.outs' default 0 on empty default 0 on error,
+        perfect_games smallint PATH '$.perfect_games' default 0 on empty default 0 on error,
+        pitches_thrown smallint PATH '$.pitches_thrown' default 0 on empty default 0 on error,
+        plate_appearances smallint PATH '$.plate_appearances' default 0 on empty default 0 on error,
+        popouts smallint PATH '$.popouts' default 0 on empty default 0 on error,
+        putouts smallint PATH '$.putouts' default 0 on empty default 0 on error,
+        quality_starts smallint PATH '$.quality_starts' default 0 on empty default 0 on error,
+        reached_on_error smallint PATH '$.reached_on_error' default 0 on empty default 0 on error,
+        runners_caught_stealing smallint PATH '$.runners_caught_stealing' default 0 on empty default 0 on error,
+        runs smallint PATH '$.runs' default 0 on empty default 0 on error,
+        runs_batted_in smallint PATH '$.runs_batted_in' default 0 on empty default 0 on error,
+        sac_flies smallint PATH '$.sac_flies' default 0 on empty default 0 on error,
+        sacrifice_double_plays smallint PATH '$.sacrifice_double_plays' default 0 on empty default 0 on error,
+        saves smallint PATH '$.saves' default 0 on empty default 0 on error,
+        shutouts smallint PATH '$.shutouts' default 0 on empty default 0 on error,
+        singles smallint PATH '$.singles' default 0 on empty default 0 on error,
+        starts smallint PATH '$.starts' default 0 on empty default 0 on error,
+        stolen_bases smallint PATH '$.stolen_bases' default 0 on empty default 0 on error,
+        strikeouts smallint PATH '$.strikeouts' default 0 on empty default 0 on error,
+        struck_out smallint PATH '$.struck_out' default 0 on empty default 0 on error,
+        triples smallint PATH '$.triples' default 0 on empty default 0 on error,
+        unearned_runs smallint PATH '$.unearned_runs' default 0 on empty default 0 on error,
+        walked smallint PATH '$.walked' default 0 on empty default 0 on error,
+        walks smallint PATH '$.walks' default 0 on empty default 0 on error,
+        wins smallint PATH '$.wins' default 0 on empty default 0 on error
+    )) as jt;
+create unique index game_player_stats_exploded_pkey on game_player_stats_exploded(game_id, team_id, player_id);
+create index game_player_stats_exploded_by_season_day_idx on game_player_stats_exploded(season, day);
+create index game_player_stats_exploded_by_player_idx on game_player_stats_exploded(player_id, season, day);
+create index game_player_stats_exploded_by_team_idx on game_player_stats_exploded(team_id, season, day);
+
+-- todo: express a lot of these views in terms of `game_player_stats_exploded` instead
 create or replace view game_player_stats_advanced as
 with helper as (
     select

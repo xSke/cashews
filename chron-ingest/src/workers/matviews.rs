@@ -8,11 +8,12 @@ pub struct RefreshMatviews;
 
 impl IntervalWorker for RefreshMatviews {
     fn interval() -> tokio::time::Interval {
-        tokio::time::interval(Duration::from_secs(60))
+        tokio::time::interval(Duration::from_secs(60 * 10))
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
         let matviews = [
+            "game_player_stats_exploded",
             "game_player_stats_league_aggregate",
             "game_player_stats_global_aggregate",
             "pitches",
