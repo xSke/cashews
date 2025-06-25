@@ -273,7 +273,7 @@ pub async fn refresh_league_aggregate(
 
     // todo: don't hardcode season
     let mut seasons = Vec::new();
-    for season in [0, 1] {
+    for season in [0, 1, 2] {
         let res = ctx.db.get_league_percentiles(&percentiles, season).await?;
 
         // we should really just "transpose" this logic all the way through...
