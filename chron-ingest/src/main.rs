@@ -20,7 +20,8 @@ use crate::workers::{
     games::{PollFinishedGamesFromFeed, PollLiveGames, PollTodayGames},
     league::PollAllPlayers,
     map::LookupMapLocations,
-    message::PollMessage, misc::PollMiscData,
+    message::PollMessage,
+    misc::PollMiscData,
 };
 
 mod http;

@@ -3,6 +3,7 @@ use std::{fmt::Display, str::FromStr};
 use anyhow::anyhow;
 use config::Config;
 use serde::{Deserialize, Serialize};
+use strum::{Display, EnumCount, IntoStaticStr, VariantArray};
 use time::OffsetDateTime;
 use unicode_normalization::UnicodeNormalization;
 
@@ -93,4 +94,81 @@ pub fn objectid_to_timestamp(id: &str) -> anyhow::Result<OffsetDateTime> {
 
     let unix_timestamp = u32::from_be_bytes(data[0..4].try_into().unwrap());
     Ok(OffsetDateTime::from_unix_timestamp(unix_timestamp as i64)?)
+}
+
+#[derive(
+    Serialize,
+    Deserialize,
+    EnumCount,
+    VariantArray,
+    Display,
+    IntoStaticStr,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+)]
+#[serde(rename_all = "snake_case")]
+#[strum(serialize_all = "snake_case")]
+#[repr(u8)]
+pub enum StatKey {
+    AllowedStolenBases = 0,
+    Appearances = 1,
+    Assists = 2,
+    AtBats = 3,
+    BattersFaced = 4,
+    BlownSaves = 5,
+    CaughtDoublePlay = 6,
+    CaughtStealing = 7,
+    CompleteGames = 8,
+    DoublePlays = 9,
+    Doubles = 10,
+    EarnedRuns = 11,
+    Errors = 12,
+    FieldOut = 13,
+    FieldersChoice = 14,
+    Flyouts = 15,
+    ForceOuts = 16,
+    GamesFinished = 17,
+    GroundedIntoDoublePlay = 18,
+    Groundouts = 19,
+    HitBatters = 20,
+    HitByPitch = 21,
+    HitsAllowed = 22,
+    HomeRuns = 23,
+    HomeRunsAllowed = 24,
+    InheritedRunners = 25,
+    InheritedRunsAllowed = 26,
+    LeftOnBase = 27,
+    Lineouts = 28,
+    Losses = 29,
+    MoundVisits = 30,
+    NoHitters = 31,
+    Outs = 32,
+    PerfectGames = 33,
+    PitchesThrown = 34,
+    PlateAppearances = 35,
+    Popouts = 36,
+    Putouts = 37,
+    QualityStarts = 38,
+    ReachedOnError = 39,
+    RunnersCaughtStealing = 40,
+    Runs = 41,
+    RunsBattedIn = 42,
+    SacFlies = 43,
+    SacrificeDoublePlays = 44,
+    Saves = 45,
+    Shutouts = 46,
+    Singles = 47,
+    Starts = 48,
+    StolenBases = 49,
+    Strikeouts = 50,
+    StruckOut = 51,
+    Triples = 52,
+    UnearnedRuns = 53,
+    Walked = 54,
+    Walks = 55,
+    Wins = 56,
 }

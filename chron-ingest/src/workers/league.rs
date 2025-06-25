@@ -45,7 +45,8 @@ pub async fn poll_league(ctx: &WorkerContext) -> anyhow::Result<()> {
 
     let team_ids = get_all_known_team_ids(ctx).await?;
     info!("got {} team ids", team_ids.len());
-    ctx.process_many_with_progress(team_ids, 3, "fetch teams", fetch_team).await;
+    ctx.process_many_with_progress(team_ids, 3, "fetch teams", fetch_team)
+        .await;
     Ok(())
 }
 
@@ -61,7 +62,8 @@ impl IntervalWorker for PollNewPlayers {
         let player_object_ids = HashSet::from_iter(player_object_ids);
 
         let new_players = player_ids.difference(&player_object_ids).cloned();
-        ctx.process_many_with_progress(new_players, 3, "fetch players", fetch_player).await;
+        ctx.process_many_with_progress(new_players, 3, "fetch players", fetch_player)
+            .await;
 
         Ok(())
     }
@@ -77,7 +79,8 @@ impl IntervalWorker for PollAllPlayers {
         info!("got {} player ids", player_ids.len());
 
         // this one can go slowly, that's fine
-        ctx.process_many_with_progress(player_ids, 5, "fetch all players", fetch_player).await;
+        ctx.process_many_with_progress(player_ids, 5, "fetch all players", fetch_player)
+            .await;
 
         Ok(())
     }
@@ -162,7 +165,7 @@ async fn get_all_known_player_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet
     let mut team_ids = HashSet::new();
 
     // get from DB teams
-    let get_all_latest =  ctx.db.get_all_latest(EntityKind::Team).await?;
+    let get_all_latest = ctx.db.get_all_latest(EntityKind::Team).await?;
     for team_obj in get_all_latest {
         let team = team_obj.parse::<MmolbTeam>()?;
 
@@ -184,7 +187,8 @@ async fn get_all_known_player_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet
 
 pub async fn fetch_all_players(ctx: &WorkerContext) -> anyhow::Result<()> {
     let all_players = get_all_known_player_ids(ctx).await?;
-    ctx.process_many_with_progress(all_players, 50, "fetch all players", fetch_player).await;
+    ctx.process_many_with_progress(all_players, 50, "fetch all players", fetch_player)
+        .await;
     Ok(())
 }
 

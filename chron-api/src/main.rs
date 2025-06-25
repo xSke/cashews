@@ -12,12 +12,14 @@ use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
+    timeout::{ResponseBodyTimeoutLayer, TimeoutLayer},
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::info;
 
 mod chron_api;
 mod derived_api;
+mod stats;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -69,6 +71,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/player-stats", get(derived_api::get_player_stats))
         .route("/scorigami", get(derived_api::scorigami))
         .route("/locations", get(derived_api::locations))
+        .route("/stats", get(stats::stats))
         .route(
             "/league-aggregate-stats",
             get(derived_api::league_aggregate),
@@ -77,6 +80,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors)
         .layer(CompressionLayer::new())
         .layer(trace)
+        .layer(TimeoutLayer::new(Duration::from_secs(10)))
+        .layer(ResponseBodyTimeoutLayer::new(Duration::from_secs(10)))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";

@@ -1,4 +1,4 @@
-use std::{collections::BTreeMap, fmt::Display, str::FromStr, sync::Arc};
+use std::{collections::BTreeMap, fmt::Display, str::FromStr};
 
 use axum::{
     Json,
@@ -11,7 +11,7 @@ use chron_db::{
     queries::{PaginatedResult, SortOrder},
 };
 use serde::{Deserialize, Serialize};
-use serde_with::{DeserializeFromStr, SerializeDisplay, serde_as};
+use serde_with::{DeserializeFromStr, SerializeDisplay};
 use sqlx::FromRow;
 use tracing::info;
 
@@ -371,6 +371,12 @@ fn fake_paginate<T>(data: Vec<T>) -> PaginatedResult<T> {
 pub struct SeasonDay {
     season: i32,
     day: i32,
+}
+
+impl SeasonDay {
+    pub fn new(season: i32, day: i32) -> SeasonDay {
+        SeasonDay { season, day }
+    }
 }
 
 impl Into<(i32, i32)> for SeasonDay {

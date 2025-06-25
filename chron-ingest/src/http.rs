@@ -10,8 +10,7 @@ use tracing::{info, warn};
 #[derive(Clone)]
 pub struct DataClient {
     client: Client,
-    semaphore: Arc<Semaphore>
-    // cached_responses: Arc<DashMap<String, ClientResponse>>,
+    semaphore: Arc<Semaphore>, // cached_responses: Arc<DashMap<String, ClientResponse>>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,6 +77,7 @@ impl DataClient {
             .zstd(true)
             .brotli(true)
             .gzip(true)
+            .use_rustls_tls()
             .build()?;
 
         let semaphore = Arc::new(Semaphore::new(20));
@@ -151,7 +151,10 @@ impl DataClient {
             // because we're still within the semaphore, this basically functions as a light "circuit breaker"
             // and will slow down at least one "slot" of the available permits
             warn!("received 502 response, sleeping for a bit");
-            let _cb_permit = self.semaphore.acquire_many(self.semaphore.available_permits() as u32).await?;
+            let _cb_permit = self
+                .semaphore
+                .acquire_many(self.semaphore.available_permits() as u32)
+                .await?;
             tokio::time::sleep(Duration::from_secs(5)).await;
         }
         let response = response.error_for_status()?;

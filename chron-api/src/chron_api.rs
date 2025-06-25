@@ -14,7 +14,7 @@ use chron_db::{
 };
 use serde::{
     Deserialize, Deserializer,
-    de::{self, Visitor},
+    de::{self, Visitor, value::StrDeserializer},
 };
 
 use crate::{AppError, AppState};
@@ -106,7 +106,7 @@ pub async fn get_versions(
     Ok(Json(events))
 }
 
-fn comma_separated<'de, V, T, D>(deserializer: D) -> Result<V, D::Error>
+pub fn comma_separated<'de, V, T, D>(deserializer: D) -> Result<V, D::Error>
 where
     V: FromIterator<T>,
     T: FromStr,
@@ -133,6 +133,38 @@ where
         {
             let iter = s.split(",").map(FromStr::from_str);
             Result::from_iter(iter).map_err(de::Error::custom)
+        }
+    }
+
+    let visitor = CommaSeparated(PhantomData, PhantomData);
+    deserializer.deserialize_str(visitor)
+}
+
+pub fn comma_separated2<'de, V, T, D>(deserializer: D) -> Result<V, D::Error>
+where
+    V: FromIterator<T>,
+    T: Deserialize<'de>,
+    D: Deserializer<'de>,
+{
+    struct CommaSeparated<V, T>(PhantomData<V>, PhantomData<T>);
+
+    impl<'de, V, T> Visitor<'de> for CommaSeparated<V, T>
+    where
+        V: FromIterator<T>,
+        T: Deserialize<'de>,
+    {
+        type Value = V;
+
+        fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            formatter.write_str("string containing comma-separated elements")
+        }
+
+        fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
+        where
+            E: de::Error,
+        {
+            let iter = s.split(",");
+            Result::from_iter(iter.map(|x| T::deserialize(StrDeserializer::new(x))))
         }
     }
 

@@ -6,7 +6,6 @@ use crate::workers::{IntervalWorker, WorkerContext};
 
 pub struct PollMiscData;
 
-
 impl IntervalWorker for PollMiscData {
     fn interval() -> tokio::time::Interval {
         tokio::time::interval(Duration::from_secs(5 * 60))
@@ -20,22 +19,25 @@ impl IntervalWorker for PollMiscData {
         )
         .await?;
 
-        ctx.fetch_and_save(
-            "https://mmolb.com/api/news",
-            EntityKind::News,
-            "news",
-        )
-        .await?;
+        ctx.fetch_and_save("https://mmolb.com/api/news", EntityKind::News, "news")
+            .await?;
 
         let mut nouns_resp = ctx.client.fetch("https://mmolb.com/data/nouns.txt").await?;
-        let mut adjectives_resp = ctx.client.fetch("https://mmolb.com/data/adjectives.txt").await?;
+        let mut adjectives_resp = ctx
+            .client
+            .fetch("https://mmolb.com/data/adjectives.txt")
+            .await?;
         // cheat a little, massage the data into a json format so our usual methods will take them
         nouns_resp.data = lines_to_json(&nouns_resp.data)?;
         adjectives_resp.data = lines_to_json(&adjectives_resp.data)?;
 
-        ctx.db.save(nouns_resp.to_chron(EntityKind::Nouns, "nouns")?).await?;
-        ctx.db.save(adjectives_resp.to_chron(EntityKind::Adjectives, "adjectives")?).await?;
-        
+        ctx.db
+            .save(nouns_resp.to_chron(EntityKind::Nouns, "nouns")?)
+            .await?;
+        ctx.db
+            .save(adjectives_resp.to_chron(EntityKind::Adjectives, "adjectives")?)
+            .await?;
+
         Ok(())
     }
 }

@@ -95,7 +95,8 @@ impl IntervalWorker for PollLiveGames {
             .collect::<Vec<_>>();
         info!("found {} live games in db", live_games.len());
 
-        ctx.process_many_with_progress(live_games, 5, "fetch live games", poll_live_game).await;
+        ctx.process_many_with_progress(live_games, 5, "fetch live games", poll_live_game)
+            .await;
 
         Ok(())
     }
@@ -144,8 +145,13 @@ impl IntervalWorker for PollFinishedGamesFromFeed {
             }
         }
 
-        ctx.process_many_with_progress(game_ids, 5, "fetch finished games from feed", fetch_game_if_not_completed)
-            .await;
+        ctx.process_many_with_progress(
+            game_ids,
+            5,
+            "fetch finished games from feed",
+            fetch_game_if_not_completed,
+        )
+        .await;
 
         Ok(())
     }
@@ -518,14 +524,20 @@ async fn rebuild_game(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()
 
 pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     let game_ids = get_all_known_game_ids(ctx).await?;
-    ctx.process_many_with_progress(game_ids, 50, "fetch all games", poll_game_by_id).await;
+    ctx.process_many_with_progress(game_ids, 50, "fetch all games", poll_game_by_id)
+        .await;
     Ok(())
 }
 
 pub async fn fetch_all_schedules(ctx: &WorkerContext, parallel: usize) -> anyhow::Result<()> {
     let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
-    ctx.process_many_with_progress(team_ids, parallel, "fetch all schedules", poll_schedule_for_team_for_all_games)
-        .await;
+    ctx.process_many_with_progress(
+        team_ids,
+        parallel,
+        "fetch all schedules",
+        poll_schedule_for_team_for_all_games,
+    )
+    .await;
 
     Ok(())
 }

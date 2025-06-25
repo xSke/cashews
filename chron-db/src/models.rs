@@ -2,7 +2,7 @@ use std::{fmt::Display, str::FromStr};
 
 use base64::Engine;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
-use sqlx::{types::JsonRawValue, FromRow, Type};
+use sqlx::{FromRow, Type, types::JsonRawValue};
 use time::{Duration, OffsetDateTime};
 
 #[repr(i16)]
