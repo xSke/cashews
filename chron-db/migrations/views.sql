@@ -74,8 +74,8 @@ create materialized view rosters as
 create unique index rosters_pkey_idx on rosters(team_id, slot);
 
 select println('creating roster slots');
-drop materialized view if exists roster_slots;
-create materialized view roster_slots as
+drop materialized view if exists roster_slot_history;
+create materialized view roster_slot_history as
     with
         roster_slot_versions as (
             select
@@ -119,8 +119,8 @@ create materialized view roster_slots as
         max(coalesce(valid_to, 'infinity')) as valid_to
     from slots_with_seq
     group by team_id, slot, seq;
-create unique index roster_slots_pkey_idx on roster_slots(team_id, slot, seq);
-create index roster_slots_player_idx on roster_slots(player_id, valid_from, valid_to);
+create unique index roster_slot_history_idx on roster_slot_history(team_id, slot, seq);
+create index roster_slot_history_idx on roster_slot_history(player_id, valid_from, valid_to);
 
 select println('creating game_player_stats_exploded');
 create materialized view game_player_stats_exploded as

@@ -2,10 +2,12 @@ use async_stream::try_stream;
 use chron_base::{StatKey, objectid_to_timestamp};
 use compact_str::CompactString;
 use futures::{Stream, TryStreamExt};
-use sea_query::{Asterisk, Cond, Expr, ExprTrait, PostgresQueryBuilder, Query};
+use sea_query::{
+    Asterisk, Cond, Expr, ExprTrait, Func, PostgresQueryBuilder, Query,
+};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
-use sqlx::{postgres::PgRow, Executor, FromRow, Row, Statement};
+use sqlx::{Executor, FromRow, Row, Statement, postgres::PgRow};
 use strum::{EnumCount, VariantArray};
 use time::OffsetDateTime;
 
@@ -102,6 +104,7 @@ pub struct StatsQueryNew {
 
     pub sort: Option<StatKey>,
     pub count: Option<u64>,
+    pub include_names: bool,
 
     pub fields: Vec<StatKey>,
 }
@@ -109,8 +112,10 @@ pub struct StatsQueryNew {
 #[derive(Debug, Clone)]
 pub struct StatsRow {
     pub player: Option<CompactString>,
+    pub player_name: Option<CompactString>,
     pub game: Option<CompactString>,
     pub team: Option<CompactString>,
+    pub team_name: Option<CompactString>,
     pub league: Option<CompactString>,
     pub season: Option<i16>,
     pub day: Option<i16>,
@@ -126,6 +131,19 @@ impl FromRow<'_, PgRow> for StatsRow {
             values[i] = row.try_get::<i32, _>(name).unwrap_or(0) as u32;
         }
 
+        let team_location: Option<CompactString> = row.try_get("team_location").ok();
+        let team_name: Option<CompactString> = row.try_get("team_name").ok();
+
+        let team_name =
+            if let (Some(mut team_location), Some(team_name)) = (team_location, team_name) {
+                // reuse this buffer and reshadow
+                team_location.push(' ');
+                team_location.push_str(&team_name);
+                Some(team_location)
+            } else {
+                None
+            };
+
         Ok(Self {
             // column may not exist in the result set if it wasn't requested
             // but we should return None, not an error, in that case
@@ -134,7 +152,9 @@ impl FromRow<'_, PgRow> for StatsRow {
             game: row.try_get("game_id").ok(),
 
             player: row.try_get("player_id").ok(),
+            player_name: row.try_get("player_name").ok(),
             team: row.try_get("team_id").ok(),
+            team_name,
             league: row.try_get("league_id").ok(),
 
             values: values,
@@ -345,13 +365,14 @@ impl ChronDb {
         if let Some(count) = q.count {
             qq = qq.limit(count);
         }
-        // qq = r.to_owned();
 
         let mut needs_teams_table_join = false;
+        let mut needs_players_table_join = false;
 
         if let Some(player) = q.player {
-            qq = qq
-                .and_where(Expr::col(Idens::PlayerId).eq(&player));
+            qq = qq.and_where(
+                Expr::col((Idens::GamePlayerStatsExploded, Idens::PlayerId)).eq(&player),
+            );
         }
 
         if let Some(team) = q.team {
@@ -360,8 +381,7 @@ impl ChronDb {
 
         if let Some(league) = q.league {
             needs_teams_table_join = true;
-            qq = qq
-                .and_where(Expr::col((Idens::Teams, Idens::LeagueId)).eq(&league));
+            qq = qq.and_where(Expr::col((Idens::Teams, Idens::LeagueId)).eq(&league));
         }
 
         if let Some(game) = q.game {
@@ -374,65 +394,83 @@ impl ChronDb {
                 .column(Idens::Season)
                 .column(Idens::Day);
         } else if q.group_season {
-            qq = qq
-                .group_by_col(Idens::Season)
-                .column(Idens::Season);
+            qq = qq.group_by_col(Idens::Season).column(Idens::Season);
         }
 
         if q.group_player {
             qq = qq
-                .group_by_col(Idens::PlayerId)
-                .column(Idens::PlayerId);
+                .group_by_col((Idens::GamePlayerStatsExploded, Idens::PlayerId))
+                .column((Idens::GamePlayerStatsExploded, Idens::PlayerId));
+
+            if q.include_names {
+                needs_players_table_join = true;
+                let full_name =
+                    Func::cust(Idens::AnyValue).arg(Expr::col((Idens::Players, Idens::FullName)));
+                qq = qq.expr_as(full_name, "player_name");
+            }
         }
 
         if q.group_team {
             qq = qq
                 .group_by_col((Idens::GamePlayerStatsExploded, Idens::TeamId))
                 .column((Idens::GamePlayerStatsExploded, Idens::TeamId));
+
+            if q.include_names {
+                needs_teams_table_join = true;
+                let location =
+                    Func::cust(Idens::AnyValue).arg(Expr::col((Idens::Teams, Idens::Location)));
+                let name = Func::cust(Idens::AnyValue).arg(Expr::col((Idens::Teams, Idens::Name)));
+                // let full_name = location.concat(" ").concat(name);
+                // slightly faster to do the concat in FromRow rather than in postgres
+                // but really we should just alter that table into having a `full_name` column...
+                qq = qq.expr_as(location, "team_location");
+                qq = qq.expr_as(name, "team_name");
+            }
         }
 
         if q.group_league {
             needs_teams_table_join = true;
-            qq = qq
-                .group_by_col(Idens::LeagueId)
-                .column(Idens::LeagueId);
+            qq = qq.group_by_col(Idens::LeagueId).column(Idens::LeagueId);
         }
 
         if q.group_game {
-            qq = qq
-                .group_by_col(Idens::GameId)
-                .column(Idens::GameId);
+            qq = qq.group_by_col(Idens::GameId).column(Idens::GameId);
         }
 
         if let Some((s, d)) = q.start {
-            qq = qq
-                .and_where(
-                    Expr::tuple([
-                        Expr::col(Idens::Season).into(),
-                        Expr::col(Idens::Day).into(),
-                    ])
-                    .gte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
-                );
+            qq = qq.and_where(
+                Expr::tuple([
+                    Expr::col(Idens::Season).into(),
+                    Expr::col(Idens::Day).into(),
+                ])
+                .gte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
+            );
         }
 
         if let Some((s, d)) = q.end {
-            qq = qq
-                .and_where(
-                    Expr::tuple([
-                        Expr::col(Idens::Season).into(),
-                        Expr::col(Idens::Day).into(),
-                    ])
-                    .lte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
-                );
+            qq = qq.and_where(
+                Expr::tuple([
+                    Expr::col(Idens::Season).into(),
+                    Expr::col(Idens::Day).into(),
+                ])
+                .lte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
+            );
         }
 
         if needs_teams_table_join {
-            qq = qq
-                .left_join(
-                    Idens::Teams,
-                    Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId))
-                        .equals((Idens::Teams, Idens::TeamId)),
-                );
+            qq = qq.left_join(
+                Idens::Teams,
+                Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId))
+                    .equals((Idens::Teams, Idens::TeamId)),
+            );
+        }
+
+        if needs_players_table_join {
+            qq = qq.left_join(
+                Idens::Players,
+                Expr::col((Idens::GamePlayerStatsExploded, Idens::PlayerId))
+                    .equals((Idens::Players, Idens::PlayerId)),
+            );
         }
 
         let mut nonzero_cond = Cond::any();

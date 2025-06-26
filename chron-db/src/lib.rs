@@ -23,12 +23,14 @@ pub mod util;
 
 #[derive(Iden)]
 pub enum Idens {
+    AnyValue,
     AwayTeamId,
     Data,
     Day,
     EntityId,
     Event,
     Events,
+    FullName,
     GameId,
     GamePlayerStats,
     GamePlayerStatsExploded,
@@ -37,9 +39,12 @@ pub enum Idens {
     HomeTeamId,
     Kind,
     LeagueId,
+    Location,
+    Name,
     Objects,
     Payload,
     PlayerId,
+    Players,
     Raw,
     Season,
     TeamId,

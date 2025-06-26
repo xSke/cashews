@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    hash::{DefaultHasher, Hasher},
+    sync::Arc,
+};
 
 use async_stream::try_stream;
 use axum::{
@@ -56,9 +59,15 @@ impl Serialize for StatOutputRow {
         }
         if self.q.group.contains(&GroupColumn::Team) {
             field_count += 1;
+            if self.q.names {
+                field_count += 1;
+            }
         }
         if self.q.group.contains(&GroupColumn::Player) {
             field_count += 1;
+            if self.q.names {
+                field_count += 1;
+            }
         }
         if self.q.group.contains(&GroupColumn::Day) {
             field_count += 2;
@@ -81,9 +90,15 @@ impl Serialize for StatOutputRow {
         }
         if self.q.group.contains(&GroupColumn::Player) {
             state.serialize_field("player_id", &self.row.player.as_deref())?;
+            if self.q.names {
+                state.serialize_field("player_name", &self.row.player_name.as_deref())?;
+            }
         }
         if self.q.group.contains(&GroupColumn::Team) {
             state.serialize_field("team_id", &self.row.team.as_deref())?;
+            if self.q.names {
+                state.serialize_field("team_name", &self.row.team_name.as_deref())?;
+            }
         }
         if self.q.group.contains(&GroupColumn::League) {
             state.serialize_field("league_id", &self.row.league.as_deref())?;
@@ -120,6 +135,9 @@ pub struct StatsRequest {
     // todo: rename to "order" or "sortby" or something?
     pub sort: Option<StatKey>,
     pub count: Option<u64>,
+
+    #[serde(default)]
+    pub names: bool,
 }
 
 pub async fn stats(
@@ -130,8 +148,7 @@ pub async fn stats(
 
     let count = q.count.unwrap_or(100_000).min(100_000);
 
-    q.fields.sort();
-    q.fields.dedup();
+    dedup_preserving_order(&mut q.fields);
 
     if let Some(season) = q.season {
         q.start = Some(SeasonDay::new(season, 0));
@@ -156,6 +173,7 @@ pub async fn stats(
         sort: q.sort,
         count: Some(count),
         fields: q.fields.clone(),
+        include_names: q.names,
     };
 
     let db = ctx.db.clone();
@@ -166,9 +184,10 @@ pub async fn stats(
             yield StatOutputRow { row: row, q: q.clone() };
         }
     }
-    .inspect_err(|e| { 
+    .inspect_err(|e| {
         tracing::error!("error in stats query: {:?}", e);
-    }).map_err(|x: anyhow::Error| axum::Error::new(x));
+    })
+    .map_err(|x: anyhow::Error| axum::Error::new(x));
 
     let opts = StreamBodyAsOptions::new().buffering_ready_items(1000);
 
@@ -195,4 +214,21 @@ pub async fn stats(
             )),
         ),
     })
+}
+
+// way more generic than it needs to be
+fn dedup_preserving_order<T: PartialEq + std::hash::Hash>(vec: &mut Vec<T>) {
+    let mut seen = Vec::new();
+    vec.retain(|x| {
+        let mut hasher = DefaultHasher::new();
+        T::hash(x, &mut hasher);
+        let hash = hasher.finish();
+
+        if seen.contains(&hash) {
+            false
+        } else {
+            seen.push(hash);
+            true
+        }
+    });
 }

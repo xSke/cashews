@@ -109,6 +109,7 @@ pub fn objectid_to_timestamp(id: &str) -> anyhow::Result<OffsetDateTime> {
     Eq,
     PartialOrd,
     Ord,
+    Hash,
 )]
 #[serde(rename_all = "snake_case")]
 #[strum(serialize_all = "snake_case")]
