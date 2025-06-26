@@ -116,6 +116,10 @@ pub struct StatsRequest {
     pub group: Vec<GroupColumn>,
 
     pub format: Option<StatsFormat>,
+
+    // todo: rename to "order" or "sortby" or something?
+    pub sort: Option<StatKey>,
+    pub count: Option<u64>,
 }
 
 pub async fn stats(
@@ -123,6 +127,8 @@ pub async fn stats(
     Query(mut q): Query<StatsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     let format = q.format.unwrap_or(StatsFormat::Csv);
+
+    let count = q.count.unwrap_or(100_000).min(100_000);
 
     q.fields.sort();
     q.fields.dedup();
@@ -147,6 +153,8 @@ pub async fn stats(
         group_season: q.group.contains(&GroupColumn::Season),
         group_day: q.group.contains(&GroupColumn::Day),
         group_game: q.group.contains(&GroupColumn::Game),
+        sort: q.sort,
+        count: Some(count),
         fields: q.fields.clone(),
     };
 
@@ -158,7 +166,9 @@ pub async fn stats(
             yield StatOutputRow { row: row, q: q.clone() };
         }
     }
-    .map_err(|x: anyhow::Error| axum::Error::new(x));
+    .inspect_err(|e| { 
+        tracing::error!("error in stats query: {:?}", e);
+    }).map_err(|x: anyhow::Error| axum::Error::new(x));
 
     let opts = StreamBodyAsOptions::new().buffering_ready_items(1000);
 

@@ -2,10 +2,10 @@ use async_stream::try_stream;
 use chron_base::{StatKey, objectid_to_timestamp};
 use compact_str::CompactString;
 use futures::{Stream, TryStreamExt};
-use sea_query::{Asterisk, Expr, PostgresQueryBuilder, Query};
+use sea_query::{Asterisk, Cond, Expr, ExprTrait, PostgresQueryBuilder, Query};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
-use sqlx::{FromRow, Row, postgres::PgRow};
+use sqlx::{postgres::PgRow, Executor, FromRow, Row, Statement};
 use strum::{EnumCount, VariantArray};
 use time::OffsetDateTime;
 
@@ -100,13 +100,12 @@ pub struct StatsQueryNew {
     pub group_day: bool,
     pub group_game: bool,
 
+    pub sort: Option<StatKey>,
+    pub count: Option<u64>,
+
     pub fields: Vec<StatKey>,
 }
 
-// todo: figure out if we can optimize this somehow
-// would be nice to store the whole result in one big contiguous table and not a lot of small allocs
-// i suppose if we could make the ids stack-allocated then that'd be something. need a custom id type maybe?
-// but that requires some magic...
 #[derive(Debug, Clone)]
 pub struct StatsRow {
     pub player: Option<CompactString>,
@@ -332,82 +331,77 @@ impl ChronDb {
         &self,
         q: StatsQueryNew,
     ) -> anyhow::Result<impl Stream<Item = Result<StatsRow, anyhow::Error>> + use<'_>> {
-        let mut qq = Query::select()
+        let mut qqq = Query::select()
             .from(Idens::GamePlayerStatsExploded)
-            .limit(100_000)
             .to_owned();
 
-        let mut r = &mut qq;
+        let mut qq: &mut _ = &mut qqq;
         // todo: can prob clean this up. or just use a better damn query builder
-        for x in q.fields {
+        for x in &q.fields {
             let name: &'static str = x.into();
-            r = r.expr_as(Expr::sum(Expr::col(name)).cast_as("int"), name);
+            qq = qq.expr_as(Expr::sum(Expr::col(name)).cast_as("int"), name);
         }
-        qq = r.to_owned();
+
+        if let Some(count) = q.count {
+            qq = qq.limit(count);
+        }
+        // qq = r.to_owned();
 
         let mut needs_teams_table_join = false;
 
         if let Some(player) = q.player {
             qq = qq
-                .and_where(Expr::col(Idens::PlayerId).eq(&player))
-                .to_owned();
+                .and_where(Expr::col(Idens::PlayerId).eq(&player));
         }
 
         if let Some(team) = q.team {
-            qq = qq.and_where(Expr::col(Idens::TeamId).eq(&team)).to_owned();
+            qq = qq.and_where(Expr::col(Idens::TeamId).eq(&team));
         }
 
         if let Some(league) = q.league {
             needs_teams_table_join = true;
             qq = qq
-                .and_where(Expr::col((Idens::Teams, Idens::LeagueId)).eq(&league))
-                .to_owned();
+                .and_where(Expr::col((Idens::Teams, Idens::LeagueId)).eq(&league));
         }
 
         if let Some(game) = q.game {
-            qq = qq.and_where(Expr::col(Idens::GameId).eq(&game)).to_owned();
+            qq = qq.and_where(Expr::col(Idens::GameId).eq(&game));
         }
 
         if q.group_day {
             qq = qq
                 .group_by_columns([Idens::Season, Idens::Day])
                 .column(Idens::Season)
-                .column(Idens::Day)
-                .to_owned();
+                .column(Idens::Day);
         } else if q.group_season {
             qq = qq
                 .group_by_col(Idens::Season)
-                .column(Idens::Season)
-                .to_owned();
+                .column(Idens::Season);
         }
 
         if q.group_player {
             qq = qq
                 .group_by_col(Idens::PlayerId)
-                .column(Idens::PlayerId)
-                .to_owned();
+                .column(Idens::PlayerId);
         }
 
         if q.group_team {
             qq = qq
                 .group_by_col(Idens::TeamId)
-                .column(Idens::TeamId)
-                .to_owned();
+                .column(Idens::TeamId);
         }
 
         if q.group_league {
             needs_teams_table_join = true;
             qq = qq
                 .group_by_col(Idens::LeagueId)
-                .column(Idens::LeagueId)
-                .to_owned();
+                .column(Idens::LeagueId);
         }
 
         if q.group_game {
             qq = qq
                 .group_by_col(Idens::GameId)
-                .column(Idens::GameId)
-                .to_owned();
+                .column(Idens::GameId);
         }
 
         if let Some((s, d)) = q.start {
@@ -418,8 +412,7 @@ impl ChronDb {
                         Expr::col(Idens::Day).into(),
                     ])
                     .gte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
-                )
-                .to_owned();
+                );
         }
 
         if let Some((s, d)) = q.end {
@@ -430,8 +423,7 @@ impl ChronDb {
                         Expr::col(Idens::Day).into(),
                     ])
                     .lte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
-                )
-                .to_owned();
+                );
         }
 
         if needs_teams_table_join {
@@ -440,14 +432,28 @@ impl ChronDb {
                     Idens::Teams,
                     Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId))
                         .equals((Idens::Teams, Idens::TeamId)),
-                )
-                .to_owned();
+                );
+        }
+
+        let mut nonzero_cond = Cond::any();
+        for x in &q.fields {
+            let name: &'static str = x.into();
+            nonzero_cond = nonzero_cond.add(Expr::col(name).sum().gt(0));
+            // qq = qq.expr_as(Expr::sum(Expr::col(name)).cast_as("int"), name);
+        }
+        qq = qq.cond_having(nonzero_cond);
+
+        if let Some(sort) = q.sort {
+            let name: &'static str = sort.into();
+            qq = qq.order_by_expr(Expr::col(name).sum(), sea_query::Order::Desc);
         }
 
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
 
+        tracing::info!("generated query: {}", &q);
         let s = try_stream! {
-            let mut rows = sqlx::query_as_with::<_, StatsRow, _>(&q, vals)
+            let prepared = self.pool.prepare(&q).await?;
+            let mut rows = prepared.query_as_with::<StatsRow, _>(vals)
                 .fetch(&self.pool);
 
             while let Some(row) = rows.try_next().await? {
