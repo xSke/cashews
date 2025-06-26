@@ -6,7 +6,10 @@ use axum::{
     http::HeaderValue,
     response::IntoResponse,
 };
-use axum_streams::{CsvStreamFormat, JsonArrayStreamFormat, JsonNewLineStreamFormat, StreamBodyAs, StreamBodyAsOptions};
+use axum_streams::{
+    CsvStreamFormat, JsonArrayStreamFormat, JsonNewLineStreamFormat, StreamBodyAs,
+    StreamBodyAsOptions,
+};
 use chron_base::StatKey;
 use chron_db::derived::{StatsQueryNew, StatsRow};
 use futures::TryStreamExt;
@@ -112,7 +115,7 @@ pub struct StatsRequest {
     #[serde(deserialize_with = "comma_separated2", default)]
     pub group: Vec<GroupColumn>,
 
-    pub format: Option<StatsFormat>
+    pub format: Option<StatsFormat>,
 }
 
 pub async fn stats(
@@ -156,9 +159,8 @@ pub async fn stats(
         }
     }
     .map_err(|x: anyhow::Error| axum::Error::new(x));
-    
-    let opts = StreamBodyAsOptions::new()
-        .buffering_ready_items(1000);
+
+    let opts = StreamBodyAsOptions::new().buffering_ready_items(1000);
 
     Ok(match format {
         StatsFormat::Csv => {
@@ -169,20 +171,18 @@ pub async fn stats(
                 // i want it to display in the browser when possible
                 opts.content_type(HeaderValue::from_static("text/plain; charset=utf-8")),
             )
-        },
-        StatsFormat::Json => {
-            StreamBodyAs::with_options(
-                JsonArrayStreamFormat::new(),
-                s,
-                opts.content_type(HeaderValue::from_static("application/json; charset=utf-8")),
-            )
-        },
-        StatsFormat::Ndjson => {
-            StreamBodyAs::with_options(
-                JsonNewLineStreamFormat::new(),
-                s,
-                opts.content_type(HeaderValue::from_static("application/x-ndjson; charset=utf-8"))
-            )
         }
+        StatsFormat::Json => StreamBodyAs::with_options(
+            JsonArrayStreamFormat::new(),
+            s,
+            opts.content_type(HeaderValue::from_static("application/json; charset=utf-8")),
+        ),
+        StatsFormat::Ndjson => StreamBodyAs::with_options(
+            JsonNewLineStreamFormat::new(),
+            s,
+            opts.content_type(HeaderValue::from_static(
+                "application/x-ndjson; charset=utf-8",
+            )),
+        ),
     })
 }

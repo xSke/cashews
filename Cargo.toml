@@ -8,6 +8,7 @@ axum = "0.8.4"
 base64 = "0.22.1"
 chron-base = { path = "chron-base" }
 chron-db = { path = "chron-db" }
+compact_str = { version = "0.9.0", features = ["serde", "sqlx", "sqlx-postgres"] }
 config = { version = "0.15.11", default-features = false, features = ["toml"] }
 dashmap = "6.1.0"
 futures = "0.3.31"

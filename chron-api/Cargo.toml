@@ -10,9 +10,11 @@ axum = { workspace = true }
 axum-streams = { version = "0.21.0", features = ["csv", "json"] }
 chron-base = { workspace = true }
 chron-db = { workspace = true }
+crossbeam = "0.8.4"
 csv = "1.3.1"
 futures.workspace = true
 moka = { version = "0.12.10", features = ["future"] }
+polars = { version = "0.49.1", features = ["dtype-u16", "lazy", "polars-io"] }
 serde = { workspace = true }
 serde_json.workspace = true
 serde_with = "3.12.0"

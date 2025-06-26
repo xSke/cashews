@@ -1,5 +1,6 @@
 use async_stream::try_stream;
 use chron_base::{StatKey, objectid_to_timestamp};
+use compact_str::CompactString;
 use futures::{Stream, TryStreamExt};
 use sea_query::{Asterisk, Expr, PostgresQueryBuilder, Query};
 use sea_query_binder::SqlxBinder;
@@ -108,10 +109,10 @@ pub struct StatsQueryNew {
 // but that requires some magic...
 #[derive(Debug, Clone)]
 pub struct StatsRow {
-    pub player: Option<String>,
-    pub game: Option<String>,
-    pub team: Option<String>,
-    pub league: Option<String>,
+    pub player: Option<CompactString>,
+    pub game: Option<CompactString>,
+    pub team: Option<CompactString>,
+    pub league: Option<CompactString>,
     pub season: Option<i16>,
     pub day: Option<i16>,
     pub values: [u32; StatKey::COUNT],

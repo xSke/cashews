@@ -1,4 +1,7 @@
-use std::time::Duration;
+use std::{
+    sync::Arc,
+    time::Duration,
+};
 
 use axum::{
     Router,
@@ -8,23 +11,27 @@ use axum::{
 };
 use chron_base::{cache::SwrCache2, load_config};
 use chron_db::ChronDb;
+use crossbeam::atomic::AtomicCell;
 use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
-    timeout::{ResponseBodyTimeoutLayer, TimeoutLayer},
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::info;
 
+use crate::polar::PolarsState;
+
 mod chron_api;
 mod derived_api;
+mod polar;
 mod stats;
 
 #[derive(Clone)]
 pub struct AppState {
     db: ChronDb,
     percentile_cache: SwrCache2<(), Vec<LeagueAggregateResponse>, AppState>,
+    polars: Arc<AtomicCell<PolarsState>>,
 }
 
 pub struct AppError(anyhow::Error);
@@ -51,8 +58,11 @@ async fn main() -> anyhow::Result<()> {
         percentile_cache: SwrCache2::new(Duration::from_secs(60 * 10), 10, move |_, ctx| {
             refresh_league_aggregate(ctx)
         }),
+        polars: Arc::new(AtomicCell::new(PolarsState::new())),
     };
     state.percentile_cache.set_context(state.clone());
+
+    tokio::spawn(polar::worker(state.clone()));
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET])
@@ -80,8 +90,8 @@ async fn main() -> anyhow::Result<()> {
         .layer(cors)
         .layer(CompressionLayer::new())
         .layer(trace)
-        .layer(TimeoutLayer::new(Duration::from_secs(10)))
-        .layer(ResponseBodyTimeoutLayer::new(Duration::from_secs(10)))
+        // .layer(TimeoutLayer::new(Duration::from_secs(10)))
+        // .layer(ResponseBodyTimeoutLayer::new(Duration::from_secs(10)))
         .with_state(state);
 
     let addr = "0.0.0.0:3001";

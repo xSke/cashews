@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 async-once-cell = "0.5.4"
+compact_str = { workspace = true }
 config = { workspace = true }
 dashmap.workspace = true
 futures.workspace = true
