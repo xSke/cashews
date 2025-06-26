@@ -355,7 +355,7 @@ impl ChronDb {
         }
 
         if let Some(team) = q.team {
-            qq = qq.and_where(Expr::col(Idens::TeamId).eq(&team));
+            qq = qq.and_where(Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId)).eq(&team));
         }
 
         if let Some(league) = q.league {
@@ -387,8 +387,8 @@ impl ChronDb {
 
         if q.group_team {
             qq = qq
-                .group_by_col(Idens::TeamId)
-                .column(Idens::TeamId);
+                .group_by_col((Idens::GamePlayerStatsExploded, Idens::TeamId))
+                .column((Idens::GamePlayerStatsExploded, Idens::TeamId));
         }
 
         if q.group_league {
@@ -439,7 +439,6 @@ impl ChronDb {
         for x in &q.fields {
             let name: &'static str = x.into();
             nonzero_cond = nonzero_cond.add(Expr::col(name).sum().gt(0));
-            // qq = qq.expr_as(Expr::sum(Expr::col(name)).cast_as("int"), name);
         }
         qq = qq.cond_having(nonzero_cond);
 
@@ -462,12 +461,6 @@ impl ChronDb {
         };
 
         Ok(Box::pin(s))
-        // let cart = Arc::new(q);
-        // let foo = Yoke::attach_to_cart(Arc::new(q), |data| {
-        //     let stream = sqlx::query_as_with(data.deref(), vals).fetch(&self.pool);
-        //     Cow::Borrowed(&Arc::new(stream.into()))
-        // });
-        // Ok(foo)
     }
 
     pub async fn update_game(&self, game: DbGameSaveModel<'_>) -> anyhow::Result<()> {
