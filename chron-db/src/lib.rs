@@ -8,8 +8,7 @@ use models::{EntityKind, NewObject};
 use sea_query::Iden;
 use siphasher::sip128::{Hasher128, SipHasher};
 use sqlx::{
-    Executor, PgPool,
-    postgres::{PgConnectOptions, PgPoolOptions},
+    postgres::{PgConnectOptions, PgPoolOptions}, Acquire, Executor, PgPool
 };
 use time::{Duration, OffsetDateTime};
 use tracing::{error, info};
@@ -96,12 +95,15 @@ impl ChronDb {
 
         info!("updating functions...");
 
-        let mut tx = self.pool.acquire().await?;
+        let mut conn = self.pool.acquire().await?;
+        let mut tx = conn.begin().await?;
         tx.execute(include_str!("../migrations/functions.sql"))
             .await?;
 
         info!("updating views...");
         tx.execute(include_str!("../migrations/views.sql")).await?;
+
+        tx.commit().await?;
 
         info!("done!");
         Ok(())

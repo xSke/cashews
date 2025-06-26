@@ -1,3 +1,4 @@
+
 -- lol
 CREATE OR REPLACE FUNCTION println(str text) RETURNS integer
     LANGUAGE plpgsql AS
@@ -5,6 +6,11 @@ $$BEGIN
     RAISE NOTICE '%', str;
     RETURN 42;
 END;$$;
+
+select println('waiting for lock');
+
+-- ensure we don't get trampled on by actively running ingest matview workers
+select pg_advisory_xact_lock(0x13371337);
 
 drop materialized view if exists game_player_stats_exploded cascade;
 drop materialized view if exists game_player_stats_league_aggregate cascade;
@@ -119,8 +125,8 @@ create materialized view roster_slot_history as
         max(coalesce(valid_to, 'infinity')) as valid_to
     from slots_with_seq
     group by team_id, slot, seq;
-create unique index roster_slot_history_idx on roster_slot_history(team_id, slot, seq);
-create index roster_slot_history_idx on roster_slot_history(player_id, valid_from, valid_to);
+create unique index roster_slot_history_pkey_idx on roster_slot_history(team_id, slot, seq);
+create index roster_slot_history_player_idx on roster_slot_history(player_id, valid_from, valid_to);
 
 select println('creating game_player_stats_exploded');
 create materialized view game_player_stats_exploded as

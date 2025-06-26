@@ -1,6 +1,6 @@
 use std::time::{Duration, Instant};
 
-use tracing::info;
+use tracing::{info, warn};
 
 use super::IntervalWorker;
 
@@ -22,17 +22,24 @@ impl IntervalWorker for RefreshMatviews {
             "game_player_stats_global_aggregate",
             "pitches",
         ];
-
         for matview in matviews {
             info!("refreshing matview {}...", matview);
+
+            let mut tx = ctx.db.pool.begin().await?;
+            let lock: bool = sqlx::query_scalar("select pg_try_advisory_xact_lock(0x13371337)").fetch_one(&mut *tx).await?;
+            if !lock {
+                warn!("failed to claim advisory xact lock for matview refresh");
+                break;
+            }
 
             let time_before = Instant::now();
             sqlx::query(&format!(
                 "refresh materialized view concurrently {}",
                 matview
             ))
-            .execute(&ctx.db.pool)
+            .execute(&mut *tx)
             .await?;
+            tx.commit().await?;
             let time_after = Instant::now();
 
             let delta = time_after.duration_since(time_before);
