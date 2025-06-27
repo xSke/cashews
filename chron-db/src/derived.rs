@@ -3,12 +3,12 @@ use chron_base::{StatKey, objectid_to_timestamp};
 use compact_str::CompactString;
 use futures::{Stream, TryStreamExt};
 use sea_query::{
-    Asterisk, Cond, Expr, ExprTrait, Func, PostgresQueryBuilder, Query,
+    Asterisk, Cond, ConditionalStatement, Expr, ExprTrait, Func, PostgresQueryBuilder, Query,
 };
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use sqlx::{Executor, FromRow, Row, Statement, postgres::PgRow};
-use strum::{EnumCount, VariantArray};
+use strum::{EnumCount, IntoStaticStr, VariantArray};
 use time::OffsetDateTime;
 
 use crate::{
@@ -86,6 +86,20 @@ pub struct GetPlayerStatsQuery {
     pub team: Option<String>,
 }
 
+#[derive(Deserialize, Clone, Debug)]
+pub struct StatFilter {
+    #[serde(alias = ">")]
+    gt: Option<u32>,
+    #[serde(alias = "<")]
+    lt: Option<u32>,
+    #[serde(alias = "=")]
+    eq: Option<u32>,
+    #[serde(alias = "<=")]
+    lte: Option<u32>,
+    #[serde(alias = ">=")]
+    gte: Option<u32>,
+}
+
 #[derive(Clone)]
 pub struct StatsQueryNew {
     pub start: Option<(i32, i32)>,
@@ -94,6 +108,7 @@ pub struct StatsQueryNew {
     pub team: Option<String>,
     pub league: Option<String>,
     pub game: Option<String>,
+    pub slot: Option<SlotOrPosition>,
 
     pub group_league: bool,
     pub group_team: bool,
@@ -101,12 +116,45 @@ pub struct StatsQueryNew {
     pub group_season: bool,
     pub group_day: bool,
     pub group_game: bool,
+    pub group_slot: bool,
 
     pub sort: Option<StatKey>,
     pub count: Option<u64>,
     pub include_names: bool,
 
     pub fields: Vec<StatKey>,
+    pub filters: Vec<(StatKey, StatFilter)>,
+}
+
+#[derive(sqlx::Type, Debug, Clone, Copy, Serialize, Deserialize, IntoStaticStr, PartialEq, Eq)]
+#[sqlx(type_name = "text")]
+pub enum SlotOrPosition {
+    #[sqlx(rename = "1B")]
+    #[serde(rename = "1B")]
+    FirstB,
+    #[sqlx(rename = "2B")]
+    #[serde(rename = "2B")]
+    SecondB,
+    #[sqlx(rename = "3B")]
+    #[serde(rename = "3B")]
+    ThirdB,
+    C,
+    CF,
+    CL,
+    DH,
+    LF,
+    RF,
+    RP,
+    RP1,
+    RP2,
+    RP3,
+    SP,
+    SP1,
+    SP2,
+    SP3,
+    SP4,
+    SP5,
+    SS,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +167,7 @@ pub struct StatsRow {
     pub league: Option<CompactString>,
     pub season: Option<i16>,
     pub day: Option<i16>,
+    pub slot: Option<SlotOrPosition>,
     pub values: [u32; StatKey::COUNT],
 }
 
@@ -156,6 +205,7 @@ impl FromRow<'_, PgRow> for StatsRow {
             team: row.try_get("team_id").ok(),
             team_name,
             league: row.try_get("league_id").ok(),
+            slot: row.try_get("slot").ok(),
 
             values: values,
         })
@@ -388,6 +438,11 @@ impl ChronDb {
             qq = qq.and_where(Expr::col(Idens::GameId).eq(&game));
         }
 
+        if let Some(slot) = q.slot {
+            let name: &'static str = slot.into();
+            qq = qq.and_where(Expr::col(Idens::Slot).eq(name));
+        }
+
         if q.group_day {
             qq = qq
                 .group_by_columns([Idens::Season, Idens::Day])
@@ -437,6 +492,10 @@ impl ChronDb {
             qq = qq.group_by_col(Idens::GameId).column(Idens::GameId);
         }
 
+        if q.group_slot {
+            qq = qq.group_by_col(Idens::Slot).column(Idens::Slot);
+        }
+
         if let Some((s, d)) = q.start {
             qq = qq.and_where(
                 Expr::tuple([
@@ -483,6 +542,25 @@ impl ChronDb {
         if let Some(sort) = q.sort {
             let name: &'static str = sort.into();
             qq = qq.order_by_expr(Expr::col(name).sum(), sea_query::Order::Desc);
+        }
+
+        for (filter_key, filter) in q.filters {
+            let name: &'static str = filter_key.into();
+            if let Some(v) = filter.eq {
+                qq = qq.and_having(Expr::col(name).sum().eq(v));
+            }
+            if let Some(v) = filter.lt {
+                qq = qq.and_having(Expr::col(name).sum().lt(v));
+            }
+            if let Some(v) = filter.gt {
+                qq = qq.and_having(Expr::col(name).sum().gt(v));
+            }
+            if let Some(v) = filter.lte {
+                qq = qq.and_having(Expr::col(name).sum().lte(v));
+            }
+            if let Some(v) = filter.gte {
+                qq = qq.and_having(Expr::col(name).sum().gte(v));
+            }
         }
 
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);

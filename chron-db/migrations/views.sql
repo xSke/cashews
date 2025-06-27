@@ -12,6 +12,13 @@ select println('waiting for lock');
 -- ensure we don't get trampled on by actively running ingest matview workers
 select pg_advisory_xact_lock(0x13371337);
 
+CREATE FUNCTION objectid_to_timestamp(text) RETURNS timestamptz
+    AS 'select to_timestamp((''0x\'' || substring($1 from 1 for 8))::double);'
+    LANGUAGE SQL
+    IMMUTABLE
+    PARALLEL SAFE
+    RETURNS NULL ON NULL INPUT;
+
 drop materialized view if exists game_player_stats_exploded cascade;
 drop materialized view if exists game_player_stats_league_aggregate cascade;
 drop materialized view if exists game_player_stats_global_aggregate cascade;
@@ -130,7 +137,16 @@ create index roster_slot_history_player_idx on roster_slot_history(player_id, va
 
 select println('creating game_player_stats_exploded');
 create materialized view game_player_stats_exploded as
-    select gps.season, gps.day, gps.game_id, gps.player_id, gps.team_id, jt.* from game_player_stats gps, json_table(data, '$[*]' columns (
+    select
+        gps.season,
+        gps.day,
+        gps.game_id,
+        gps.player_id,
+        gps.team_id,
+        rsh.slot,
+        jt.*
+    from game_player_stats gps
+    join lateral json_table(data, '$[*]' columns (
         allowed_stolen_bases smallint PATH '$.allowed_stolen_bases' default 0 on empty default 0 on error,
         appearances smallint PATH '$.appearances' default 0 on empty default 0 on error,
         assists smallint PATH '$.assists' default 0 on empty default 0 on error,
@@ -188,7 +204,13 @@ create materialized view game_player_stats_exploded as
         walked smallint PATH '$.walked' default 0 on empty default 0 on error,
         walks smallint PATH '$.walks' default 0 on empty default 0 on error,
         wins smallint PATH '$.wins' default 0 on empty default 0 on error
-    )) as jt;
+    )) as jt on true
+    left join public.roster_slot_history rsh on (
+        rsh.player_id = gps.player_id and
+        rsh.team_id = gps.team_id and
+        rsh.valid_from <= objectid_to_timestamp(gps.game_id) and
+        rsh.valid_to >= objectid_to_timestamp(gps.game_id)
+    );
 create unique index game_player_stats_exploded_pkey on game_player_stats_exploded(game_id, team_id, player_id);
 
 select println('creating game_player_stats_exploded indexes');

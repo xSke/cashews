@@ -1,11 +1,12 @@
 use std::{
+    collections::HashMap,
     hash::{DefaultHasher, Hasher},
     sync::Arc,
 };
 
 use async_stream::try_stream;
 use axum::{
-    extract::{Query, State},
+    extract::State,
     http::HeaderValue,
     response::IntoResponse,
 };
@@ -14,15 +15,16 @@ use axum_streams::{
     StreamBodyAsOptions,
 };
 use chron_base::StatKey;
-use chron_db::derived::{StatsQueryNew, StatsRow};
+use chron_db::derived::{SlotOrPosition, StatFilter, StatsQueryNew, StatsRow};
 use futures::TryStreamExt;
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
+use serde_qs::axum::QsQuery;
 
 use crate::{AppError, AppState, derived_api::SeasonDay};
 
 use crate::chron_api::comma_separated2;
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum GroupColumn {
     Player,
@@ -31,6 +33,7 @@ pub enum GroupColumn {
     Season,
     Day, // implies season
     Game,
+    Slot,
 }
 
 struct StatOutputRow {
@@ -38,7 +41,7 @@ struct StatOutputRow {
     q: Arc<StatsRequest>,
 }
 
-#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Copy)]
+#[derive(Deserialize, Serialize, Clone, PartialEq, Eq, PartialOrd, Ord, Copy, Debug)]
 #[serde(rename_all = "snake_case")]
 pub enum StatsFormat {
     Csv,
@@ -94,6 +97,9 @@ impl Serialize for StatOutputRow {
                 state.serialize_field("player_name", &self.row.player_name.as_deref())?;
             }
         }
+        if self.q.group.contains(&GroupColumn::Slot) {
+            state.serialize_field("slot", &self.row.slot)?;
+        }
         if self.q.group.contains(&GroupColumn::Team) {
             state.serialize_field("team_id", &self.row.team.as_deref())?;
             if self.q.names {
@@ -113,7 +119,7 @@ impl Serialize for StatOutputRow {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Debug)]
 pub struct StatsRequest {
     pub start: Option<SeasonDay>,
     pub end: Option<SeasonDay>,
@@ -123,6 +129,7 @@ pub struct StatsRequest {
     pub team: Option<String>,
     pub league: Option<String>,
     pub game: Option<String>,
+    pub slot: Option<SlotOrPosition>,
 
     #[serde(deserialize_with = "comma_separated2")]
     pub fields: Vec<StatKey>,
@@ -137,13 +144,17 @@ pub struct StatsRequest {
     pub count: Option<u64>,
 
     #[serde(default)]
+    pub filter: HashMap<StatKey, StatFilter>,
+
+    #[serde(default)]
     pub names: bool,
 }
 
 pub async fn stats(
     State(ctx): State<AppState>,
-    Query(mut q): Query<StatsRequest>,
+    QsQuery(mut q): QsQuery<StatsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
+    dbg!(&q);
     let format = q.format.unwrap_or(StatsFormat::Csv);
 
     let count = q.count.unwrap_or(100_000).min(100_000);
@@ -164,16 +175,19 @@ pub async fn stats(
         team: q.team.clone(),
         league: q.league.clone(),
         game: q.game.clone(),
+        slot: q.slot.clone(),
         group_league: q.group.contains(&GroupColumn::League),
         group_team: q.group.contains(&GroupColumn::Team),
         group_player: q.group.contains(&GroupColumn::Player),
         group_season: q.group.contains(&GroupColumn::Season),
         group_day: q.group.contains(&GroupColumn::Day),
         group_game: q.group.contains(&GroupColumn::Game),
+        group_slot: q.group.contains(&GroupColumn::Slot),
         sort: q.sort,
         count: Some(count),
         fields: q.fields.clone(),
         include_names: q.names,
+        filters: q.filter.iter().map(|(k, v)| (*k, v.clone())).collect(),
     };
 
     let db = ctx.db.clone();

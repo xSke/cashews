@@ -10,6 +10,7 @@ use chron_base::{cache::SwrCache2, load_config};
 use chron_db::ChronDb;
 use crossbeam::atomic::AtomicCell;
 use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
+use polars::enable_string_cache;
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
@@ -45,8 +46,10 @@ impl IntoResponse for AppError {
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
+    enable_string_cache();
+
     let config = load_config()?;
     let db = ChronDb::new(&config).await?;
 

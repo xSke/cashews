@@ -26,7 +26,9 @@ impl IntervalWorker for RefreshMatviews {
             info!("refreshing matview {}...", matview);
 
             let mut tx = ctx.db.pool.begin().await?;
-            let lock: bool = sqlx::query_scalar("select pg_try_advisory_xact_lock(0x13371337)").fetch_one(&mut *tx).await?;
+            let lock: bool = sqlx::query_scalar("select pg_try_advisory_xact_lock(0x13371337)")
+                .fetch_one(&mut *tx)
+                .await?;
             if !lock {
                 warn!("failed to claim advisory xact lock for matview refresh");
                 break;

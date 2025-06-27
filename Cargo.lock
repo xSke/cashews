@@ -471,8 +471,10 @@ dependencies = [
  "futures",
  "moka",
  "polars",
+ "polars-arrow",
  "serde",
  "serde_json",
+ "serde_qs",
  "serde_with",
  "sqlx",
  "strum",
@@ -3441,6 +3443,20 @@ checksum = "59fab13f937fa393d08645bf3a84bdfe86e296747b506ada67bb15f10f218b2a"
 dependencies = [
  "itoa",
  "serde",
+]
+
+[[package]]
+name = "serde_qs"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f3faaf9e727533a19351a43cc5a8de957372163c7d35cc48c90b75cdda13c352"
+dependencies = [
+ "axum",
+ "futures",
+ "percent-encoding",
+ "serde",
+ "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]

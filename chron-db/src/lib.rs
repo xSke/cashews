@@ -8,7 +8,8 @@ use models::{EntityKind, NewObject};
 use sea_query::Iden;
 use siphasher::sip128::{Hasher128, SipHasher};
 use sqlx::{
-    postgres::{PgConnectOptions, PgPoolOptions}, Acquire, Executor, PgPool
+    Acquire, Executor, PgPool,
+    postgres::{PgConnectOptions, PgPoolOptions},
 };
 use time::{Duration, OffsetDateTime};
 use tracing::{error, info};
@@ -46,6 +47,7 @@ pub enum Idens {
     Players,
     Raw,
     Season,
+    Slot,
     TeamId,
     Teams,
     Timestamp,
