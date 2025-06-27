@@ -13,7 +13,7 @@ select println('waiting for lock');
 select pg_advisory_xact_lock(0x13371337);
 
 CREATE OR REPLACE FUNCTION objectid_to_timestamp(text) RETURNS timestamptz
-    AS 'select to_timestamp((''0x\'' || substring($1 from 1 for 8))::double precision);'
+    AS 'select to_timestamp((''0x'' || substring($1 from 1 for 8))::double precision);'
     LANGUAGE SQL
     IMMUTABLE
     PARALLEL SAFE
