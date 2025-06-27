@@ -12,8 +12,8 @@ select println('waiting for lock');
 -- ensure we don't get trampled on by actively running ingest matview workers
 select pg_advisory_xact_lock(0x13371337);
 
-CREATE FUNCTION objectid_to_timestamp(text) RETURNS timestamptz
-    AS 'select to_timestamp((''0x\'' || substring($1 from 1 for 8))::double);'
+CREATE OR REPLACE FUNCTION objectid_to_timestamp(text) RETURNS timestamptz
+    AS 'select to_timestamp((''0x\'' || substring($1 from 1 for 8))::double precision);'
     LANGUAGE SQL
     IMMUTABLE
     PARALLEL SAFE
