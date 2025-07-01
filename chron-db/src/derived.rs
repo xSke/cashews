@@ -565,11 +565,9 @@ impl ChronDb {
 
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
 
-        tracing::info!("generated query: {}", &q);
+        tracing::info!("generated query: {}, {:?}", &q, &vals);
         let s = try_stream! {
-            let prepared = self.pool.prepare(&q).await?;
-            let mut rows = prepared.query_as_with::<StatsRow, _>(vals)
-                .fetch(&self.pool);
+            let mut rows = sqlx::query_as_with(&q, vals).fetch(&self.pool);
 
             while let Some(row) = rows.try_next().await? {
                 yield row;
