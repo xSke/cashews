@@ -5,18 +5,14 @@ use std::{
 };
 
 use async_stream::try_stream;
-use axum::{
-    extract::State,
-    http::HeaderValue,
-    response::IntoResponse,
-};
+use axum::{extract::State, http::HeaderValue, response::IntoResponse};
 use axum_streams::{
     CsvStreamFormat, JsonArrayStreamFormat, JsonNewLineStreamFormat, StreamBodyAs,
     StreamBodyAsOptions,
 };
 use chron_base::StatKey;
 use chron_db::derived::{SlotOrPosition, StatFilter, StatsQueryNew, StatsRow};
-use futures::TryStreamExt;
+use futures::{StreamExt, TryStreamExt, stream};
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 use serde_qs::axum::QsQuery;
 
@@ -192,7 +188,15 @@ pub async fn stats(
 
     let db = ctx.db.clone();
 
-    let s = try_stream! {
+    let mut stream = db.get_stats(qq.clone())?;
+    let results = stream
+        .map_ok(|row| StatOutputRow { row, q: q.clone() })
+        .try_collect::<Vec<_>>()
+        .await?;
+
+    // TODO: figure out some way to buffer the first few lines, check for errors, then start streaming...?
+    // for now, we just buffer everything
+    /*let s = try_stream! {
         let mut res = db.get_stats(qq.clone())?;
         while let Some(row) = res.try_next().await? {
             yield StatOutputRow { row: row, q: q.clone() };
@@ -203,8 +207,10 @@ pub async fn stats(
     })
     .map_err(|x: anyhow::Error| axum::Error::new(x));
 
-    let opts = StreamBodyAsOptions::new().buffering_ready_items(1000);
+    */
 
+    let s = stream::iter(results).map(|x| -> Result<StatOutputRow, axum::Error> { Ok(x) });
+    let opts = StreamBodyAsOptions::new().buffering_ready_items(1000);
     Ok(match format {
         StatsFormat::Csv => {
             StreamBodyAs::with_options(
