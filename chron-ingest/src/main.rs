@@ -6,6 +6,7 @@ use std::{
 use chron_base::load_config;
 use chron_db::ChronDb;
 use http::DataClient;
+use tokio::signal;
 use tracing::{error, info};
 use uuid::Uuid;
 use workers::{
@@ -99,9 +100,8 @@ async fn main() -> anyhow::Result<()> {
         // retiring this one for now, server's slow
         // spawn(ctx.clone(), PollAllScheduledGames);
 
-        loop {
-            tokio::time::sleep(Duration::from_secs(1)).await;
-        }
+        signal::ctrl_c().await?;
+        Ok(())
     }
 }
 
