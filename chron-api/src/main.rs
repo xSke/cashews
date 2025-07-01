@@ -62,7 +62,7 @@ async fn main() -> anyhow::Result<()> {
     };
     state.percentile_cache.set_context(state.clone());
 
-    tokio::spawn(polar::worker(state.clone()));
+    // tokio::spawn(polar::worker(state.clone()));
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET])
