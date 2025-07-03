@@ -67,11 +67,17 @@ impl IntervalWorker for PollGameDays {
 
         // ok, now that we've saved all the days, query all the unfinished games
         // todo: only run this for current season?
-        let all_game_ids = get_all_game_ids_from_days(ctx).await?;
+        let mut game_ids_to_poll: HashSet<String> = HashSet::from_iter(get_all_game_ids_from_days(ctx).await?);
+        for known_complete in query_completed_game_ids(&ctx).await? {
+            game_ids_to_poll.remove(&known_complete);
+        }
+        
         ctx.process_many_with_progress(
-            all_game_ids,
+            game_ids_to_poll,
             25,
             "games",
+
+            // redundant check ig?
             fetch_game_if_not_known_completed,
         ).await;
 
@@ -472,15 +478,8 @@ pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn fetch_all_new_or_incomplete_games(ctx: &WorkerContext) -> anyhow::Result<()> {
-    let mut game_ids = get_all_known_game_ids(ctx).await?;
-    
-    let completed_games = query_completed_game_ids(ctx).await?;
-    for completed_game in &completed_games {
-        game_ids.remove(completed_game);
-    }
-    
-    ctx.process_many_with_progress(game_ids, 50, "fetch all new/incomplete games", fetch_game_if_not_known_completed)
+pub async fn fetch_all_new_or_incomplete_games(ctx: &WorkerContext) -> anyhow::Result<()> {    
+    ctx.process_many_with_progress(get_known_incomplete_game_ids(ctx).await?, 50, "fetch all new/incomplete games", fetch_game_if_not_known_completed)
         .await;
     Ok(())
 }
@@ -506,4 +505,15 @@ pub async fn fetch_all_seasons(ctx: &WorkerContext) -> anyhow::Result<()> {
 pub async fn query_completed_game_ids(ctx: &WorkerContext) -> anyhow::Result<Vec<String>> {
     // lol inline sql
     Ok(sqlx::query_scalar("select game_id from games where state = 'Complete'").fetch_all(&ctx.db.pool).await?)
+}
+
+async fn get_known_incomplete_game_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<String>> {
+    let mut game_ids = get_all_known_game_ids(ctx).await?;
+    
+    let completed_games = query_completed_game_ids(ctx).await?;
+    for completed_game in &completed_games {
+        game_ids.remove(completed_game);
+    }
+
+    Ok(game_ids)
 }
