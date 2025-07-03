@@ -472,9 +472,15 @@ pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn fetch_all_new_games(ctx: &WorkerContext) -> anyhow::Result<()> {
-    let game_ids = get_all_known_game_ids(ctx).await?;
-    ctx.process_many_with_progress(game_ids, 50, "fetch all games", fetch_game_if_not_known_completed)
+pub async fn fetch_all_new_or_incomplete_games(ctx: &WorkerContext) -> anyhow::Result<()> {
+    let mut game_ids = get_all_known_game_ids(ctx).await?;
+    
+    let completed_games = query_completed_game_ids(ctx).await?;
+    for completed_game in &completed_games {
+        game_ids.remove(completed_game);
+    }
+    
+    ctx.process_many_with_progress(game_ids, 50, "fetch all new/incomplete games", fetch_game_if_not_known_completed)
         .await;
     Ok(())
 }
@@ -495,4 +501,9 @@ pub async fn fetch_all_seasons(ctx: &WorkerContext) -> anyhow::Result<()> {
     ctx.process_many(season_ids, 1, handle_season).await;
 
     Ok(())
+}
+
+pub async fn query_completed_game_ids(ctx: &WorkerContext) -> anyhow::Result<Vec<String>> {
+    // lol inline sql
+    Ok(sqlx::query_scalar("select game_id from games where state = 'Complete'").fetch_all(&ctx.db.pool).await?)
 }

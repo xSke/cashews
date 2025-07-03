@@ -105,7 +105,7 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "fetch-league" => league::poll_league(ctx).await?,
         "fetch-all-seasons" => games::fetch_all_seasons(ctx).await?,
         "fetch-all-games" => games::fetch_all_games(ctx).await?,
-        "fetch-all-new-games" => games::fetch_all_new_games(ctx).await?,
+        "fetch-all-new-games" => games::fetch_all_new_or_incomplete_games(ctx).await?,
         "fetch-all-players" => league::fetch_all_players(ctx).await?,
         "rebuild-team-lite" => league::rebuild_team_lite(ctx).await?,
         "rebuild-player-lite" => league::rebuild_player_lite(ctx).await?,
