@@ -71,7 +71,7 @@ impl IntervalWorker for PollNewPlayers {
 
 impl IntervalWorker for PollAllPlayers {
     fn interval() -> tokio::time::Interval {
-        tokio::time::interval(Duration::from_secs(60 * 30))
+        tokio::time::interval(Duration::from_secs(60 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -79,7 +79,9 @@ impl IntervalWorker for PollAllPlayers {
         info!("got {} player ids", player_ids.len());
 
         // this one can go slowly, that's fine
-        ctx.process_many_with_progress(player_ids, 5, "fetch all players", fetch_player)
+        // ...although i think at this rate, we may literally *always* be polling players...
+        // maybe some sort of thing to prioritize players that have shown up in *team* feed events recently?
+        ctx.process_many_with_progress(player_ids, 3, "fetch all players", fetch_player)
             .await;
 
         Ok(())
