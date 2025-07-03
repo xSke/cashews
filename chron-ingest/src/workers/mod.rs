@@ -2,18 +2,17 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use chron_base::ChronConfig;
-use chron_db::models::IsoDateTime;
 use chron_db::{ChronDb, models::EntityKind};
 use futures::StreamExt;
 use futures::stream;
 use reqwest::IntoUrl;
-use time::{OffsetDateTime, Time};
+use time::OffsetDateTime;
 use tokio::time::Interval;
 use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::http::{ClientResponse, DataClient};
-use crate::models::MmolbTime;
+use crate::models::{MmolbState, MmolbTime};
 
 pub mod crunch;
 pub mod games;
@@ -62,6 +61,25 @@ impl WorkerContext {
         res.parse()
     }
 
+    pub async fn try_update_state(&self) -> anyhow::Result<MmolbState> {
+        let latest_state = self
+            .db
+            .get_latest_observation(EntityKind::State, "state")
+            .await?;
+        if let Some(latest) = latest_state {
+            let buffer = Duration::from_secs(30);
+            if latest.timestamp.0 + buffer > OffsetDateTime::now_utc() {
+                // cache is valid
+                return latest.parse();
+            }
+        }
+
+        let res = self
+            .fetch_and_save("https://mmolb.com/api/state", EntityKind::State, "state")
+            .await?;
+        res.parse()
+    }
+
     pub async fn fetch_and_save(
         &self,
         url: impl IntoUrl,
@@ -100,7 +118,7 @@ impl WorkerContext {
         &'a self,
         values: impl IntoIterator<Item = T>,
         parallel: usize,
-        name: &'static str,
+        name: &str,
         function: F,
     ) where
         F: Fn(&'a WorkerContext, T) -> Fut,

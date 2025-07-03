@@ -1,7 +1,4 @@
-use std::{
-    sync::{Arc, RwLock},
-    time::Duration,
-};
+use std::sync::{Arc, RwLock};
 
 use chron_base::load_config;
 use chron_db::ChronDb;
@@ -18,7 +15,7 @@ use workers::{
 };
 
 use crate::workers::{
-    games::{PollFinishedGamesFromFeed, PollLiveGames, PollTodayGames},
+    games::{PollGameDays, PollLiveGames},
     league::PollAllPlayers,
     map::LookupMapLocations,
     message::PollMessage,
@@ -90,15 +87,11 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollNewPlayers);
         spawn(ctx.clone(), RefreshMatviews);
         spawn(ctx.clone(), PollMessage);
-        spawn(ctx.clone(), PollTodayGames);
+        spawn(ctx.clone(), PollGameDays);
         spawn(ctx.clone(), PollLiveGames);
         spawn(ctx.clone(), PollAllPlayers);
-        spawn(ctx.clone(), PollFinishedGamesFromFeed);
         spawn(ctx.clone(), PollMiscData);
         spawn(ctx.clone(), LookupMapLocations);
-
-        // retiring this one for now, server's slow
-        // spawn(ctx.clone(), PollAllScheduledGames);
 
         signal::ctrl_c().await?;
         Ok(())
@@ -110,8 +103,9 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "rebuild-games" => games::rebuild_games(ctx).await?,
         "rebuild-games-slow" => games::rebuild_games_slow(ctx).await?,
         "fetch-league" => league::poll_league(ctx).await?,
+        "fetch-all-seasons" => games::fetch_all_seasons(ctx).await?,
         "fetch-all-games" => games::fetch_all_games(ctx).await?,
-        "fetch-all-schedules" => games::fetch_all_schedules(ctx, 10).await?,
+        "fetch-all-new-games" => games::fetch_all_new_games(ctx).await?,
         "fetch-all-players" => league::fetch_all_players(ctx).await?,
         "rebuild-team-lite" => league::rebuild_team_lite(ctx).await?,
         "rebuild-player-lite" => league::rebuild_player_lite(ctx).await?,

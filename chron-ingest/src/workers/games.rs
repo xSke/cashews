@@ -1,73 +1,24 @@
-use std::{
-    collections::{BTreeSet, HashSet},
-    time::Duration,
-};
+use std::{collections::HashSet, time::Duration};
 
 use chron_db::{
     ChronDb,
     derived::{DbGame, DbGameSaveModel, GetGamesQuery},
     models::{EntityKind, EntityVersion},
 };
-use futures::StreamExt;
 use serde::Deserialize;
 use time::OffsetDateTime;
 use tokio::time::interval;
+
+use crate::{
+    models::{MmolbDay, MmolbGame, MmolbGameEvent, MmolbSeason, MmolbTeam},
+    workers::{IntervalWorker, WorkerContext},
+};
+use futures::{StreamExt, TryStreamExt};
 use tracing::{error, info, warn};
 
-use crate::models::{MmolbGame, MmolbGameEvent, MmolbTeam};
+pub struct PollGameDays;
 
-use super::{IntervalWorker, WorkerContext};
-
-pub struct PollAllScheduledGames;
-pub struct PollTodayGames;
 pub struct PollLiveGames;
-pub struct PollFinishedGamesFromFeed;
-
-impl IntervalWorker for PollAllScheduledGames {
-    fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(60 * 60))
-    }
-
-    async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
-        fetch_all_schedules(ctx, 1).await
-    }
-}
-
-#[derive(Deserialize)]
-struct TodayGame {
-    game_id: String,
-}
-
-impl IntervalWorker for PollTodayGames {
-    fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(1 * 60))
-    }
-
-    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        let time = ctx.try_update_time().await?;
-        match time.season_status.to_ascii_lowercase().as_str() {
-            "preseason" | "holiday" => {
-                info!("season status is {}, skipping", time.season_status);
-                return Ok(());
-            }
-            _ => {}
-        }
-
-        let resp = ctx
-            .client
-            .fetch("https://mmolb.com/api/today-games")
-            .await?;
-        let today_games = resp.parse::<Vec<TodayGame>>()?;
-        ctx.process_many_with_progress(
-            today_games.into_iter().map(|x| x.game_id),
-            5,
-            "fetch new games",
-            fetch_game_if_new,
-        )
-        .await;
-        Ok(())
-    }
-}
 
 impl IntervalWorker for PollLiveGames {
     fn interval() -> tokio::time::Interval {
@@ -80,7 +31,7 @@ impl IntervalWorker for PollLiveGames {
         let known_games_today = ctx
             .db
             .get_games(GetGamesQuery {
-                count: 99999, // ignore pagination for now?
+                count: 999999, // ignore pagination for now?
                 season: Some(time.season_number),
                 day: None,
                 order: chron_db::queries::SortOrder::Asc,
@@ -95,105 +46,95 @@ impl IntervalWorker for PollLiveGames {
             .collect::<Vec<_>>();
         info!("found {} live games in db", live_games.len());
 
-        ctx.process_many_with_progress(live_games, 5, "fetch live games", poll_live_game)
+        ctx.process_many_with_progress(live_games, 20, "fetch live games", poll_live_game)
             .await;
 
         Ok(())
     }
 }
 
-#[derive(Deserialize)]
-// using different struct type here for resilience
-struct TeamWithOnlyFeed {
-    #[serde(rename = "Feed")]
-    feed: Option<Vec<FeedItem>>,
-}
-
-#[derive(Deserialize)]
-struct FeedItem {
-    #[serde(rename = "type")]
-    kind: String,
-    text: String,
-    links: Vec<FeedItemLink>,
-}
-
-#[derive(Deserialize)]
-struct FeedItemLink {
-    #[serde(rename = "type")]
-    kind: String,
-    id: String,
-}
-
-impl IntervalWorker for PollFinishedGamesFromFeed {
+impl IntervalWorker for PollGameDays {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(5 * 60))
+        interval(Duration::from_secs(60 * 5))
     }
 
-    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
-        let teams = ctx.db.get_all_latest(EntityKind::Team).await?;
+    async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
+        let state = ctx.try_update_state().await?;
 
-        let mut game_ids = BTreeSet::new();
-        // just eat every game id we can find
-        for team in teams {
-            let parsed = team.parse::<TeamWithOnlyFeed>()?;
-            for item in parsed.feed.unwrap_or_default() {
-                for link in item.links {
-                    if link.kind == "game" {
-                        game_ids.insert(link.id);
-                    }
-                }
-            }
-        }
+        // todo: loop multiple seasons?
+        let season_id = state.season_id;
+        handle_season(ctx, season_id).await?;
 
+        // ok, now that we've saved all the days, query all the unfinished games
+        // todo: only run this for current season?
+        let all_game_ids = get_all_game_ids_from_days(ctx).await?;
         ctx.process_many_with_progress(
-            game_ids,
-            5,
-            "fetch finished games from feed",
-            fetch_game_if_not_completed,
-        )
-        .await;
+            all_game_ids,
+            25,
+            "games",
+            fetch_game_if_not_known_completed,
+        ).await;
 
         Ok(())
     }
 }
 
-async fn poll_schedule_for_team_for_new_games(
-    ctx: &WorkerContext,
-    id: String,
-) -> anyhow::Result<()> {
-    let url = format!("https://mmolb.com/api/team-schedule/{}", &id);
-    let resp = ctx.fetch_and_save(url, EntityKind::Schedule, &id).await?;
-
-    let sched = resp.parse::<TeamSchedule>()?;
-    for ele in sched.games {
-        if let Some(game_id) = ele.game_id {
-            let knows_about_game = ctx
-                .db
-                .get_latest(EntityKind::Game, &game_id)
-                .await?
-                .is_some();
-            if !knows_about_game {
-                poll_game_by_id(ctx, game_id).await?;
+async fn get_all_game_ids_from_days(ctx: &WorkerContext) -> anyhow::Result<Vec<String>> {
+    let mut game_ids = Vec::new();
+    let mut stream = ctx.db.get_all_latest_stream(EntityKind::Day);
+    while let Some(v) = stream.try_next().await? {
+        match v.parse::<MmolbDay>() {
+            Ok(day) => {
+                game_ids.extend(day.games.into_iter().map(|g| g.game_id).flatten());
+            }
+            Err(e) => {
+                error!("error parsing day {}: {:?}", v.entity_id, e);
             }
         }
     }
+
+    Ok(game_ids)
+}
+
+async fn handle_season(ctx: &WorkerContext, season_id: String) -> anyhow::Result<()> {
+    let season = ctx
+        .fetch_and_save(
+            format!("https://mmolb.com/api/season/{}", &season_id),
+            EntityKind::Season,
+            &season_id,
+        )
+        .await?;
+    let season_parsed: MmolbSeason = season.parse()?;
+
+    let mut season_day_ids = season_parsed.days;
+    season_day_ids.extend(season_parsed.superstar_day_1);
+    season_day_ids.extend(season_parsed.superstar_day_2);
+
+    ctx.process_many_with_progress(
+        season_day_ids,
+        10,
+        &format!("season {} days", season_parsed.season),
+        handle_day,
+    )
+    .await;
     Ok(())
 }
 
-async fn fetch_game_if_new(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
-    let knows_about_game = ctx
-        .db
-        .get_latest(EntityKind::Game, &game_id)
-        .await?
-        .is_some();
-    if !knows_about_game {
-        poll_game_by_id(ctx, game_id).await?;
-    }
-
+async fn handle_day(ctx: &WorkerContext, day_id: String) -> anyhow::Result<()> {
+    ctx
+        .fetch_and_save(
+            format!("https://mmolb.com/api/day/{}", &day_id),
+            EntityKind::Day,
+            &day_id,
+        )
+        .await?;
     Ok(())
 }
 
-async fn fetch_game_if_not_completed(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
+async fn fetch_game_if_not_known_completed(
+    ctx: &WorkerContext,
+    game_id: String,
+) -> anyhow::Result<()> {
     let known_game = ctx.db.get_latest(EntityKind::Game, &game_id).await?;
     let should_poll = if let Some(game) = known_game {
         let game: MmolbGame = game.parse()?;
@@ -209,53 +150,57 @@ async fn fetch_game_if_not_completed(ctx: &WorkerContext, game_id: String) -> an
     Ok(())
 }
 
-async fn poll_schedule_for_team_for_all_games(
-    ctx: &WorkerContext,
-    id: String,
-) -> anyhow::Result<()> {
-    let url = format!("https://mmolb.com/api/team-schedule/{}", &id);
-    let resp = ctx.fetch_and_save(url, EntityKind::Schedule, &id).await?;
+async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
+    let url = format!("https://mmolb.com/api/game/{}", id);
+    let resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
 
-    let sched = resp.parse::<TeamSchedule>()?;
-    for ele in sched.games {
-        if let Some(game_id) = ele.game_id {
-            poll_game_by_id(ctx, game_id).await?;
-        }
-    }
+    let game: MmolbGame = resp.parse()?;
+    process_game_data(ctx, &id, &game, &resp.timestamp()).await?;
+
     Ok(())
 }
 
-async fn try_get_team(
-    db: &ChronDb,
-    team_id: &str,
+async fn process_game_data(
+    ctx: &WorkerContext,
+    id: &str,
+    game: &MmolbGame,
     timestamp: &OffsetDateTime,
-) -> anyhow::Result<Option<MmolbTeam>> {
-    Ok(db
-        .get_entity_at(EntityKind::Team, &team_id, timestamp)
-        .await?
-        .map(|x| x.parse())
-        .transpose()?)
-}
+) -> anyhow::Result<()> {
+    ctx.db
+        .update_game(DbGameSaveModel {
+            game_id: &id,
+            season: game.season,
+            day: game.day,
+            home_team_id: &game.home_team_id,
+            away_team_id: &game.away_team_id,
+            state: &game.state,
+            event_count: game.event_log.len() as i32,
+            last_update: game.event_log.last(),
+        })
+        .await?;
 
-fn try_find_player_by_name(
-    team: &MmolbTeam,
-    player_name: &str,
-    position_type: &str,
-) -> Option<String> {
-    let mut result: Option<&str> = None;
-    for slot in &team.players {
-        // todo: remove alloc?
-        let full_name = format!("{} {}", slot.first_name, slot.last_name);
-        if full_name == player_name && slot.position_type.as_deref().unwrap_or("") == position_type
-        {
-            if result.is_some() {
-                // we found two valid players, abort
-                return None;
+    let generic_game = GenericGame {
+        away_team_id: &game.away_team_id,
+        home_team_id: &game.home_team_id,
+        game_id: &id,
+        season: game.season,
+        day: game.day,
+    };
+    save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
+
+    if let Some(game_stats) = &game.stats {
+        let mut stats = Vec::new();
+        for (team_id, team_stats) in game_stats {
+            for (player_id, player_stats) in team_stats {
+                stats.push((team_id.as_str(), player_id.as_str(), player_stats));
             }
-            result = Some(&slot.player_id);
         }
+        ctx.db
+            .update_game_player_stats(&id, game.season, game.day, &stats)
+            .await?;
     }
-    result.map(|x| x.to_string())
+
+    Ok(())
 }
 
 // todo: this is nasty
@@ -338,6 +283,39 @@ async fn save_game_events(
     Ok(())
 }
 
+async fn try_get_team(
+    db: &ChronDb,
+    team_id: &str,
+    timestamp: &OffsetDateTime,
+) -> anyhow::Result<Option<MmolbTeam>> {
+    Ok(db
+        .get_entity_at(EntityKind::Team, &team_id, timestamp)
+        .await?
+        .map(|x| x.parse())
+        .transpose()?)
+}
+
+fn try_find_player_by_name(
+    team: &MmolbTeam,
+    player_name: &str,
+    position_type: &str,
+) -> Option<String> {
+    let mut result: Option<&str> = None;
+    for slot in &team.players {
+        // todo: remove alloc?
+        let full_name = format!("{} {}", slot.first_name, slot.last_name);
+        if full_name == player_name && slot.position_type.as_deref().unwrap_or("") == position_type
+        {
+            if result.is_some() {
+                // we found two valid players, abort
+                return None;
+            }
+            result = Some(&slot.player_id);
+        }
+    }
+    result.map(|x| x.to_string())
+}
+
 async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()> {
     let current_count = game.event_count;
 
@@ -406,70 +384,21 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
     Ok(())
 }
 
-async fn get_all_known_game_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<String>> {
-    let preset_game_ids = include_str!("./game_ids.txt");
-
-    let mut game_ids: HashSet<String> = preset_game_ids
-        .split("\n")
-        .map(|x| x.to_string())
-        .filter(|x| !x.is_empty())
-        .collect();
-
-    game_ids.extend(ctx.db.get_all_entity_ids(EntityKind::Game).await?);
-    Ok(game_ids)
+#[derive(Deserialize)]
+pub struct TeamSchedule {
+    games: Vec<TeamScheduleGame>,
 }
 
-async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
-    let url = format!("https://mmolb.com/api/game/{}", id);
-    let resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
-
-    let game: MmolbGame = resp.parse()?;
-    process_game_data(ctx, &id, &game, &resp.timestamp()).await?;
-
-    Ok(())
+#[derive(Deserialize)]
+pub struct TeamScheduleGame {
+    day: i32,
+    state: String,
+    game_id: Option<String>,
 }
 
-async fn process_game_data(
-    ctx: &WorkerContext,
-    id: &str,
-    game: &MmolbGame,
-    timestamp: &OffsetDateTime,
-) -> anyhow::Result<()> {
-    ctx.db
-        .update_game(DbGameSaveModel {
-            game_id: &id,
-            season: game.season,
-            day: game.day,
-            home_team_id: &game.home_team_id,
-            away_team_id: &game.away_team_id,
-            state: &game.state,
-            event_count: game.event_log.len() as i32,
-            last_update: game.event_log.last(),
-        })
-        .await?;
-
-    let generic_game = GenericGame {
-        away_team_id: &game.away_team_id,
-        home_team_id: &game.home_team_id,
-        game_id: &id,
-        season: game.season,
-        day: game.day,
-    };
-    save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
-
-    if let Some(game_stats) = &game.stats {
-        let mut stats = Vec::new();
-        for (team_id, team_stats) in game_stats {
-            for (player_id, player_stats) in team_stats {
-                stats.push((team_id.as_str(), player_id.as_str(), player_stats));
-            }
-        }
-        ctx.db
-            .update_game_player_stats(&id, game.season, game.day, &stats)
-            .await?;
-    }
-
-    Ok(())
+#[derive(Deserialize)]
+pub struct LiveResponse {
+    entries: Vec<serde_json::Value>,
 }
 
 pub async fn rebuild_games(ctx: &WorkerContext) -> anyhow::Result<()> {
@@ -522,6 +451,20 @@ async fn rebuild_game(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()
     Ok(())
 }
 
+async fn get_all_known_game_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<String>> {
+    let preset_game_ids = include_str!("./game_ids.txt");
+
+    let mut game_ids: HashSet<String> = preset_game_ids
+        .split("\n")
+        .map(|x| x.trim().to_string())
+        .filter(|x| !x.is_empty())
+        .collect();
+
+    game_ids.extend(ctx.db.get_all_entity_ids(EntityKind::Game).await?);
+    game_ids.extend(get_all_game_ids_from_days(ctx).await?);
+    Ok(game_ids)
+}
+
 pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     let game_ids = get_all_known_game_ids(ctx).await?;
     ctx.process_many_with_progress(game_ids, 50, "fetch all games", poll_game_by_id)
@@ -529,32 +472,27 @@ pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn fetch_all_schedules(ctx: &WorkerContext, parallel: usize) -> anyhow::Result<()> {
-    let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
-    ctx.process_many_with_progress(
-        team_ids,
-        parallel,
-        "fetch all schedules",
-        poll_schedule_for_team_for_all_games,
-    )
-    .await;
-
+pub async fn fetch_all_new_games(ctx: &WorkerContext) -> anyhow::Result<()> {
+    let game_ids = get_all_known_game_ids(ctx).await?;
+    ctx.process_many_with_progress(game_ids, 50, "fetch all games", fetch_game_if_not_known_completed)
+        .await;
     Ok(())
 }
 
-#[derive(Deserialize)]
-pub struct TeamSchedule {
-    games: Vec<TeamScheduleGame>,
-}
+pub async fn fetch_all_seasons(ctx: &WorkerContext) -> anyhow::Result<()> {
+    let mut season_ids: HashSet<String> = ctx
+        .db
+        .get_all_entity_ids(EntityKind::Season)
+        .await?
+        .into_iter()
+        .collect();
 
-#[derive(Deserialize)]
-pub struct TeamScheduleGame {
-    day: i32,
-    state: String,
-    game_id: Option<String>,
-}
+    // we really don't wanna load up all game objects rn so do this the dumb way
+    season_ids.insert("6805db0fac48194de3cd42d1".to_string()); // season 0 
+    season_ids.insert("6846ba011b7a53d888cdef49".to_string()); // season 1
+    season_ids.insert("6858e7be2d94a56ec8d460ea".to_string()); // season 2
 
-#[derive(Deserialize)]
-pub struct LiveResponse {
-    entries: Vec<serde_json::Value>,
+    ctx.process_many(season_ids, 1, handle_season).await;
+
+    Ok(())
 }

@@ -11,6 +11,12 @@ pub struct MmolbState {
 
     #[serde(rename = "LesserLeagues")]
     pub lesser_leagues: Vec<String>,
+
+    #[serde(rename = "SeasonID")]
+    pub season_id: String,
+
+    #[serde(rename = "Day")]
+    pub day: i32,
 }
 
 #[derive(Deserialize, Debug)]
@@ -134,4 +140,39 @@ pub struct MmolbGameByTeam {
 
     #[serde(rename = "HomeTeamID")]
     pub home_team_id: String,
+}
+
+#[derive(Deserialize)]
+pub struct MmolbSeason {
+    #[serde(rename = "Season")]
+    pub season: i32,
+
+    #[serde(rename = "Days")]
+    pub days: Vec<String>,
+
+    // #[serde(rename="Election")]
+    // pub election: String,
+    #[serde(rename = "SuperstarDay1")]
+    pub superstar_day_1: Option<String>,
+
+    #[serde(rename = "SuperstarDay2")]
+    pub superstar_day_2: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct MmolbDay {
+    #[serde(rename = "Games")]
+    pub games: Vec<MmolbDayGame>,
+}
+
+#[derive(Deserialize)]
+pub struct MmolbDayGame {
+    #[serde(rename = "GameID")]
+    // None = not started yet
+    pub game_id: Option<String>,
+
+    // pub away_team_id: String,
+    // pub home_team_id: String,
+    #[serde(rename = "State")]
+    pub state: String,
 }

@@ -1,6 +1,6 @@
 use std::pin::Pin;
 
-use futures::Stream;
+use futures::{Stream, TryStreamExt};
 use sea_query::{Asterisk, Expr, PostgresQueryBuilder, Query, SimpleExpr};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
@@ -55,6 +55,17 @@ impl ChronDb {
             .fetch_all(&self.pool)
             .await?;
         Ok(res)
+    }
+
+    pub fn get_all_latest_stream(
+        &self,
+        kind: EntityKind,
+    ) -> Pin<Box<dyn Stream<Item = sqlx::Result<EntityVersion, anyhow::Error>> + Send + '_>> {
+        let res = sqlx::query_as("select kind, entity_id, valid_from, null as valid_to, data from latest_versions inner join objects using (hash) where kind = $1")
+            .bind(kind)
+            .fetch(&self.pool)
+            .map_err(|e| anyhow::Error::new(e));
+        Box::pin(res)
     }
 
     pub async fn get_latest(
