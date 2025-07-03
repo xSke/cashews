@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use chron_base::load_config;
 use chron_db::ChronDb;
+use futures::{select, FutureExt};
 use http::DataClient;
 use tokio::signal;
 use tracing::{error, info};
@@ -78,9 +79,19 @@ async fn main() -> anyhow::Result<()> {
     };
 
     if args.len() > 1 {
-        if let Err(e) = handle_fn(&ctx, &args[1], &args[2..]).await {
-            error!("error running cli: {:?}", e);
-        }
+        let handle_fut = handle_fn(&ctx, &args[1], &args[2..]);
+        let ctrl_c_fut = signal::ctrl_c();
+        tokio::select! {
+            result = handle_fut => {
+                if let Err(e) = result {
+                    error!("error running cli: {:?}", e);
+                }
+            },
+            _ = ctrl_c_fut => {
+                info!("got ctrl-c, cancelling");
+                return Ok(());
+            }
+        };
         Ok(())
     } else {
         spawn(ctx.clone(), PollLeague);
@@ -94,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), LookupMapLocations);
 
         signal::ctrl_c().await?;
+        info!("got ctrl-c, exiting");
         Ok(())
     }
 }
