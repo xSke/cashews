@@ -33,12 +33,12 @@ const stateSchema = z.object({
 
 type StateParams = z.infer<typeof stateSchema>;
 
-async function getLineupOrder(teamId: string): Promise<(string | null)[]> {
+async function getLineupOrder(season: number, teamId: string): Promise<(string | null)[]> {
   // TODO: this is awful code :p
   // need to not waterfall as hard
 
   const [games, team] = await Promise.all([
-    getGames({ season: 2, team: teamId }),
+    getGames({ season, team: teamId }),
     getEntity<MmolbTeam>("team", teamId),
   ]);
   // lol
@@ -83,7 +83,7 @@ export const Route = createFileRoute("/team/$id/stats")({
       getTeamStats(params.id, deps.season ?? defaultSeason),
       getLeagueAggregates(deps.season ?? defaultSeason),
       getLeagueAverages(deps.season ?? defaultSeason),
-      getLineupOrder(params.id),
+      getLineupOrder(deps.season ?? defaultSeason, params.id),
     ]);
 
     const playerIds = [...new Set(stats.map((x) => x.player_id))];
