@@ -26,9 +26,9 @@ import { useTheme } from "next-themes";
 import { useState } from "react";
 import { z } from "zod";
 
-const defaultSeason = 2;
+const defaultSeason = 3;
 const stateSchema = z.object({
-  season: z.number().catch(1).optional(),
+  season: z.number().catch(defaultSeason).optional(),
 });
 
 type StateParams = z.infer<typeof stateSchema>;
@@ -105,7 +105,7 @@ function RouteComponent() {
   const { season } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
-  const seasons = [2, 1, 0];
+  const seasons = [3, 2, 1, 0];
 
   const [display, setDisplay] = useState<StatDisplay>("stat");
   const scale = defaultScale;

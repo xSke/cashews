@@ -39,7 +39,7 @@ interface GameWinLoss {
   other_team: string;
 }
 
-const defaultSeason = 2;
+const defaultSeason = 3;
 const stateSchema = z.object({
   season: z.number().catch(defaultSeason).optional(),
 });
@@ -188,7 +188,7 @@ function RouteComponent() {
 
   const wls = extractWinLoss(teamId, games);
   const navigate = useNavigate({ from: Route.fullPath });
-  const seasons = [2, 1, 0];
+  const seasons = [3, 2, 1, 0];
 
   return (
     <div className="container mx-auto">
