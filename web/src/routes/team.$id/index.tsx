@@ -1,16 +1,6 @@
-import {
-  ChartConfig,
-  ChartContainer,
-} from "@/components/ui/chart";
+import { ChartConfig, ChartContainer } from "@/components/ui/chart";
 import { ChronGame, getGames, timeQuery } from "@/lib/data";
-import {
-  Bar,
-  BarChart,
-  Cell,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { Bar, BarChart, Cell, ReferenceLine, XAxis, YAxis } from "recharts";
 import {
   Select,
   SelectContent,
@@ -80,7 +70,7 @@ export const Route = createFileRoute("/team/$id/")({
   loaderDeps: ({ search: { season } }) => ({ season }),
   loader: async ({ context, params, deps }) => {
     const teamId = params.id;
-    
+
     const time = await context.queryClient.ensureQueryData(timeQuery);
     const currentSeason = time.data.season_number;
     // todo: paginate, as well
@@ -89,8 +79,8 @@ export const Route = createFileRoute("/team/$id/")({
       season: season,
       team: teamId,
     });
-    
-    return { games: games.items, season, currentSeason};
+
+    return { games: games.items, season, currentSeason };
   },
 });
 
@@ -139,6 +129,7 @@ function WinLossGraph(props: {
             const roundRight = Math.abs(nextVal) < Math.abs(thisValue);
             return (
               <Cell
+                key={idx}
                 fill={color}
                 stroke={color}
                 radius={
@@ -182,7 +173,7 @@ function RouteComponent() {
     <div className="container mx-auto">
       <div className="flex flex-row place-content-end">
         <Select
-          value={(season).toString()}
+          value={season.toString()}
           onValueChange={(val) => {
             navigate({
               search: (prev) => ({ ...prev, season: parseInt(val) ?? 0 }),
@@ -194,7 +185,9 @@ function RouteComponent() {
           </SelectTrigger>
           <SelectContent>
             {seasons.map((s) => (
-              <SelectItem value={s.toString()}>Season {s}</SelectItem>
+              <SelectItem id={s} value={s.toString()}>
+                Season {s}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>

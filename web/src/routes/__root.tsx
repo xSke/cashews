@@ -18,7 +18,7 @@ import { stateQuery, timeQuery } from "@/lib/data";
 import { QueryClient } from "@tanstack/react-query";
 
 interface RouterContext {
-  queryClient: QueryClient
+  queryClient: QueryClient;
 }
 
 export const Route = createRootRouteWithContext<RouterContext>()({

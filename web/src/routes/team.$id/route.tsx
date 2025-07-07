@@ -1,11 +1,9 @@
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { chronLatestEntityQuery, getEntity, MmolbLeague, MmolbTeam } from "@/lib/data";
+import { chronLatestEntityQuery, MmolbLeague, MmolbTeam } from "@/lib/data";
 
 import {
   createFileRoute,
   Link,
   Outlet,
-  useLocation,
   useMatchRoute,
 } from "@tanstack/react-router";
 import clsx from "clsx";
@@ -13,9 +11,25 @@ import clsx from "clsx";
 export const Route = createFileRoute("/team/$id")({
   component: RouteComponent,
   loader: async ({ context, params }) => {
-    const team = await context.queryClient.ensureQueryData(chronLatestEntityQuery<MmolbTeam>("team_lite", params.id));
-    const league = await context.queryClient.ensureQueryData(chronLatestEntityQuery<MmolbLeague>("league", team.data.League));
+    const team = await context.queryClient.ensureQueryData(
+      chronLatestEntityQuery<MmolbTeam>("team_lite", params.id),
+    );
+    const league = await context.queryClient.ensureQueryData(
+      chronLatestEntityQuery<MmolbLeague>("league", team.data.League),
+    );
     return { team, league };
+  },
+  head: ({ loaderData }) => {
+    console.log("head call");
+    if (!loaderData) return {};
+    const team = loaderData.team.data;
+    return {
+      meta: [
+        {
+          title: `${team.Emoji} ${team.Location} ${team.Name} - Free Cashews`,
+        },
+      ],
+    };
   },
 });
 
