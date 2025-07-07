@@ -12,6 +12,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Drawer, DrawerContent, DrawerTrigger } from "./ui/drawer";
 import clsx from "clsx";
+import React from "react";
 
 function SidebarTrigger({
   className,
@@ -41,6 +42,8 @@ function SidebarTrigger({
 export default function Navbar() {
   const isMobile = useIsMobile();
 
+  const [open, setOpen] = React.useState(false);
+
   const matchRoute = useMatchRoute();
   const pages = [
     { text: "Teams", to: "/teams", icon: VolleyballIcon },
@@ -52,7 +55,7 @@ export default function Navbar() {
     <header className="bg-gray-100 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-900 flex flex-row">
       <div className="container mx-auto flex flex-row gap-4 items-center pr-2">
         {isMobile && (
-          <Drawer direction="left">
+          <Drawer direction="left" open={open} onOpenChange={setOpen}>
             <DrawerTrigger asChild className="cursor-pointer">
               <button className="ml-4">
                 <MenuIcon size={24} />
@@ -70,6 +73,9 @@ export default function Navbar() {
                           "px-4 py-2 hover:underline hover:bg-muted",
                           matches && "bg-gray-200 dark:bg-gray-700",
                         )}
+                        onClick={() => {
+                          setOpen(false);
+                        }}
                       >
                         {page.text}
                       </Link>
