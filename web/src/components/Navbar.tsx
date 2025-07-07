@@ -68,7 +68,7 @@ export default function Navbar() {
                         to={page.to}
                         className={clsx(
                           "px-4 py-2 hover:underline hover:bg-muted",
-                          matches && "bg-gray-200 dark:bg-gray-700"
+                          matches && "bg-gray-200 dark:bg-gray-700",
                         )}
                       >
                         {page.text}

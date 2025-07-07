@@ -87,7 +87,7 @@ function RouteComponent() {
           do {
             jitterLatlong = new LatLng(
               bounds.getSouth() + Math.random() * latRange,
-              bounds.getWest() + Math.random() * longRange
+              bounds.getWest() + Math.random() * longRange,
             );
           } while (jitterLatlong.distanceTo(baseLatlong) > JITTER_RADIUS);
         } else {

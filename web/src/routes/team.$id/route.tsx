@@ -1,5 +1,5 @@
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { getEntity, MmolbLeague, MmolbTeam } from "@/lib/data";
+import { chronLatestEntityQuery, getEntity, MmolbLeague, MmolbTeam } from "@/lib/data";
 
 import {
   createFileRoute,
@@ -12,9 +12,9 @@ import clsx from "clsx";
 
 export const Route = createFileRoute("/team/$id")({
   component: RouteComponent,
-  loader: async ({ params }) => {
-    const team = await getEntity<MmolbTeam>("team", params.id);
-    const league = await getEntity<MmolbLeague>("league", team.data.League);
+  loader: async ({ context, params }) => {
+    const team = await context.queryClient.ensureQueryData(chronLatestEntityQuery<MmolbTeam>("team_lite", params.id));
+    const league = await context.queryClient.ensureQueryData(chronLatestEntityQuery<MmolbLeague>("league", team.data.League));
     return { team, league };
   },
 });
@@ -50,7 +50,7 @@ function RouteComponent() {
                     "inline-block px-4 py-2 border-b-2 rounded-t-lg",
                     isActive
                       ? "text-blue-600 border-blue-600 dark:text-blue-400 dark:border-blue-500 active font-semibold"
-                      : "border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300 font-medium"
+                      : "border-transparent hover:text-gray-600 hover:border-gray-300 dark:hover:text-gray-300 font-medium",
                   )}
                   aria-current={isActive ? "page" : undefined}
                 >

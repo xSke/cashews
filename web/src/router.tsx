@@ -21,6 +21,7 @@ export function createRouter() {
       };
     },
     hydrate: (dehydrated) => {
+      console.log("dehydrating", dehydrated.queryClientState)
       hydrate(queryClient, dehydrated.queryClientState);
     },
     Wrap: ({ children }) => {

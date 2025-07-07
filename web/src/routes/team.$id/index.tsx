@@ -1,22 +1,16 @@
 import {
   ChartConfig,
   ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-  ChartTooltip,
-  ChartTooltipContent,
 } from "@/components/ui/chart";
-import { ChronGame, getBasicTeams, getEntities, getGames } from "@/lib/data";
+import { ChronGame, getGames, timeQuery } from "@/lib/data";
 import {
   Bar,
   BarChart,
   Cell,
   ReferenceLine,
-  Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -24,10 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { z } from "zod";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-
+import { createSeasonList } from "@/lib/utils";
 
 interface GameWinLoss {
   day: number;
@@ -39,9 +32,8 @@ interface GameWinLoss {
   other_team: string;
 }
 
-const defaultSeason = 3;
 const stateSchema = z.object({
-  season: z.number().catch(defaultSeason).optional(),
+  season: z.number().optional(),
 });
 
 type StateParams = z.infer<typeof stateSchema>;
@@ -86,23 +78,19 @@ export const Route = createFileRoute("/team/$id/")({
   component: RouteComponent,
   validateSearch: (search) => stateSchema.parse(search),
   loaderDeps: ({ search: { season } }) => ({ season }),
-  loader: async ({ params, deps }) => {
+  loader: async ({ context, params, deps }) => {
     const teamId = params.id;
-
+    
+    const time = await context.queryClient.ensureQueryData(timeQuery);
+    const currentSeason = time.data.season_number;
     // todo: paginate, as well
-    const season = deps.season ?? defaultSeason;
+    const season = deps.season ?? currentSeason;
     const games = await getGames({
       season: season,
       team: teamId,
     });
-
-    const wls = extractWinLoss(teamId, games.items);
-    // const teams = getEntities(
-    //   "team",
-    //   wls.map((x) => x.other_team)
-    // );
-
-    return { games: games.items, season };
+    
+    return { games: games.items, season, currentSeason};
   },
 });
 
@@ -183,18 +171,18 @@ function WinLossGraph(props: {
 }
 
 function RouteComponent() {
-  const { season, games } = Route.useLoaderData();
+  const { season, games, currentSeason } = Route.useLoaderData();
   const { id: teamId } = Route.useParams();
 
   const wls = extractWinLoss(teamId, games);
   const navigate = useNavigate({ from: Route.fullPath });
-  const seasons = [3, 2, 1, 0];
+  const seasons = createSeasonList(currentSeason);
 
   return (
     <div className="container mx-auto">
       <div className="flex flex-row place-content-end">
         <Select
-          value={(season ?? defaultSeason).toString()}
+          value={(season).toString()}
           onValueChange={(val) => {
             navigate({
               search: (prev) => ({ ...prev, season: parseInt(val) ?? 0 }),

@@ -5,6 +5,7 @@ import {
   HeadContent,
   Scripts,
   useLocation,
+  createRootRouteWithContext,
 } from "@tanstack/react-router";
 
 import appCss from "@/styles/app.css?url";
@@ -13,10 +14,14 @@ import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import { ThemeProvider } from "next-themes";
 import clsx from "clsx";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import AppSidebar from "@/components/AppSidebar";
+import { stateQuery, timeQuery } from "@/lib/data";
+import { QueryClient } from "@tanstack/react-query";
 
-export const Route = createRootRoute({
+interface RouterContext {
+  queryClient: QueryClient
+}
+
+export const Route = createRootRouteWithContext<RouterContext>()({
   head: () => ({
     meta: [
       {
@@ -38,6 +43,12 @@ export const Route = createRootRoute({
     ],
   }),
   component: RootComponent,
+  loader: ({ context }) => {
+    return Promise.all([
+      context.queryClient.ensureQueryData(timeQuery),
+      context.queryClient.ensureQueryData(stateQuery),
+    ]);
+  },
 });
 
 function RootComponent() {

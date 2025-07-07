@@ -14,26 +14,31 @@ import {
   getEntities,
   getEntity,
   getGames,
-  getLeagueAggregates, getLeagueAverages,
+  getLeagueAggregates,
+  getLeagueAverages,
   getTeamStats,
   MmolbGame,
   MmolbGameEvent,
   MmolbPlayer,
   MmolbTeam,
+  timeQuery,
 } from "@/lib/data";
+import { createSeasonList } from "@/lib/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useTheme } from "next-themes";
 import { useState } from "react";
 import { z } from "zod";
 
-const defaultSeason = 3;
 const stateSchema = z.object({
-  season: z.number().catch(defaultSeason).optional(),
+  season: z.number().optional(),
 });
 
 type StateParams = z.infer<typeof stateSchema>;
 
-async function getLineupOrder(season: number, teamId: string): Promise<(string | null)[]> {
+async function getLineupOrder(
+  season: number,
+  teamId: string,
+): Promise<(string | null)[]> {
   // TODO: this is awful code :p
   // need to not waterfall as hard
 
@@ -58,13 +63,13 @@ async function getLineupOrder(season: number, teamId: string): Promise<(string |
   if (lineupEvent) {
     const lineupLines = lineupEvent.message.split("<br>");
     const batters = team.data.Players.filter(
-      (x) => x.PositionType === "Batter"
+      (x) => x.PositionType === "Batter",
     );
 
     const lineupIds: (string | null)[] = [];
     for (let line of lineupLines) {
       const batter = batters.find((b) =>
-        line.includes(`${b.FirstName} ${b.LastName}`)
+        line.includes(`${b.FirstName} ${b.LastName}`),
       );
       lineupIds.push(batter?.PlayerID ?? null);
     }
@@ -78,12 +83,15 @@ export const Route = createFileRoute("/team/$id/stats")({
   component: RouteComponent,
   validateSearch: (search) => stateSchema.parse(search),
   loaderDeps: ({ search: { season } }) => ({ season }),
-  loader: async ({ params, deps }) => {
+  loader: async ({ context, params, deps }) => {
+    const time = await context.queryClient.ensureQueryData(timeQuery);
+    const currentSeason = time.data.season_number;
+
     const [stats, pcts, aggs, lineupOrder] = await Promise.all([
-      getTeamStats(params.id, deps.season ?? defaultSeason),
-      getLeagueAggregates(deps.season ?? defaultSeason),
-      getLeagueAverages(deps.season ?? defaultSeason),
-      getLineupOrder(deps.season ?? defaultSeason, params.id),
+      getTeamStats(params.id, deps.season ?? currentSeason),
+      getLeagueAggregates(deps.season ?? currentSeason),
+      getLeagueAverages(deps.season ?? currentSeason),
+      getLineupOrder(deps.season ?? currentSeason, params.id),
     ]);
 
     const playerIds = [...new Set(stats.map((x) => x.player_id))];
@@ -96,16 +104,17 @@ export const Route = createFileRoute("/team/$id/stats")({
 
     const thisTeam = teams[params.id]!;
 
-    return { stats, players, teams, pcts, aggs, lineupOrder };
+    return { stats, players, teams, pcts, aggs, lineupOrder, currentSeason };
   },
 });
 
 function RouteComponent() {
-  const { stats, players, teams, pcts, aggs, lineupOrder } = Route.useLoaderData();
+  const { stats, players, teams, pcts, aggs, lineupOrder, currentSeason } =
+    Route.useLoaderData();
   const { season } = Route.useSearch();
   const navigate = useNavigate({ from: Route.fullPath });
 
-  const seasons = [3, 2, 1, 0];
+  const seasons = createSeasonList(currentSeason);
 
   const [display, setDisplay] = useState<StatDisplay>("stat");
   const scale = defaultScale;
@@ -114,7 +123,7 @@ function RouteComponent() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-row place-content-end">
         <Select
-          value={(season ?? defaultSeason).toString()}
+          value={(season ?? currentSeason).toString()}
           onValueChange={(val) => {
             navigate({
               search: (prev) => ({ ...prev, season: parseInt(val) ?? 0 }),

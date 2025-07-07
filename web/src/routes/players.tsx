@@ -174,7 +174,7 @@ const columns: ColumnDef<RowData>[] = [
 const fetchPlayers = async ({ pageParam }) => {
   const resp = await fetch(
     API_BASE +
-      `/chron/v0/entities?kind=player_lite${pageParam ? "&page=" + pageParam : ""}&order=desc`
+      `/chron/v0/entities?kind=player_lite${pageParam ? "&page=" + pageParam : ""}&order=desc`,
   );
   const data = (await resp.json()) as ChronPaginatedResponse<
     ChronEntity<MmolbPlayer>
@@ -289,14 +289,14 @@ function RouteComponent() {
                         header.subHeaders.length === 0
                           ? "text-left"
                           : "text-center",
-                        header.subHeaders.length > 1 ? "border-l" : ""
+                        header.subHeaders.length > 1 ? "border-l" : "",
                       )}
                     >
                       {header.isPlaceholder
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
-                            header.getContext()
+                            header.getContext(),
                           )}
                     </TableHead>
                   );
@@ -321,7 +321,7 @@ function RouteComponent() {
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
-                        cell.getContext()
+                        cell.getContext(),
                       )}
                     </TableCell>
                   ))}

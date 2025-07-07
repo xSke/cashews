@@ -16,7 +16,7 @@ export const Route = createFileRoute("/team/$id/games")({
     const games = await getGames({ season: 3, team: teamId });
     const teams = await getEntities<MmolbTeam>(
       "team",
-      games.items.flatMap((x) => [x.away_team_id, x.home_team_id])
+      games.items.flatMap((x) => [x.away_team_id, x.home_team_id]),
     );
 
     return { games, teams };

@@ -1,4 +1,9 @@
-import {AveragesResponse, PercentileStats, PlayerStatsEntry, StatPercentile} from "./data";
+import {
+  AveragesResponse,
+  PercentileStats,
+  PlayerStatsEntry,
+  StatPercentile,
+} from "./data";
 import { findValueAtPercentile } from "./percentile";
 
 export interface AdvancedStats {
@@ -41,10 +46,10 @@ export interface AdvancedStats {
 }
 
 export function calculateAdvancedStats(
-    data: PlayerStatsEntry,
-    leagueAvgStats: AveragesResponse | undefined,
+  data: PlayerStatsEntry,
+  leagueAvgStats: AveragesResponse | undefined,
 ): AdvancedStats {
-  if(leagueAvgStats === undefined) {
+  if (leagueAvgStats === undefined) {
     throw new Error("Invalid league ID for finding league averages");
   }
   const meanObp = leagueAvgStats.obp;
@@ -86,7 +91,7 @@ export function calculateAdvancedStats(
   const obp = (hits + walked + hit_by_pitch) / pas;
   const slg = (singles + doubles * 2 + triples * 3 + home_runs * 4) / abs;
   const ops = obp + slg;
-  const ops_plus = 100 * ((obp / meanObp) + (slg / meanSlg) - 1);
+  const ops_plus = 100 * (obp / meanObp + slg / meanSlg - 1);
 
   const era = (9 * earned_runs) / ip;
   const era_minus = (100 * era) / meanEra;

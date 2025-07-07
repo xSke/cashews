@@ -128,7 +128,7 @@ function PercentileVibes(props: { percentile: number }) {
 function StatCell(
   digits: number,
   aggKey: string | null = null,
-  inverse: boolean = false
+  inverse: boolean = false,
 ) {
   return (props: CellContext<RowData, unknown>) => {
     const data = props.getValue() as number;
@@ -142,7 +142,7 @@ function StatCell(
       percentile = findPercentile(
         pcts.leagues[orig.league][aggKey],
         data,
-        inverse
+        inverse,
       );
     }
 
@@ -155,7 +155,7 @@ function StatCell(
       <div
         className={clsx(
           `text-right tabular-nums p-2`,
-          aggKey && "font-semibold dark:font-medium"
+          aggKey && "font-semibold dark:font-medium",
         )}
         style={{
           color: aggKey
@@ -209,7 +209,7 @@ function SortableHeader(name: string, alignRight: boolean = false) {
       <div
         className={clsx(
           "flex items-center cursor-pointer gap-1",
-          alignRight ? "flex-row-reverse" : "flex-row"
+          alignRight ? "flex-row-reverse" : "flex-row",
         )}
         onClick={() => props.column.toggleSorting()}
       >
@@ -260,7 +260,11 @@ const columnsBase: ColumnDef<RowData>[] = [
     header: SortableHeader("Pos."),
     accessorKey: "position",
     sortingFn: (a, b) => {
-      return a.original.rosterIndex > b.original.rosterIndex ? 1 : a.original.rosterIndex < b.original.rosterIndex ? -1 : 0;
+      return a.original.rosterIndex > b.original.rosterIndex
+        ? 1
+        : a.original.rosterIndex < b.original.rosterIndex
+          ? -1
+          : 0;
     },
     cell: NormalCell(),
   },
@@ -271,7 +275,7 @@ const preColumnsBatting: ColumnDef<RowData>[] = [
     header: SortableHeader("#"),
     accessorKey: "lineupIndex",
     sortDescFirst: false,
-    sortUndefined: 'last',
+    sortUndefined: "last",
     cell: NormalCell(),
   },
 ];
@@ -510,7 +514,7 @@ export default function StatsTable(props: StatsTableProps) {
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 );
@@ -550,7 +554,7 @@ export default function StatsTable(props: StatsTableProps) {
                       ? null
                       : flexRender(
                           header.column.columnDef.footer,
-                          header.getContext()
+                          header.getContext(),
                         )}
                   </TableHead>
                 );
@@ -565,7 +569,7 @@ export default function StatsTable(props: StatsTableProps) {
 
 function findSlot(
   team: MmolbTeam,
-  playerId: string
+  playerId: string,
 ): { slot: MmolbRosterSlot | undefined; index: number } {
   const index = team.Players.findIndex((x) => x.PlayerID === playerId);
   return { slot: team.Players[index], index: index };
@@ -578,7 +582,7 @@ function processStats(props: StatsTableProps): RowData[] {
 
     const stats = calculateAdvancedStats(
       row,
-      props.aggs.find(x => x.league_id == team_data.League)
+      props.aggs.find((x) => x.league_id == team_data.League),
     );
     if (props.type == "batting" && stats.plate_appearances == 0) continue;
     if (props.type == "pitching" && stats.ip == 0) continue;
@@ -586,13 +590,13 @@ function processStats(props: StatsTableProps): RowData[] {
     const player = props.players[row.player_id]!;
     const name = player.FirstName + " " + player.LastName;
     let slot: MmolbRosterSlot | undefined, slotIndex: number;
-    ({slot, index: slotIndex} = findSlot(team_data, row.player_id));
-    if ((props.type == "pitching" && slotIndex < 9)) slotIndex += 999;
+    ({ slot, index: slotIndex } = findSlot(team_data, row.player_id));
+    if (props.type == "pitching" && slotIndex < 9) slotIndex += 999;
     const position = slot?.Slot ?? player.Position;
     const id = row.player_id;
 
-    const arrayIndex = props.lineupOrder.findIndex((x) => x === id)
-    const lineupIndex = arrayIndex < 0 ? undefined : arrayIndex + 1
+    const arrayIndex = props.lineupOrder.findIndex((x) => x === id);
+    const lineupIndex = arrayIndex < 0 ? undefined : arrayIndex + 1;
 
     data.push({
       ...stats,

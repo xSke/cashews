@@ -13,7 +13,7 @@ export interface PercentileStat {
 export function findPercentile(
   stat: PercentileStat,
   value: number,
-  reverse = false
+  reverse = false,
 ): number {
   // thanks gpt
   const points = stat.percentiles;
@@ -58,7 +58,7 @@ export function findPercentile(
 
   // Should not reach here if data is sorted and handled correctly
   throw new Error(
-    "Value is out of range or percentiles are not sorted properly."
+    "Value is out of range or percentiles are not sorted properly.",
   );
 }
 
@@ -73,7 +73,7 @@ export function findPercentile(
 export function findValueAtPercentile(
   stat: PercentileStat,
   targetPercentile: number,
-  reverse = false
+  reverse = false,
 ): number {
   const points = stat.percentiles;
 

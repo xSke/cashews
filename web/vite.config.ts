@@ -2,8 +2,8 @@ import { defineConfig, loadEnv } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 
-export default defineConfig(({mode}) => {
-  const env = loadEnv(mode, process.cwd(), '');
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), "");
 
   // change this in `.env`
   const API_BASE = env.API_BASE ?? "https://freecashe.ws/api";

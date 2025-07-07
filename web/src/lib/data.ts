@@ -1,8 +1,10 @@
 // import { useQuery, UseQueryResult } from "@tanstack/react-query";
 
 import {
+  QueryClient,
   useQueries,
   useQuery,
+  UseQueryOptions,
   UseQueryResult,
   useSuspenseQueries,
   useSuspenseQuery,
@@ -42,21 +44,26 @@ export const API_BASE = import.meta.env.SSR
 
 export async function getEntity<T>(
   kind: string,
-  id: string
+  id: string,
+  at: string | null = null,
 ): Promise<ChronEntity<T>> {
-  const resp = await fetch(
-    API_BASE + `/chron/v0/entities?kind=${kind}&id=${id}`
-  );
+  const qs = new URLSearchParams();
+  qs.append("kind", kind);
+  qs.append("id", id);
+  if (at) qs.append("at", at);
+
+  const resp = await fetch(API_BASE + `/chron/v0/entities?${qs.toString()}`);
   const data = (await resp.json()) as ChronPaginatedResponse<ChronEntity<T>>;
   return data.items[0];
 }
+
 export async function getEntities<T>(
   kind: string,
-  id: string[]
+  id: string[],
 ): Promise<Record<string, T>> {
   const dedupIds = [...new Set(id)];
   const resp = await fetch(
-    API_BASE + `/chron/v0/entities?kind=${kind}&id=${dedupIds.join(",")}`
+    API_BASE + `/chron/v0/entities?kind=${kind}&id=${dedupIds.join(",")}`,
   );
   const data = (await resp.json()) as ChronPaginatedResponse<ChronEntity<T>>;
 
@@ -94,15 +101,39 @@ export async function getGames(q: {
 
 export async function getTeamStats(
   team: string,
-  season: number
+  season: number,
 ): Promise<PlayerStatsEntry[]> {
   const resp = await fetch(
     API_BASE +
-      `/player-stats?team=${team}&start=${season},0&end=${season + 1},0`
+      `/player-stats?team=${team}&start=${season},0&end=${season + 1},0`,
   );
   const data = (await resp.json()) as PlayerStatsEntry[];
+
   return data;
 }
+
+export function chronLatestEntityQuery<T>(
+  kind: string,
+  id: string,
+  at: string | null = null,
+) {
+  return {
+    queryKey: ["entity", kind, id, at],
+    queryFn: () => getEntity<T>(kind, id, at),
+  };
+}
+
+export const timeQuery = chronLatestEntityQuery<MmolbTime>(
+  "time",
+  "time",
+  null,
+);
+export const stateQuery = chronLatestEntityQuery<MmolbState>(
+  "state",
+  "state",
+  null,
+);
+
 export interface PercentileStats {
   ba: PercentileStat;
   obp: PercentileStat;
@@ -145,27 +176,25 @@ export interface AveragesResponse {
 }
 
 export async function getLeagueAggregates(
-  season: number
+  season: number,
 ): Promise<PercentileResponse> {
   const resp = await fetch(
-    API_BASE + `/league-aggregate-stats?season=${season}`
+    API_BASE + `/league-aggregate-stats?season=${season}`,
   );
   if (resp.status == 200) {
     return (await resp.json()) as PercentileResponse;
   } else {
     const resp2 = await fetch(
-        API_BASE + `/league-aggregate-stats?season=${season-1}`
+      API_BASE + `/league-aggregate-stats?season=${season - 1}`,
     );
     return (await resp2.json()) as PercentileResponse;
   }
 }
 
 export async function getLeagueAverages(
-    season: number
+  season: number,
 ): Promise<AveragesResponse[]> {
-  const resp = await fetch(
-      API_BASE + `/league-averages?season=${season}`
-  );
+  const resp = await fetch(API_BASE + `/league-averages?season=${season}`);
   // const data = (await resp.json()) as AveragesResponse;
   return (await resp.json()) as AveragesResponse[];
 }
@@ -363,4 +392,17 @@ export interface MmolbGame {
   AwayTeamID: string;
   HomeTeamID: string;
   EventLog: MmolbGameEvent[];
+}
+
+export interface MmolbTime {
+  season_day: number;
+  season_number: number;
+}
+
+export interface MmolbState {
+  Day: number;
+  SeasonID: string;
+  SeasonStatus: string;
+  LesserLeagues: string[];
+  GreaterLeagues: string[];
 }

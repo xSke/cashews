@@ -9,7 +9,7 @@ export const Route = createFileRoute("/team/$id/roster")({
     const team = await getEntity<MmolbTeam>("team", teamId);
 
     const playerIds = team.data.Players.map((x) => x.PlayerID).filter(
-      (x) => x != "#"
+      (x) => x != "#",
     );
     const players = await getEntities<MmolbPlayer>("player", playerIds);
     return { team: team.data, players };
