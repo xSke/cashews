@@ -1,6 +1,6 @@
 use std::sync::{Arc, RwLock};
 
-use chron_base::load_config;
+use chron_base::{load_config, stop_signal};
 use chron_db::ChronDb;
 use http::DataClient;
 use tokio::signal;
@@ -25,26 +25,6 @@ use crate::workers::{
 mod http;
 mod models;
 mod workers;
-
-#[cfg(unix)]
-async fn stop_signal() -> tokio::io::Result<()> {
-    use tokio::signal::unix::SignalKind;
-
-    let mut int_fut = signal::unix::signal(SignalKind::interrupt())?;
-    let mut term_fut = signal::unix::signal(SignalKind::terminate())?;
-
-    tokio::select! {
-        _ = int_fut.recv() => {},
-        _ = term_fut.recv() => {}
-    }
-
-    Ok(())
-}
-
-#[cfg(not(unix))]
-async fn stop_signal() -> tokio::io::Result<()> {
-    signal::ctrl_c().await
-}
 
 fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
     tokio::spawn(async move {

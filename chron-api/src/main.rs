@@ -6,7 +6,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use chron_base::{cache::SwrCache2, load_config};
+use chron_base::{cache::SwrCache2, load_config, stop_signal};
 use chron_db::ChronDb;
 use crossbeam::atomic::AtomicCell;
 use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
@@ -97,7 +97,12 @@ async fn main() -> anyhow::Result<()> {
     let addr = "0.0.0.0:3001";
     info!("starting api at {}", addr);
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    let serve_fut = axum::serve(listener, app);
+    let ctrlc_fut = stop_signal();
+    tokio::select! {
+        res = serve_fut => res?,
+        _ = ctrlc_fut => {}
+    };
 
     Ok(())
 }

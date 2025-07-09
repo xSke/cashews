@@ -174,3 +174,23 @@ pub enum StatKey {
     Walks = 55,
     Wins = 56,
 }
+
+#[cfg(unix)]
+pub async fn stop_signal() -> tokio::io::Result<()> {
+    use tokio::signal::{self, unix::SignalKind};
+
+    let mut int_fut = signal::unix::signal(SignalKind::interrupt())?;
+    let mut term_fut = signal::unix::signal(SignalKind::terminate())?;
+
+    tokio::select! {
+        _ = int_fut.recv() => {},
+        _ = term_fut.recv() => {}
+    }
+
+    Ok(())
+}
+
+#[cfg(not(unix))]
+pub async fn stop_signal() -> tokio::io::Result<()> {
+    signal::ctrl_c().await
+}
