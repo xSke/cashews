@@ -2,7 +2,6 @@ use std::sync::{Arc, RwLock};
 
 use chron_base::load_config;
 use chron_db::ChronDb;
-use futures::{select, FutureExt};
 use http::DataClient;
 use tokio::signal;
 use tracing::{error, info};
@@ -11,14 +10,14 @@ use workers::{
     IntervalWorker, SimState, WorkerContext, crunch,
     games::{self},
     import,
-    league::{self, PollLeague, PollNewPlayers},
-    matviews::RefreshMatviews,
+    league::{self},
 };
 
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
-    league::PollAllPlayers,
+    league::{PollAllPlayers, PollLeague, PollNewPlayers},
     map::LookupMapLocations,
+    matviews::RefreshMatviews,
     message::PollMessage,
     misc::PollMiscData,
 };

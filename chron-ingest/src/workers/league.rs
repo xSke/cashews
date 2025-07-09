@@ -106,7 +106,7 @@ async fn fetch_league(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
+pub async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/team/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Team, &id).await?;
 
@@ -129,7 +129,7 @@ async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     Ok(())
 }
 
-async fn fetch_player(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
+pub async fn fetch_player(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/player/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Player, &id).await?;
 
@@ -159,7 +159,7 @@ async fn get_all_known_team_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<S
 
     // get from stats obj?
     team_ids.extend(ctx.db.get_all_team_ids_from_stats().await?);
- 
+
     Ok(team_ids)
 }
 

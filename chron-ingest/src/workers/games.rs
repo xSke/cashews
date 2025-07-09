@@ -11,7 +11,7 @@ use tokio::time::interval;
 
 use crate::{
     models::{MmolbDay, MmolbGame, MmolbGameEvent, MmolbSeason, MmolbTeam},
-    workers::{IntervalWorker, WorkerContext},
+    workers::{IntervalWorker, WorkerContext, league},
 };
 use futures::{StreamExt, TryStreamExt};
 use tracing::{error, info, warn};
@@ -68,24 +68,24 @@ impl IntervalWorker for PollGameDays {
 
         // ok, now that we've saved all the days, query all the unfinished games
         // todo: only run this for current season?
-        let mut game_ids_to_poll: HashSet<String> = HashSet::from_iter(get_all_game_ids_from_days(ctx).await?);
+        let mut game_ids_to_poll: HashSet<String> =
+            HashSet::from_iter(get_all_game_ids_from_days(ctx).await?);
         for known_complete in query_completed_game_ids(&ctx).await? {
             game_ids_to_poll.remove(&known_complete);
         }
-        
+
         ctx.process_many_with_progress(
             game_ids_to_poll,
             25,
             "games",
-
             // redundant check ig?
             fetch_game_if_not_known_completed,
-        ).await;
+        )
+        .await;
 
         Ok(())
     }
 }
-
 
 // mostly just a quick hack to make sure we get the game IDs from the state object in as well
 // for eg. exhibition games
@@ -97,9 +97,29 @@ impl IntervalWorker for HandleEventGames {
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
         let state = ctx.try_update_state().await?;
 
-        // maybe should only poll if incomplete, but eh, there's not many going at once usually 
-        ctx.process_many(state.event_game_ids, 1, poll_game_by_id).await;
-        
+        // maybe should only poll if incomplete, but eh, there's not many going at once usually
+        ctx.process_many(state.event_game_ids.clone(), 3, poll_game_by_id)
+            .await;
+
+        // this is a bit cheating but whatever
+        let event_teams: Vec<String> = sqlx::query_scalar(
+            "select distinct team_id from game_player_stats where game_id = any($1)",
+        )
+        .bind(&state.event_game_ids)
+        .fetch_all(&ctx.db.pool)
+        .await?;
+
+        let event_players: Vec<String> = sqlx::query_scalar(
+            "select distinct player_id from game_player_stats where game_id = any($1)",
+        )
+        .bind(&state.event_game_ids)
+        .fetch_all(&ctx.db.pool)
+        .await?;
+
+        ctx.process_many_with_progress(event_teams, 5, "event teams", league::fetch_team)
+            .await;
+        ctx.process_many_with_progress(event_players, 5, "event players", league::fetch_player)
+            .await;
         Ok(())
     }
 }
@@ -146,13 +166,12 @@ async fn handle_season(ctx: &WorkerContext, season_id: String) -> anyhow::Result
 }
 
 async fn handle_day(ctx: &WorkerContext, day_id: String) -> anyhow::Result<()> {
-    ctx
-        .fetch_and_save(
-            format!("https://mmolb.com/api/day/{}", &day_id),
-            EntityKind::Day,
-            &day_id,
-        )
-        .await?;
+    ctx.fetch_and_save(
+        format!("https://mmolb.com/api/day/{}", &day_id),
+        EntityKind::Day,
+        &day_id,
+    )
+    .await?;
     Ok(())
 }
 
@@ -220,6 +239,7 @@ async fn process_game_data(
                 stats.push((team_id.as_str(), player_id.as_str(), player_stats));
             }
         }
+
         ctx.db
             .update_game_player_stats(&id, game.season, game.day, &stats)
             .await?;
@@ -497,9 +517,14 @@ pub async fn fetch_all_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub async fn fetch_all_new_or_incomplete_games(ctx: &WorkerContext) -> anyhow::Result<()> {    
-    ctx.process_many_with_progress(get_known_incomplete_game_ids(ctx).await?, 50, "fetch all new/incomplete games", fetch_game_if_not_known_completed)
-        .await;
+pub async fn fetch_all_new_or_incomplete_games(ctx: &WorkerContext) -> anyhow::Result<()> {
+    ctx.process_many_with_progress(
+        get_known_incomplete_game_ids(ctx).await?,
+        50,
+        "fetch all new/incomplete games",
+        fetch_game_if_not_known_completed,
+    )
+    .await;
     Ok(())
 }
 
@@ -523,12 +548,16 @@ pub async fn fetch_all_seasons(ctx: &WorkerContext) -> anyhow::Result<()> {
 
 pub async fn query_completed_game_ids(ctx: &WorkerContext) -> anyhow::Result<Vec<String>> {
     // lol inline sql
-    Ok(sqlx::query_scalar("select game_id from games where state = 'Complete'").fetch_all(&ctx.db.pool).await?)
+    Ok(
+        sqlx::query_scalar("select game_id from games where state = 'Complete'")
+            .fetch_all(&ctx.db.pool)
+            .await?,
+    )
 }
 
 async fn get_known_incomplete_game_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<String>> {
     let mut game_ids = get_all_known_game_ids(ctx).await?;
-    
+
     let completed_games = query_completed_game_ids(ctx).await?;
     for completed_game in &completed_games {
         game_ids.remove(completed_game);
