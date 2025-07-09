@@ -16,7 +16,7 @@ use workers::{
 };
 
 use crate::workers::{
-    games::{PollGameDays, PollLiveGames},
+    games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::PollAllPlayers,
     map::LookupMapLocations,
     message::PollMessage,
@@ -103,6 +103,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollAllPlayers);
         spawn(ctx.clone(), PollMiscData);
         spawn(ctx.clone(), LookupMapLocations);
+        spawn(ctx.clone(), HandleEventGames);
 
         signal::ctrl_c().await?;
         info!("got ctrl-c, exiting");

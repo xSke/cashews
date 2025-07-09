@@ -19,6 +19,7 @@ use tracing::{error, info, warn};
 pub struct PollGameDays;
 
 pub struct PollLiveGames;
+pub struct HandleEventGames;
 
 impl IntervalWorker for PollLiveGames {
     fn interval() -> tokio::time::Interval {
@@ -81,6 +82,24 @@ impl IntervalWorker for PollGameDays {
             fetch_game_if_not_known_completed,
         ).await;
 
+        Ok(())
+    }
+}
+
+
+// mostly just a quick hack to make sure we get the game IDs from the state object in as well
+// for eg. exhibition games
+impl IntervalWorker for HandleEventGames {
+    fn interval() -> tokio::time::Interval {
+        interval(Duration::from_secs(60))
+    }
+
+    async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
+        let state = ctx.try_update_state().await?;
+
+        // maybe should only poll if incomplete, but eh, there's not many going at once usually 
+        ctx.process_many(state.event_game_ids, 1, poll_game_by_id).await;
+        
         Ok(())
     }
 }

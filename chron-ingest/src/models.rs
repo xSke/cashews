@@ -12,6 +12,9 @@ pub struct MmolbState {
     #[serde(rename = "LesserLeagues")]
     pub lesser_leagues: Vec<String>,
 
+    #[serde(rename="EventGameIDs", default)]
+    pub event_game_ids: Vec<String>,
+
     #[serde(rename = "SeasonID")]
     pub season_id: String,
 

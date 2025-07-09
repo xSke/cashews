@@ -159,7 +159,7 @@ async fn get_all_known_team_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<S
 
     // get from stats obj?
     team_ids.extend(ctx.db.get_all_team_ids_from_stats().await?);
-
+ 
     Ok(team_ids)
 }
 
