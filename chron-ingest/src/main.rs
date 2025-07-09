@@ -26,6 +26,26 @@ mod http;
 mod models;
 mod workers;
 
+#[cfg(unix)]
+async fn stop_signal() -> tokio::io::Result<()> {
+    use tokio::signal::unix::SignalKind;
+
+    let mut int_fut = signal::unix::signal(SignalKind::interrupt())?;
+    let mut term_fut = signal::unix::signal(SignalKind::terminate())?;
+
+    tokio::select! {
+        _ = int_fut.recv() => {},
+        _ = term_fut.recv() => {}
+    }
+
+    Ok(())
+}
+
+#[cfg(not(unix))]
+async fn stop_signal() -> tokio::io::Result<()> {
+    signal::ctrl_c().await
+}
+
 fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
     tokio::spawn(async move {
         let mut interval = T::interval();
@@ -79,7 +99,7 @@ async fn main() -> anyhow::Result<()> {
 
     if args.len() > 1 {
         let handle_fut = handle_fn(&ctx, &args[1], &args[2..]);
-        let ctrl_c_fut = signal::ctrl_c();
+        let ctrl_c_fut = stop_signal();
         tokio::select! {
             result = handle_fut => {
                 if let Err(e) = result {
@@ -104,7 +124,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), LookupMapLocations);
         spawn(ctx.clone(), HandleEventGames);
 
-        signal::ctrl_c().await?;
+        stop_signal().await?;
         info!("got ctrl-c, exiting");
         Ok(())
     }
