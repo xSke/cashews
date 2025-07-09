@@ -42,7 +42,7 @@ pub struct DbGamePlayerStats {
 #[derive(Serialize, Deserialize, Debug, FromRow)]
 pub struct DbTeam {
     pub team_id: String,
-    pub league_id: String,
+    pub league_id: Option<String>,
     pub name: String,
     pub location: String,
     pub full_location: String,
