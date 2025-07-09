@@ -700,7 +700,7 @@ impl ChronDb {
 
 pub struct DbTeamSaveModel<'a> {
     pub team_id: &'a str,
-    pub league_id: &'a str,
+    pub league_id: Option<&'a str>,
     pub location: &'a str,
     pub name: &'a str,
     pub full_location: &'a str,

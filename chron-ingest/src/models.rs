@@ -48,8 +48,8 @@ pub struct MmolbTeam {
     #[serde(rename = "Name")]
     pub name: String,
 
-    #[serde(rename = "League")]
-    pub league: String,
+    #[serde(rename = "League", default)]
+    pub league: Option<String>,
 
     #[serde(rename = "Location")]
     pub location: String,

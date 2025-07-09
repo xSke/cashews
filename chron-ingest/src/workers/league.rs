@@ -116,7 +116,7 @@ pub async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     ctx.db
         .update_team(DbTeamSaveModel {
             team_id: &id,
-            league_id: &team_data.league,
+            league_id: team_data.league.as_deref(),
             location: &team_data.location,
             name: &team_data.name,
             full_location: &team_data.full_location,
