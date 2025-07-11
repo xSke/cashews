@@ -215,7 +215,7 @@ impl FromRow<'_, PgRow> for StatsRow {
 #[derive(FromRow, Debug, Clone, Serialize)]
 pub struct PercentileStats {
     pub season: i32,
-    pub league_id: String,
+    pub league_id: Option<String>,
     pub percentile: f32,
 
     pub ba: f32,

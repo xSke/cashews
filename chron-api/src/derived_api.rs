@@ -237,7 +237,7 @@ async fn fetch_scorigami(ctx: &AppState) -> anyhow::Result<Vec<ScorigamiEntry>> 
 
 #[derive(Clone, Serialize)]
 pub struct LeagueAggregateResponse {
-    leagues: BTreeMap<String, LeagueAggregateLeague>,
+    leagues: BTreeMap<Option<String>, LeagueAggregateLeague>,
 }
 
 #[derive(Default, Serialize, Clone)]
