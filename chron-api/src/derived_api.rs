@@ -237,7 +237,7 @@ async fn fetch_scorigami(ctx: &AppState) -> anyhow::Result<Vec<ScorigamiEntry>> 
 
 #[derive(Clone, Serialize)]
 pub struct LeagueAggregateResponse {
-    leagues: BTreeMap<Option<String>, LeagueAggregateLeague>,
+    leagues: BTreeMap<String, LeagueAggregateLeague>,
 }
 
 #[derive(Default, Serialize, Clone)]
@@ -279,7 +279,10 @@ pub async fn refresh_league_aggregate(
         // we should really just "transpose" this logic all the way through...
         let mut leagues = BTreeMap::new();
         for entry in res {
-            let league: &mut LeagueAggregateLeague = leagues.entry(entry.league_id).or_default();
+            let league: &mut LeagueAggregateLeague = leagues
+                // todo: make nicer
+                .entry(entry.league_id.unwrap_or_else(|| "null".to_string()))
+                .or_default();
 
             for (stat, val) in [
                 (&mut league.ba, entry.ba),
