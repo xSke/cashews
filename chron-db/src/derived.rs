@@ -236,7 +236,9 @@ pub struct PercentileStats {
 #[derive(Serialize, Deserialize, Debug, FromRow)]
 pub struct AverageStats {
     pub season: i16,
-    pub league_id: String,
+
+    #[serde(default)]
+    pub league_id: Option<String>,
 
     pub ip: i64,
     pub plate_appearances: i64,
