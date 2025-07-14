@@ -21,7 +21,7 @@ pub struct PollAllPlayers;
 
 impl IntervalWorker for PollLeague {
     fn interval() -> tokio::time::Interval {
-        tokio::time::interval(Duration::from_secs(5 * 60))
+        tokio::time::interval(Duration::from_secs(10 * 60))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -46,7 +46,7 @@ pub async fn poll_league(ctx: &WorkerContext) -> anyhow::Result<()> {
 
     let team_ids = get_all_known_team_ids(ctx).await?;
     info!("got {} team ids", team_ids.len());
-    ctx.process_many_with_progress(team_ids, 10, "fetch teams", fetch_team)
+    ctx.process_many_with_progress(team_ids, 3, "fetch teams", fetch_team)
         .await;
     Ok(())
 }
