@@ -91,21 +91,25 @@ impl ChronDb {
         })
     }
 
-    pub async fn migrate(&self) -> anyhow::Result<()> {
+    pub async fn migrate(&self, full: bool) -> anyhow::Result<()> {
         info!("migrating...");
         sqlx::migrate!("./migrations").run(&self.pool).await?;
 
-        info!("updating functions...");
 
-        let mut conn = self.pool.acquire().await?;
-        let mut tx = conn.begin().await?;
-        tx.execute(include_str!("../migrations/functions.sql"))
-            .await?;
+        if full {
+            let mut conn = self.pool.acquire().await?;
+            let mut tx = conn.begin().await?;
 
-        info!("updating views...");
-        tx.execute(include_str!("../migrations/views.sql")).await?;
+            info!("updating functions...");
+            tx.execute(include_str!("../migrations/functions.sql"))
+                .await?;
 
-        tx.commit().await?;
+            info!("updating views...");
+            tx.execute(include_str!("../migrations/views.sql")).await?;
+
+            tx.commit().await?;
+        }
+
 
         info!("done!");
         Ok(())
