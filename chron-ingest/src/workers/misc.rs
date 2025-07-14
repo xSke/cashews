@@ -22,6 +22,9 @@ impl IntervalWorker for PollMiscData {
         ctx.fetch_and_save("https://mmolb.com/api/news", EntityKind::News, "news")
             .await?;
 
+        ctx.fetch_and_save("https://mmolb.com/api/patchnotes", EntityKind::News, "patchnotes")
+            .await?;
+
         let mut nouns_resp = ctx.client.fetch("https://mmolb.com/data/nouns.txt").await?;
         let mut adjectives_resp = ctx
             .client
