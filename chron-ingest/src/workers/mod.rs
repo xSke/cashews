@@ -15,6 +15,7 @@ use crate::http::{ClientResponse, DataClient};
 use crate::models::{MmolbState, MmolbTime};
 
 pub mod crunch;
+pub mod feeds;
 pub mod games;
 pub mod import;
 pub mod league;

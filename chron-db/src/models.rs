@@ -28,6 +28,7 @@ pub enum EntityKind {
     Schedule = 17,
     Season = 18,
     Day = 19,
+    PatchNotes = 20,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]

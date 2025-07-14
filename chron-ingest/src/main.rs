@@ -21,6 +21,7 @@ use crate::workers::{
     message::PollMessage,
     misc::PollMiscData,
 };
+use crate::workers::feeds::ProcessFeeds;
 
 mod http;
 mod models;
@@ -103,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollMiscData);
         spawn(ctx.clone(), LookupMapLocations);
         spawn(ctx.clone(), HandleEventGames);
+        spawn(ctx.clone(), ProcessFeeds);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");
