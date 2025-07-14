@@ -118,7 +118,7 @@ impl IntervalWorker for HandleEventGames {
 
         ctx.process_many_with_progress(event_teams, 5, "event teams", league::fetch_team)
             .await;
-        ctx.process_many_with_progress(event_players, 5, "event players", league::fetch_player)
+        ctx.process_many_with_progress(event_players.chunks(100), 5, "event players", league::fetch_players_bulk)
             .await;
         Ok(())
     }

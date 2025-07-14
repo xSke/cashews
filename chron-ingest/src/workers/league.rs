@@ -225,7 +225,8 @@ async fn get_all_known_player_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet
 
 pub async fn fetch_all_players(ctx: &WorkerContext) -> anyhow::Result<()> {
     let all_players = get_all_known_player_ids(ctx).await?;
-    ctx.process_many_with_progress(all_players, 50, "fetch all players", fetch_player)
+    let all_players = all_players.into_iter().collect::<Vec<_>>();
+    ctx.process_many_with_progress(all_players.chunks(100), 50, "fetch all players", fetch_players_bulk)
         .await;
     Ok(())
 }
