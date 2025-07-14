@@ -50,6 +50,7 @@ async function getLineupOrder(
   // also, todo: handle pagination?
   games.items.sort((x) => x.season * 1000 + x.day);
   const lastGame = games.items[games.items.length - 1];
+  if (!lastGame) return [];
 
   const gameData = await getEntity<MmolbGame>("game", lastGame.game_id);
 
