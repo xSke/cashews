@@ -181,8 +181,10 @@ export async function getLeagueAggregates(
   const resp = await fetch(
     API_BASE + `/league-aggregate-stats?season=${season}`,
   );
-  if (resp.status == 200) {
-    return (await resp.json()) as PercentileResponse;
+  const data = (await resp.json()) as PercentileResponse;
+
+  if (resp.status == 200 && Object.keys(data.leagues).length > 0) {
+    return data;
   } else {
     const resp2 = await fetch(
       API_BASE + `/league-aggregate-stats?season=${season - 1}`,
