@@ -169,8 +169,35 @@ async fn save_player_inner(ctx: &WorkerContext, player_obj: serde_json::Value, r
     };
     ctx.db.save(db_obj).await?;
 
+    try_write_player_talk(ctx, &player_id, &player_obj, resp).await?;
     write_player_lite(ctx, &player_id, player_obj, resp).await?;
+
+
     Ok(())
+}
+
+async fn try_write_player_talk(
+    ctx: &WorkerContext,
+    id: &str,
+    obj: &serde_json::Value,
+    resp: &ClientResponse, // note: do NOT parse this
+) -> anyhow::Result<()> {
+    if let Some(talk_value) = extract_talk(obj) {
+        let db_obj = NewObject {
+            data: talk_value.clone(),
+            kind: EntityKind::Talk,
+            entity_id: id.to_string(),
+            request_time: resp.request_time(),
+            timestamp: resp.timestamp(),
+        };
+        ctx.db.save(db_obj).await?;
+    }
+
+    Ok(())
+}
+
+fn extract_talk(obj: &serde_json::Value) -> Option<serde_json::Value> {
+    obj.as_object().and_then(|x| x.get("Talk")).cloned()
 }
 
 fn get_league_ids(state: &MmolbState) -> Vec<String> {
@@ -345,9 +372,14 @@ pub async fn rebuild_player_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
         .execute(&ctx.db.pool)
         .await?;
 
+    sqlx::query("delete from observations where kind = $1")
+        .bind(EntityKind::Talk)
+        .execute(&ctx.db.pool)
+        .await?;
+
     let mut stream = ctx
         .db
-        .get_all_versions_stream(EntityKind::PlayerLite)
+        .get_all_versions_stream(EntityKind::Player)
         .await?
         .try_chunks(1000);
 
@@ -357,14 +389,28 @@ pub async fn rebuild_player_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
 
         for ver in vers {
             let mut data = ver.parse()?;
+
+            // todo: move this chunk somewhere else
+            // maybe need a more generic system for "derived data based on history"?
+            if let Some(talk) = extract_talk(&data) {
+                let talk_hash = ctx.db.save_object(talk).await?;
+                chunk.push((
+                    EntityKind::Talk,
+                    ver.entity_id.clone(),
+                    ver.valid_from.0,
+                    0.0f64,
+                    talk_hash,
+                ));
+            }
+
             to_player_lite(&mut data);
-            let hash = ctx.db.save_object(data).await?;
+            let lite_hash = ctx.db.save_object(data).await?;
             chunk.push((
                 EntityKind::PlayerLite,
                 ver.entity_id,
                 ver.valid_from.0,
                 0.0f64,
-                hash,
+                lite_hash,
             ));
         }
 
@@ -374,8 +420,9 @@ pub async fn rebuild_player_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
         tracing::info!("rebuilt {} lite observations", i);
     }
 
-    tracing::info!("rebuilding versions table for playerlite");
+    tracing::info!("rebuilding versions table for playerlite, talk");
     ctx.db.rebuild_all(EntityKind::PlayerLite).await?;
+    ctx.db.rebuild_all(EntityKind::Talk).await?;
 
     tracing::info!("done!");
     Ok(())
