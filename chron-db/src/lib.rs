@@ -1,4 +1,4 @@
-use std::{str::FromStr, sync::Arc};
+use std::{collections::HashSet, str::FromStr, sync::Arc};
 
 use anyhow::anyhow;
 use chron_base::ChronConfig;
@@ -198,10 +198,13 @@ impl ChronDb {
         // step 2: save all objects
         let mut hashes = Vec::new();
         let mut datas = Vec::new();
+        let mut seen_this_time = HashSet::new();
         for ((_, _, _, _, hash), data) in &processed {
-            if !self.saved_objects.contains(hash) {
+            if !self.saved_objects.contains(hash) && !seen_this_time.contains(hash) {
                 hashes.push(*hash);
                 datas.push(data);
+
+                seen_this_time.insert(*hash);
             }
         }
         if !hashes.is_empty() {
