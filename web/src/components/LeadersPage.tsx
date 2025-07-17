@@ -158,7 +158,7 @@ export default function LeadersPage(props: LeadersPageProps) {
         format={formatDecimal(3)}
       />
       <LeadersTable
-        title="On-Base + Slugging (OBP)"
+        title="On-Base + Slugging (OPS)"
         data={validBatters.orderby(aq.desc("ops")).slice(0, 10)}
         col="ops"
         format={formatDecimal(3)}
