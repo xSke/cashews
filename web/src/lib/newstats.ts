@@ -1,7 +1,12 @@
 import * as uDSV from "udsv";
 import { ColumnTable, table } from "arquero";
 import { API_BASE, chronLatestEntityQuery } from "./data";
-import { queryOptions, useQuery } from "@tanstack/react-query";
+import {
+  queryOptions,
+  useQuery,
+  useSuspenseQuery,
+} from "@tanstack/react-query";
+import { useMemo } from "react";
 
 // WIP
 export type StatKey =
@@ -63,7 +68,14 @@ export type StatKey =
   | "walks"
   | "wins";
 
-export type GroupKey = "player" | "team" | "game" | "league" | "season" | "day";
+export type GroupKey =
+  | "player"
+  | "team"
+  | "game"
+  | "league"
+  | "season"
+  | "day"
+  | "player_name";
 
 export interface StatsQuery {
   fields: StatKey[];
@@ -73,6 +85,11 @@ export interface StatsQuery {
   day?: number;
   team?: string;
   names?: boolean;
+}
+
+export interface RawTable {
+  data: { [k: string]: any };
+  colNames: string[];
 }
 
 export type StatRow = {
@@ -97,13 +114,20 @@ export async function getStats(q: StatsQuery): Promise<ColumnTable> {
   const url = API_BASE + `/stats?${qs.toString()}`;
 
   const resp = await fetch(url);
+  console.log(url);
   const textStream = resp.body!.pipeThrough(new TextDecoderStream());
   let parser: uDSV.Parser | null = null;
 
   for await (const strChunk of textStream) {
-    parser ??= uDSV.initParser(uDSV.inferSchema(strChunk));
+    if (parser == null) {
+      let schema = uDSV.inferSchema(
+        strChunk.slice(0, strChunk.lastIndexOf("\n"))
+      );
+      parser = uDSV.initParser(schema);
+    }
     parser.chunk(strChunk, parser.typedCols);
   }
+
   const colNames = parser?.schema.cols.map((c) => c.name) ?? [];
 
   const result = parser?.end() ?? [];
@@ -111,8 +135,8 @@ export async function getStats(q: StatsQuery): Promise<ColumnTable> {
     colNames.map((name, i) => [name, result[i]])
   );
 
-  const t = table(resultObj, colNames);
-  return t;
+  const t = { data: resultObj, colNames };
+  return table(t.data, t.colNames);
 }
 
 export function statsQuery(q: StatsQuery) {
@@ -127,4 +151,10 @@ export function statsQuery(q: StatsQuery) {
     ],
     queryFn: () => getStats(q),
   });
+}
+
+export function useStatsTable(raw: RawTable) {
+  return useMemo(() => {
+    return table(raw.data, raw.colNames);
+  }, [raw]);
 }

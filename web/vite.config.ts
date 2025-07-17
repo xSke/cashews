@@ -19,6 +19,6 @@ export default defineConfig(({ mode }) => {
         },
       },
     },
-    plugins: [tsConfigPaths(), tanstackStart()],
+    plugins: [tsConfigPaths(), tanstackStart({})],
   };
 });

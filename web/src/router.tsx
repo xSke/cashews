@@ -1,6 +1,7 @@
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { routeTree } from "./routeTree.gen";
 import {
+  defaultShouldDehydrateQuery,
   dehydrate,
   hydrate,
   HydrationBoundary,
@@ -9,6 +10,8 @@ import {
 } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import { ColumnTable, table, fromArrow, fromArrowStream } from "arquero";
+import base64js from "base64-js";
 
 function Spinner() {
   return (
@@ -27,6 +30,35 @@ export function createRouter() {
         staleTime: 60 * 5 * 1000,
         gcTime: 1000 * 60 * 60 * 24,
       },
+      dehydrate: {
+        shouldDehydrateQuery: (query) => {
+          console.log(query.state.status, query.queryKey);
+          return (
+            defaultShouldDehydrateQuery(query) ||
+            query.state.status === "pending"
+          );
+        },
+
+        serializeData: (x) => {
+          if (typeof x == "object" && x.__proto__ == ColumnTable.prototype) {
+            let y = x as ColumnTable;
+            return { __table: base64js.fromByteArray(y.toArrowIPC()) };
+          }
+
+          return x;
+        },
+      },
+      hydrate: {
+        deserializeData: (x) => {
+          if (typeof x == "object" && x.__table) {
+            const data = base64js.toByteArray(x.__table);
+            const table = fromArrow(data);
+            return table;
+          }
+
+          return x;
+        },
+      },
     },
   });
 
@@ -37,7 +69,6 @@ export function createRouter() {
       queryClient,
     },
     dehydrate: () => {
-      console.log("dehydrating", queryClient.getQueryCache().getAll());
       return {
         queryClientState: dehydrate(queryClient),
       };

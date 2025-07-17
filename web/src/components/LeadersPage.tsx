@@ -1,7 +1,7 @@
-import { chronLatestEntitiesQuery, MmolbTeam } from "@/lib/data";
+import { allTeamsQuery } from "@/lib/data";
 import { statsQuery } from "@/lib/newstats";
-import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { ColumnTable, desc, op, table } from "arquero";
+import { QueryClient, useSuspenseQueries } from "@tanstack/react-query";
+import * as aq from "arquero";
 import {
   Table,
   TableBody,
@@ -43,6 +43,7 @@ function LeadersTable(props: LeadersTableProps) {
     player_name: string;
     team_emoji: string;
     team_name: string;
+    plate_appearances: number;
   }[];
   return (
     <div className="rounded-md border">
@@ -64,7 +65,8 @@ function LeadersTable(props: LeadersTableProps) {
                       </a>
                     </TooltipTrigger>
                     <TooltipContent>
-                      {row.team_emoji} {row.team_name}
+                      {row.team_emoji} {row.team_name} ({row.plate_appearances}{" "}
+                      PAs)
                     </TooltipContent>
                   </Tooltip>
                 </TableCell>
@@ -81,46 +83,39 @@ function LeadersTable(props: LeadersTableProps) {
   );
 }
 
-export default function LeadersPage(props: LeadersPageProps) {
-  const stats = useSuspenseQuery(
-    statsQuery({
-      season: props.season,
-      league: props.league,
-      fields: [
-        "walked",
-        "singles",
-        "doubles",
-        "triples",
-        "home_runs",
-        "at_bats",
-        "hit_by_pitch",
-        "plate_appearances",
-      ],
-      group: ["player", "team"],
-      names: true,
-    })
-  );
-
-  let dt = stats.data;
-  const uniqueTeamIds = dt
-    .select("team_id")
-    .dedupe()
-    .array("team_id") as string[];
-
-  const teams = useSuspenseQuery(
-    chronLatestEntitiesQuery<MmolbTeam>("team_lite", uniqueTeamIds)
-  );
-  const teamsDt = table({
-    team_id: uniqueTeamIds,
-    // we get name from the lookup
-    // team_name: uniqueTeamIds.map((id) => teams.data[id].Name),
-    // team_location: uniqueTeamIds.map((id) => teams.data[id].Location),
-    team_emoji: uniqueTeamIds.map((id) => teams.data[id].Emoji),
-    team_color: uniqueTeamIds.map((id) => teams.data[id].Color),
+function statsQueryBatting(props: LeadersPageProps) {
+  return statsQuery({
+    season: props.season,
+    league: props.league,
+    fields: [
+      "walked",
+      "singles",
+      "doubles",
+      "triples",
+      "home_runs",
+      "at_bats",
+      "hit_by_pitch",
+      "plate_appearances",
+    ],
+    group: ["player", "team", "player_name"],
+    names: true,
   });
-  teamsDt.print();
-  dt = dt
-    .join(teamsDt, "team_id")
+}
+
+export async function preload(client: QueryClient, props: LeadersPageProps) {
+  await Promise.all([client.prefetchQuery(statsQueryBatting(props))]);
+}
+
+export default function LeadersPage(props: LeadersPageProps) {
+  const [stats, teams] = useSuspenseQueries({
+    queries: [statsQueryBatting(props), allTeamsQuery],
+  });
+
+  const dt = stats.data
+    .derive({
+      team_emoji: aq.escape((d) => teams.data[d.team_id].emoji),
+      team_color: aq.escape((d) => teams.data[d.team_id].color),
+    })
     .derive({
       hits: (d) => d.singles + d.doubles + d.triples + d.home_runs,
     })
@@ -135,31 +130,36 @@ export default function LeadersPage(props: LeadersPageProps) {
       ops: (d) => d.obp + d.slg,
     });
 
-  const validBatters = dt.filter((d) => d.plate_appearances > 50);
+  const maxPas = aq.agg(dt, aq.op.max("plate_appearances"));
+  const limit = Math.max(maxPas / 2, 100);
+
+  const validBatters = dt
+    .params({ limit })
+    .filter((d, $) => d.plate_appearances > $.limit);
 
   return (
     <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 container mx-auto py-4 px-4">
       <LeadersTable
         title="Batting Average (BA)"
-        data={validBatters.orderby(desc("ba")).slice(0, 10)}
+        data={validBatters.orderby(aq.desc("ba")).slice(0, 10)}
         col="ba"
         format={formatDecimal(3)}
       />
       <LeadersTable
         title="On-Base Percentage (OBP)"
-        data={validBatters.orderby(desc("obp")).slice(0, 10)}
+        data={validBatters.orderby(aq.desc("obp")).slice(0, 10)}
         col="obp"
         format={formatDecimal(3)}
       />
       <LeadersTable
         title="Slugging Percentage (SLG)"
-        data={validBatters.orderby(desc("slg")).slice(0, 10)}
+        data={validBatters.orderby(aq.desc("slg")).slice(0, 10)}
         col="slg"
         format={formatDecimal(3)}
       />
       <LeadersTable
         title="On-Base + Slugging (OBP)"
-        data={validBatters.orderby(desc("ops")).slice(0, 10)}
+        data={validBatters.orderby(aq.desc("ops")).slice(0, 10)}
         col="ops"
         format={formatDecimal(3)}
       />

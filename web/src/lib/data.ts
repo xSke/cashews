@@ -147,10 +147,10 @@ export function chronLatestEntitiesQuery<T>(
   const sorted = [...new Set(ids)];
   sorted.sort();
 
-  return {
+  return queryOptions({
     queryKey: ["entity", kind, sorted.join(",")],
     queryFn: () => getEntities<T>(kind, sorted),
-  };
+  });
 }
 
 export const timeQuery = chronLatestEntityQuery<MmolbTime>(
