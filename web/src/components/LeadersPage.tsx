@@ -47,7 +47,12 @@ function LeadersTable(props: LeadersTableProps) {
   }[];
   return (
     <div className="rounded-md border">
-      <Table className="table-auto">
+      <table className="text-sm table-fixed w-full max-w-full">
+        <colgroup>
+          <col />
+          <col className="w-14" />
+        </colgroup>
+
         <TableHeader>
           <TableRow>
             <TableHead colSpan={2}>{props.title}</TableHead>
@@ -59,10 +64,14 @@ function LeadersTable(props: LeadersTableProps) {
               <Tooltip key={i}>
                 <TooltipTrigger asChild>
                   <TableRow>
-                    <TableCell>
+                    <TableCell className="truncate">
                       <a href={`https://mmolb.com/player/${row.player_id}`}>
-                        {row.team_emoji} {row.player_name}
+                        {row.team_emoji}&nbsp;&nbsp;{row.player_name}
                       </a>
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {" "}
+                        - {row.team_name}
+                      </span>
                     </TableCell>
 
                     <TableCell className="tabular-nums text-right">
@@ -77,7 +86,7 @@ function LeadersTable(props: LeadersTableProps) {
             );
           })}
         </TableBody>
-      </Table>
+      </table>
     </div>
   );
 }
