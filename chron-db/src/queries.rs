@@ -8,7 +8,9 @@ use time::OffsetDateTime;
 
 use crate::{
     ChronDb, Idens,
-    models::{EntityKind, EntityObservation, EntityVersion, HasPageToken, PageToken},
+    models::{
+        EntityKind, EntityObservation, EntityVersion, EntityVersionLite, HasPageToken, PageToken,
+    },
 };
 
 pub struct GetEntitiesQuery {
@@ -262,6 +264,19 @@ impl ChronDb {
             .fetch(&self.pool);
 
         res
+    }
+
+    pub async fn get_versions_lite(
+        &self,
+        kind: EntityKind,
+        entity_id: impl ToString, // annoying that this needs owned
+    ) -> anyhow::Result<Vec<EntityVersionLite>> {
+        let res = sqlx::query_as::<_, EntityVersionLite>("select kind, entity_id, valid_from, valid_to, hash from versions where kind = $1 and entity_id = $2 order by valid_from")
+            .bind(kind)
+            .bind(entity_id.to_string())
+            .fetch_all(&self.pool).await?;
+
+        Ok(res)
     }
 
     pub async fn clear_observations(&self, kind: EntityKind) -> anyhow::Result<()> {

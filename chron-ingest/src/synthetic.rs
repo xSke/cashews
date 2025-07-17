@@ -1,5 +1,8 @@
-use chron_db::models::{EntityKind, NewObject};
+use std::collections::HashMap;
+
+use chron_db::{json_hash, models::{EntityKind, NewObject}};
 use futures::TryStreamExt;
+use serde::Deserialize;
 use time::{Duration, OffsetDateTime};
 use tracing::info;
 
@@ -87,25 +90,35 @@ async fn rebuild_type(ctx: &WorkerContext, kind: EntityKind) -> anyhow::Result<(
 }
 
 async fn rebuild_entity(ctx: &WorkerContext, kind: EntityKind, id: String) -> anyhow::Result<()> {
-    let mut stream = ctx.db.get_versions_stream(kind, &id);
+    let versions_lite = ctx.db.get_versions_lite(kind, &id).await?;
 
-    let mut objects = Vec::new();
-    while let Some(ver) = stream.try_next().await? {
-        let data: serde_json::Value = ver.parse()?;
-        objects.extend(
-            derive_from(ver.kind, &ver.entity_id, &data)?
-                .into_iter()
-                .map(|x: SyntheticObject| NewObject {
-                    kind: x.kind,
-                    entity_id: x.entity_id,
-                    data: x.data,
-                    timestamp: ver.valid_from.0,
-                    request_time: Duration::ZERO,
-                }),
-        );
+    let mut new_objects = HashMap::new();
+    let mut new_obs = Vec::new();
+    for ver in versions_lite {
+        let data = ctx.db.get_object(ver.hash).await?;
+        if let Some(data) = data {
+            let value = serde_json::Value::deserialize(&*data.0)?;
+            
+            for s in derive_from(ver.kind, &ver.entity_id, &value)? {
+                let (hash, data) = json_hash(s.data)?;
+                if !new_objects.contains_key(&hash) && !ctx.db.saved_objects.contains(&hash) {
+                    new_objects.insert(hash, data);
+                }
+
+
+                new_obs.push((s.kind, s.entity_id, ver.valid_from.0, 0.0, hash));
+            }
+        }
     }
 
-    ctx.db.save_raw_bulk(objects).await?;
+    let mut hashes = Vec::with_capacity(new_objects.len());
+    let mut datas = Vec::with_capacity(new_objects.len());
+    for (hash, data) in new_objects.iter() {
+        hashes.push(*hash);
+        datas.push(data);
+    }
+    ctx.db.save_objects_raw_bulk(&hashes, &datas).await?;
+    ctx.db.insert_observations_raw_bulk(&new_obs).await?;
 
     Ok(())
 }

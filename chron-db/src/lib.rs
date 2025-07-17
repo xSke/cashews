@@ -11,6 +11,7 @@ use siphasher::sip128::{Hasher128, SipHasher};
 use sqlx::{
     Acquire, Executor, PgPool,
     postgres::{PgConnectOptions, PgPoolOptions},
+    types::JsonRawValue,
 };
 use time::{Duration, OffsetDateTime};
 use tracing::{error, info};
@@ -281,7 +282,7 @@ impl ChronDb {
         Ok(hash)
     }
 
-    async fn save_objects_raw_bulk(
+    pub async fn save_objects_raw_bulk(
         &self,
         hashes: &[Uuid],
         datas: &[&serde_json::Value],
@@ -319,9 +320,21 @@ impl ChronDb {
 
         Ok(())
     }
+
+    pub async fn get_object(
+        &self,
+        hash: Uuid,
+    ) -> anyhow::Result<Option<sqlx::types::Json<Box<JsonRawValue>>>> {
+        Ok(
+            sqlx::query_scalar("select data from objects where hash = $1")
+                .bind(hash)
+                .fetch_optional(&self.pool)
+                .await?,
+        )
+    }
 }
 
-fn json_hash(mut value: serde_json::Value) -> anyhow::Result<(Uuid, serde_json::Value)> {
+pub fn json_hash(mut value: serde_json::Value) -> anyhow::Result<(Uuid, serde_json::Value)> {
     value.sort_all_objects();
 
     let mut hasher = SipHasher::new();

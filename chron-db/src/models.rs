@@ -4,6 +4,7 @@ use base64::Engine;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sqlx::{FromRow, Type, types::JsonRawValue};
 use time::{Duration, OffsetDateTime};
+use uuid::Uuid;
 
 #[repr(i16)]
 #[derive(Debug, Clone, Copy, Type, Deserialize, Serialize, PartialEq, Eq)]
@@ -49,6 +50,15 @@ impl EntityVersion {
     pub fn parse<T: DeserializeOwned>(&self) -> anyhow::Result<T> {
         Ok(T::deserialize(&**self.data)?)
     }
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct EntityVersionLite {
+    pub kind: EntityKind,
+    pub entity_id: String,
+    pub valid_from: IsoDateTime,
+    pub valid_to: Option<IsoDateTime>,
+    pub hash: Uuid,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]
