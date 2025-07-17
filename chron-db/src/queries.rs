@@ -250,6 +250,27 @@ impl ChronDb {
 
         Ok(res)
     }
+
+    pub fn get_versions_stream(
+        &self,
+        kind: EntityKind,
+        entity_id: impl ToString, // annoying that this needs owned
+    ) -> Pin<Box<dyn Stream<Item = sqlx::Result<EntityVersion, sqlx::Error>> + Send + '_>> {
+        let res = sqlx::query_as::<_, EntityVersion>("select kind, entity_id, valid_from, valid_to, data from versions inner join objects using (hash) where kind = $1 and entity_id = $2 order by valid_from")
+            .bind(kind)
+            .bind(entity_id.to_string())
+            .fetch(&self.pool);
+
+        res
+    }
+
+    pub async fn clear_observations(&self, kind: EntityKind) -> anyhow::Result<()> {
+        sqlx::query("delete from observations where kind = $1")
+            .bind(kind)
+            .execute(&self.pool)
+            .await?;
+        Ok(())
+    }
 }
 
 pub fn paginate(

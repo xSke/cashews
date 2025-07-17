@@ -5,7 +5,7 @@ use reqwest::{Client, ClientBuilder, IntoUrl, StatusCode, Url};
 use serde::de::DeserializeOwned;
 use time::OffsetDateTime;
 use tokio::sync::Semaphore;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 #[derive(Clone)]
 pub struct DataClient {
@@ -122,7 +122,7 @@ impl DataClient {
         let timestamp_before = OffsetDateTime::now_utc();
         let response = request.send().await?;
         let timestamp_after = OffsetDateTime::now_utc();
-        info!(
+        debug!(
             "{} {} ({}s)",
             response.status(),
             response.url(),

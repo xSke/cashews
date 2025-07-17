@@ -11,6 +11,7 @@ use tracing::info;
 use crate::{
     http::ClientResponse,
     models::{MmolbLeague, MmolbState, MmolbTeam},
+    synthetic,
 };
 
 use super::{IntervalWorker, WorkerContext};
@@ -84,8 +85,13 @@ impl IntervalWorker for PollAllPlayers {
         // this one can go slowly, that's fine
         // ...although i think at this rate, we may literally *always* be polling players...
         // maybe some sort of thing to prioritize players that have shown up in *team* feed events recently?
-        ctx.process_many_with_progress(player_ids.chunks(100), 1, "fetch all players", fetch_players_bulk)
-            .await;
+        ctx.process_many_with_progress(
+            player_ids.chunks(100),
+            1,
+            "fetch all players",
+            fetch_players_bulk,
+        )
+        .await;
 
         Ok(())
     }
@@ -113,7 +119,8 @@ pub async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
     let url = format!("https://mmolb.com/api/team/{}", id);
     let resp = ctx.fetch_and_save(url, EntityKind::Team, &id).await?;
 
-    write_team_lite(ctx, &id, &resp).await?;
+    let team = resp.parse::<serde_json::Value>()?;
+    synthetic::handle_incoming(ctx, EntityKind::Team, &id, &team, resp.timestamp()).await?;
 
     let team_data = resp.parse::<MmolbTeam>()?;
     ctx.db
@@ -134,7 +141,7 @@ pub async fn fetch_team(ctx: &WorkerContext, id: String) -> anyhow::Result<()> {
 
 #[derive(Deserialize)]
 struct BulkPlayerResponse {
-    players: Vec<serde_json::Value>
+    players: Vec<serde_json::Value>,
 }
 
 pub async fn fetch_players_bulk(ctx: &WorkerContext, ids: &[String]) -> anyhow::Result<()> {
@@ -143,7 +150,10 @@ pub async fn fetch_players_bulk(ctx: &WorkerContext, ids: &[String]) -> anyhow::
     let parsed = resp.parse::<BulkPlayerResponse>()?;
 
     // somehow the i/o here is the slowest part
-    ctx.process_many(parsed.players, 25, |ctx, player_obj| save_player_inner(ctx, player_obj, &resp)).await;
+    ctx.process_many(parsed.players, 25, |ctx, player_obj| {
+        save_player_inner(ctx, player_obj, &resp)
+    })
+    .await;
 
     Ok(())
 }
@@ -153,12 +163,21 @@ pub async fn fetch_player(ctx: &WorkerContext, id: String) -> anyhow::Result<()>
     let resp = ctx.fetch_and_save(url, EntityKind::Player, &id).await?;
 
     let data = resp.parse::<serde_json::Value>()?;
-    write_player_lite(ctx, &id, data, &resp).await?;
+    synthetic::handle_incoming(ctx, EntityKind::Player, &id, &data, resp.timestamp()).await?;
     Ok(())
 }
 
-async fn save_player_inner(ctx: &WorkerContext, player_obj: serde_json::Value, resp: &ClientResponse) -> anyhow::Result<()> {
-    let player_id = player_obj.as_object().and_then(|x| x.get("_id")).and_then(|x| x.as_str()).map(|x| x.to_string()).ok_or_else(|| anyhow::anyhow!("couldn't find _id on player"))?;
+async fn save_player_inner(
+    ctx: &WorkerContext,
+    player_obj: serde_json::Value,
+    resp: &ClientResponse,
+) -> anyhow::Result<()> {
+    let player_id = player_obj
+        .as_object()
+        .and_then(|x| x.get("_id"))
+        .and_then(|x| x.as_str())
+        .map(|x| x.to_string())
+        .ok_or_else(|| anyhow::anyhow!("couldn't find _id on player"))?;
 
     let db_obj = NewObject {
         data: player_obj.clone(),
@@ -169,35 +188,16 @@ async fn save_player_inner(ctx: &WorkerContext, player_obj: serde_json::Value, r
     };
     ctx.db.save(db_obj).await?;
 
-    try_write_player_talk(ctx, &player_id, &player_obj, resp).await?;
-    write_player_lite(ctx, &player_id, player_obj, resp).await?;
-
-
-    Ok(())
-}
-
-async fn try_write_player_talk(
-    ctx: &WorkerContext,
-    id: &str,
-    obj: &serde_json::Value,
-    resp: &ClientResponse, // note: do NOT parse this
-) -> anyhow::Result<()> {
-    if let Some(talk_value) = extract_talk(obj) {
-        let db_obj = NewObject {
-            data: talk_value.clone(),
-            kind: EntityKind::Talk,
-            entity_id: id.to_string(),
-            request_time: resp.request_time(),
-            timestamp: resp.timestamp(),
-        };
-        ctx.db.save(db_obj).await?;
-    }
+    synthetic::handle_incoming(
+        ctx,
+        EntityKind::Player,
+        &player_id,
+        &player_obj,
+        resp.timestamp(),
+    )
+    .await?;
 
     Ok(())
-}
-
-fn extract_talk(obj: &serde_json::Value) -> Option<serde_json::Value> {
-    obj.as_object().and_then(|x| x.get("Talk")).cloned()
 }
 
 fn get_league_ids(state: &MmolbState) -> Vec<String> {
@@ -253,177 +253,12 @@ async fn get_all_known_player_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet
 pub async fn fetch_all_players(ctx: &WorkerContext) -> anyhow::Result<()> {
     let all_players = get_all_known_player_ids(ctx).await?;
     let all_players = all_players.into_iter().collect::<Vec<_>>();
-    ctx.process_many_with_progress(all_players.chunks(100), 50, "fetch all players", fetch_players_bulk)
-        .await;
-    Ok(())
-}
-
-async fn write_team_lite(
-    ctx: &WorkerContext,
-    id: &str,
-    resp: &ClientResponse,
-) -> anyhow::Result<()> {
-    // write a "cleaned" version of the team object without the big Players[x].Stats objects
-    let mut team_data = resp.parse::<serde_json::Value>()?;
-    to_team_lite(&mut team_data);
-
-    ctx.db
-        .save(NewObject {
-            kind: EntityKind::TeamLite,
-            entity_id: id.to_string(),
-            data: team_data,
-            timestamp: resp.timestamp(),
-            request_time: resp.request_time(),
-        })
-        .await?;
-    Ok(())
-}
-
-async fn write_player_lite(
-    ctx: &WorkerContext,
-    id: &str,
-    mut obj: serde_json::Value,
-    resp: &ClientResponse, // note: do NOT parse this
-) -> anyhow::Result<()> {
-    // write a "cleaned" version of the player object without the big stats object
-    to_player_lite(&mut obj);
-    ctx.db
-        .save(NewObject {
-            kind: EntityKind::PlayerLite,
-            entity_id: id.to_string(),
-            data: obj,
-            timestamp: resp.timestamp(),
-            request_time: resp.request_time(),
-        })
-        .await?;
-
-    Ok(())
-}
-
-fn to_team_lite(data: &mut serde_json::Value) {
-    // can we make this code nicer?
-    if let Some(o) = data.as_object_mut() {
-        if let Some(players_value) = o.get_mut("Players") {
-            if let Some(players) = players_value.as_array_mut() {
-                for player_value in players {
-                    if let Some(p) = player_value.as_object_mut() {
-                        p.remove("Stats");
-                    }
-                }
-            }
-        }
-        o.remove("Feed");
-    }
-}
-
-fn to_player_lite(data: &mut serde_json::Value) {
-    if let Some(o) = data.as_object_mut() {
-        o.remove("Stats");
-        o.remove("Feed");
-    }
-}
-
-// todo: deduplicate these two?
-pub async fn rebuild_team_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
-    sqlx::query("delete from observations where kind = $1")
-        .bind(EntityKind::TeamLite)
-        .execute(&ctx.db.pool)
-        .await?;
-
-    let mut stream = ctx
-        .db
-        .get_all_versions_stream(EntityKind::TeamLite)
-        .await?
-        .try_chunks(1000);
-
-    let mut i = 0;
-    while let Some(vers) = stream.try_next().await? {
-        let mut chunk = Vec::with_capacity(1000);
-
-        for ver in vers {
-            let mut data = ver.parse()?;
-            to_team_lite(&mut data);
-            let hash = ctx.db.save_object(data).await?;
-            chunk.push((
-                EntityKind::TeamLite,
-                ver.entity_id,
-                ver.valid_from.0,
-                0.0f64,
-                hash,
-            ));
-        }
-
-        ctx.db.insert_observations_raw_bulk(&chunk).await?;
-
-        i += chunk.len();
-        tracing::info!("rebuilt {} lite observations", i);
-    }
-
-    tracing::info!("rebuilding versions table for teamlite");
-    ctx.db.rebuild_all(EntityKind::TeamLite).await?;
-
-    tracing::info!("done!");
-    Ok(())
-}
-
-pub async fn rebuild_player_lite(ctx: &WorkerContext) -> anyhow::Result<()> {
-    sqlx::query("delete from observations where kind = $1")
-        .bind(EntityKind::PlayerLite)
-        .execute(&ctx.db.pool)
-        .await?;
-
-    sqlx::query("delete from observations where kind = $1")
-        .bind(EntityKind::Talk)
-        .execute(&ctx.db.pool)
-        .await?;
-
-    let mut stream = ctx
-        .db
-        .get_all_versions_stream(EntityKind::Player)
-        .await?
-        .try_chunks(1000);
-
-    let mut i = 0;
-    while let Some(vers) = stream.try_next().await? {
-        let mut chunk = Vec::with_capacity(1000);
-
-        for ver in vers {
-            let mut data = ver.parse()?;
-
-            // todo: move this chunk somewhere else
-            // maybe need a more generic system for "derived data based on history"?
-            if let Some(talk) = extract_talk(&data) {
-                let talk_hash = ctx.db.save_object(talk).await?;
-                chunk.push((
-                    EntityKind::Talk,
-                    ver.entity_id.clone(),
-                    ver.valid_from.0,
-                    0.0f64,
-                    talk_hash,
-                ));
-            }
-
-            to_player_lite(&mut data);
-            let lite_hash = ctx.db.save_object(data).await?;
-            chunk.push((
-                EntityKind::PlayerLite,
-                ver.entity_id,
-                ver.valid_from.0,
-                0.0f64,
-                lite_hash,
-            ));
-        }
-
-        ctx.db.insert_observations_raw_bulk(&chunk).await?;
-
-        i += chunk.len();
-        tracing::info!("rebuilt {} lite observations", i);
-    }
-
-    tracing::info!("rebuilding versions table for playerlite, talk");
-    ctx.db.rebuild_all(EntityKind::PlayerLite).await?;
-    ctx.db.rebuild_all(EntityKind::Talk).await?;
-
-    tracing::info!("done!");
+    ctx.process_many_with_progress(
+        all_players.chunks(100),
+        50,
+        "fetch all players",
+        fetch_players_bulk,
+    )
+    .await;
     Ok(())
 }

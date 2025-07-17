@@ -4,6 +4,7 @@ use anyhow::anyhow;
 use chron_base::ChronConfig;
 use dashmap::DashSet;
 use futures::{StreamExt, stream};
+use itertools::Itertools;
 use models::{EntityKind, NewObject};
 use sea_query::Iden;
 use siphasher::sip128::{Hasher128, SipHasher};
@@ -95,7 +96,6 @@ impl ChronDb {
         info!("migrating...");
         sqlx::migrate!("./migrations").run(&self.pool).await?;
 
-
         if full {
             let mut conn = self.pool.acquire().await?;
             let mut tx = conn.begin().await?;
@@ -109,7 +109,6 @@ impl ChronDb {
 
             tx.commit().await?;
         }
-
 
         info!("done!");
         Ok(())
@@ -171,6 +170,43 @@ impl ChronDb {
         Ok(())
     }
 
+    pub async fn save_raw_bulk(&self, objs: Vec<NewObject>) -> anyhow::Result<()> {
+        // step 1: hash all objects
+        fn inner(
+            x: NewObject,
+        ) -> anyhow::Result<(
+            (EntityKind, std::string::String, OffsetDateTime, f64, Uuid),
+            serde_json::Value,
+        )> {
+            let (hash, data) = json_hash(x.data)?;
+
+            // todo: need a struct for this big ass tuple...
+            let obs: (EntityKind, std::string::String, OffsetDateTime, f64, Uuid) = (
+                x.kind,
+                x.entity_id,
+                x.timestamp,
+                x.request_time.as_seconds_f64(),
+                hash,
+            );
+            Ok((obs, data))
+        }
+        let processed = tokio::task::spawn_blocking(move || {
+            objs.into_iter().map(inner).try_collect::<_, Vec<_>, _>()
+        })
+        .await??;
+
+        // step 2: save all objects
+        let hashes = processed.iter().map(|(x, _)| x.4).collect_vec();
+        let datas = processed.iter().map(|(_, x)| x).collect_vec();
+        self.save_objects_raw_bulk(&hashes, &datas).await?;
+
+        // step 3: save observations
+        let obs = processed.into_iter().map(|(x, _)| x).collect_vec();
+        self.insert_observations_raw_bulk(&obs).await?;
+
+        Ok(())
+    }
+
     pub async fn insert_observation_raw(
         &self,
         kind: EntityKind,
@@ -213,15 +249,44 @@ impl ChronDb {
 
         // ok if we save double here
         if !self.saved_objects.contains(&hash) {
-            sqlx::query("insert into objects (hash, data) values ($1, $2) on conflict do nothing")
+            // todo: is this a good for big objects?
+            let exists: Option<i32> = sqlx::query_scalar("select 1 from objects where hash = $1")
+                .bind(hash)
+                .fetch_optional(&self.pool)
+                .await?;
+
+            if exists.is_none() {
+                sqlx::query(
+                    "insert into objects (hash, data) values ($1, $2) on conflict do nothing",
+                )
                 .bind(hash)
                 .bind(data)
                 .execute(&self.pool)
                 .await?;
+            }
             self.saved_objects.insert(hash);
         }
 
         Ok(hash)
+    }
+
+    async fn save_objects_raw_bulk(
+        &self,
+        hashes: &[Uuid],
+        datas: &[&serde_json::Value],
+    ) -> anyhow::Result<()> {
+        sqlx::query(
+            "insert into objects (hash, data) select unnest($1), unnest($2) on conflict do nothing",
+        )
+        .bind(hashes)
+        .bind(datas)
+        .execute(&self.pool)
+        .await?;
+
+        for h in hashes {
+            self.saved_objects.insert(*h);
+        }
+        Ok(())
     }
 
     async fn add_version(

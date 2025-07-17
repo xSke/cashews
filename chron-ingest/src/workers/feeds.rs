@@ -1,11 +1,11 @@
-use std::ops::Deref;
-use std::time::Duration;
+use crate::workers::{IntervalWorker, WorkerContext};
+use chron_db::models::EntityKind;
 use futures::TryStreamExt;
 use serde::Deserialize;
+use std::ops::Deref;
+use std::time::Duration;
 use time::OffsetDateTime;
-use tokio::time::{interval, Interval};
-use chron_db::models::EntityKind;
-use crate::workers::{IntervalWorker, WorkerContext};
+use tokio::time::{Interval, interval};
 
 pub struct ProcessFeeds;
 
@@ -14,7 +14,10 @@ fn handle_feed(output: &mut Vec<PlayerNameMapEntry>, feed: &[FeedEntry]) {
         for link in &entry.links {
             if link.kind.as_deref() == Some("player") {
                 let player_id = if entry.text.contains(" was Recomposed into ") {
-                    let first_player = entry.links.iter().find(|l| l.kind.as_deref() == Some("player"));
+                    let first_player = entry
+                        .links
+                        .iter()
+                        .find(|l| l.kind.as_deref() == Some("player"));
                     first_player.and_then(|x| x.id.as_deref())
                 } else {
                     link.id.as_deref()
@@ -33,7 +36,7 @@ fn handle_feed(output: &mut Vec<PlayerNameMapEntry>, feed: &[FeedEntry]) {
 
 impl IntervalWorker for ProcessFeeds {
     fn interval() -> Interval {
-        interval(Duration::from_secs(60*5))
+        interval(Duration::from_secs(60 * 5))
     }
 
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
@@ -52,8 +55,14 @@ impl IntervalWorker for ProcessFeeds {
         }
 
         for chunk in entries.chunks(1000) {
-            let ids = chunk.iter().map(|x| x.player_id.deref()).collect::<Vec<_>>();
-            let names = chunk.iter().map(|x| x.player_name.deref()).collect::<Vec<_>>();
+            let ids = chunk
+                .iter()
+                .map(|x| x.player_id.deref())
+                .collect::<Vec<_>>();
+            let names = chunk
+                .iter()
+                .map(|x| x.player_name.deref())
+                .collect::<Vec<_>>();
             let timestamps = chunk.iter().map(|x| x.timestamp).collect::<Vec<_>>();
 
             // todo: do nothing?
@@ -77,30 +86,30 @@ struct PlayerNameMapEntry {
 
 #[derive(Deserialize)]
 struct FeedHolder {
-    #[serde(rename="Feed", default)]
+    #[serde(rename = "Feed", default)]
     feed: Vec<FeedEntry>,
 }
 
 #[derive(Deserialize)]
 struct FeedEntry {
-    #[serde(with="time::serde::rfc3339")]
+    #[serde(with = "time::serde::rfc3339")]
     ts: OffsetDateTime,
 
     #[serde(default)]
     text: String,
 
     #[serde(default)]
-    links: Vec<FeedLink>
+    links: Vec<FeedLink>,
 }
 
 #[derive(Deserialize)]
 struct FeedLink {
-    #[serde(default, rename="type")]
+    #[serde(default, rename = "type")]
     kind: Option<String>,
 
     #[serde(default)]
     id: Option<String>,
 
-    #[serde(default, rename="match")]
-    string: Option<String>
+    #[serde(default, rename = "match")]
+    string: Option<String>,
 }

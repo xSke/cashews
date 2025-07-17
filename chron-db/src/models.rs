@@ -29,7 +29,11 @@ pub enum EntityKind {
     Season = 18,
     Day = 19,
     PatchNotes = 20,
-    Talk = 21,  
+    Talk = 21,
+    TalkBatting = 22,
+    TalkPitching = 23,
+    TalkBaserunning = 24,
+    TalkDefense = 25,
 }
 
 #[derive(Debug, Clone, FromRow, Serialize)]

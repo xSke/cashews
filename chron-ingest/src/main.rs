@@ -3,7 +3,6 @@ use std::sync::{Arc, RwLock};
 use chron_base::{load_config, stop_signal};
 use chron_db::ChronDb;
 use http::DataClient;
-use tokio::signal;
 use tracing::{error, info};
 use uuid::Uuid;
 use workers::{
@@ -13,6 +12,7 @@ use workers::{
     league::{self},
 };
 
+use crate::workers::feeds::ProcessFeeds;
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -21,10 +21,10 @@ use crate::workers::{
     message::PollMessage,
     misc::PollMiscData,
 };
-use crate::workers::feeds::ProcessFeeds;
 
 mod http;
 mod models;
+mod synthetic;
 mod workers;
 
 fn spawn<T: IntervalWorker + 'static>(mut ctx: WorkerContext, mut w: T) {
@@ -119,10 +119,10 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "fetch-league" => league::poll_league(ctx).await?,
         "fetch-all-seasons" => games::fetch_all_seasons(ctx).await?,
         "fetch-all-games" => games::fetch_all_games(ctx).await?,
-        "fetch-all-new-games" => games::fetch_all_new_or_incomplete_games(ctx).await?,  
+        "fetch-all-new-games" => games::fetch_all_new_or_incomplete_games(ctx).await?,
         "fetch-all-players" => league::fetch_all_players(ctx).await?,
-        "rebuild-team-lite" => league::rebuild_team_lite(ctx).await?,
-        "rebuild-player-lite" => league::rebuild_player_lite(ctx).await?,
+        "rebuild-teams" => synthetic::rebuild_teams(ctx).await?,
+        "rebuild-players" => synthetic::rebuild_players(ctx).await?,
         "import-db" => import::import(ctx, &args[0]).await?,
         "crunch" => crunch::crunch(ctx).await?,
         "migrate" => ctx.db.migrate(false).await?,
