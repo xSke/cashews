@@ -37,18 +37,20 @@ function formatIp(x: number) {
 }
 
 function LeadersTable(props: LeadersTableProps) {
-  const data = props.data.objects() as {
+  const data = props.data.derive({ rank: aq.op.rank() }).objects() as {
     team_id: string;
     player_id: string;
     player_name: string;
     team_emoji: string;
     team_name: string;
     plate_appearances: number;
+    rank: number;
   }[];
   return (
     <div className="rounded-md border">
       <table className="text-sm table-fixed w-full max-w-full">
         <colgroup>
+          <col className="w-8" />
           <col />
           <col className="w-14" />
         </colgroup>
@@ -64,13 +66,16 @@ function LeadersTable(props: LeadersTableProps) {
               <Tooltip key={i}>
                 <TooltipTrigger asChild>
                   <TableRow>
+                    <TableCell className="tabular-nums text-right p-0">
+                      {row.rank}.
+                    </TableCell>
                     <TableCell className="truncate">
                       <a href={`https://mmolb.com/player/${row.player_id}`}>
-                        {row.team_emoji}&nbsp;&nbsp;{row.player_name}
+                        {row.player_name}
                       </a>
                       <span className="text-gray-500 dark:text-gray-400">
                         {" "}
-                        - {row.team_name}
+                        - {row.team_emoji}&nbsp;&nbsp;{row.team_name}
                       </span>
                     </TableCell>
 
