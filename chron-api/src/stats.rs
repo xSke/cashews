@@ -65,9 +65,11 @@ impl Serialize for StatOutputRow {
         }
         if self.q.group.contains(&GroupColumn::Player) {
             field_count += 1;
-            if self.q.names {
-                field_count += 1;
-            }
+        }
+        if (self.q.group.contains(&GroupColumn::Player) && self.q.names)
+            || self.q.group.contains(&GroupColumn::PlayerName)
+        {
+            field_count += 1;
         }
         if self.q.group.contains(&GroupColumn::Day) {
             field_count += 2;
@@ -91,7 +93,9 @@ impl Serialize for StatOutputRow {
         if self.q.group.contains(&GroupColumn::Player) {
             state.serialize_field("player_id", &self.row.player.as_deref())?;
         }
-        if self.q.names || self.q.group.contains(&GroupColumn::PlayerName) {
+        if (self.q.group.contains(&GroupColumn::Player) && self.q.names)
+            || self.q.group.contains(&GroupColumn::PlayerName)
+        {
             state.serialize_field("player_name", &self.row.player_name.as_deref())?;
         }
         if self.q.group.contains(&GroupColumn::Slot) {

@@ -2,9 +2,7 @@ use async_stream::try_stream;
 use chron_base::{StatKey, objectid_to_timestamp};
 use compact_str::CompactString;
 use futures::{Stream, TryStreamExt};
-use sea_query::{
-    Asterisk, Cond, Expr, ExprTrait, Func, PostgresQueryBuilder, Query,
-};
+use sea_query::{Asterisk, Cond, Expr, ExprTrait, Func, PostgresQueryBuilder, Query};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row, postgres::PgRow};
@@ -462,8 +460,10 @@ impl ChronDb {
                 .column((Idens::GamePlayerStatsExploded, Idens::PlayerId));
 
             if q.include_names && !q.group_player_name {
-                let full_name =
-                    Func::cust(Idens::AnyValue).arg(Expr::col((Idens::GamePlayerStatsExploded, Idens::PlayerName)));
+                let full_name = Func::cust(Idens::AnyValue).arg(Expr::col((
+                    Idens::GamePlayerStatsExploded,
+                    Idens::PlayerName,
+                )));
                 qq = qq.expr_as(full_name, "player_name");
             }
         }
