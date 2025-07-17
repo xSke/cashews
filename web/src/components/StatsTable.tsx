@@ -40,6 +40,7 @@ import {
 import { findPercentile } from "@/lib/percentile";
 import clsx from "clsx";
 import { defaultScale, scales } from "@/lib/colors";
+import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 
 export type StatDisplay = "percentile" | "stat" | "vibes";
 
@@ -128,7 +129,7 @@ function PercentileVibes(props: { percentile: number }) {
 function StatCell(
   digits: number,
   aggKey: string | null = null,
-  inverse: boolean = false,
+  inverse: boolean = false
 ) {
   return (props: CellContext<RowData, unknown>) => {
     const data = props.getValue() as number;
@@ -142,7 +143,7 @@ function StatCell(
       percentile = findPercentile(
         pcts.leagues[orig.league][aggKey],
         data,
-        inverse,
+        inverse
       );
     }
 
@@ -151,18 +152,8 @@ function StatCell(
     const lightColor = scale.light(percentile ?? 0);
     const darkColor = scale.dark(percentile ?? 0);
 
-    return (
-      <div
-        className={clsx(
-          `text-right tabular-nums p-2`,
-          aggKey && "font-semibold dark:font-medium",
-        )}
-        style={{
-          color: aggKey
-            ? `light-dark(${lightColor.css()}, ${darkColor.css()})`
-            : undefined,
-        }}
-      >
+    const innerComponent = (
+      <span>
         {data === undefined || isNaN(data) ? (
           "-"
         ) : display === "percentile" && percentile !== undefined ? (
@@ -171,6 +162,33 @@ function StatCell(
           <PercentileVibes percentile={percentile} />
         ) : (
           data.toFixed(digits)
+        )}
+      </span>
+    );
+
+    return (
+      <div
+        className={clsx(
+          `text-right tabular-nums p-2`,
+          aggKey && "font-semibold dark:font-medium"
+        )}
+        style={{
+          color: aggKey
+            ? `light-dark(${lightColor.css()}, ${darkColor.css()})`
+            : undefined,
+        }}
+      >
+        {percentile !== undefined ? (
+          <Tooltip>
+            <TooltipTrigger asChild>{innerComponent}</TooltipTrigger>
+            <TooltipContent>
+              {percentile !== undefined ? (
+                <span>P{(percentile * 100).toFixed(1)}</span>
+              ) : null}
+            </TooltipContent>
+          </Tooltip>
+        ) : (
+          innerComponent
         )}
       </div>
     );
@@ -209,7 +227,7 @@ function SortableHeader(name: string, alignRight: boolean = false) {
       <div
         className={clsx(
           "flex items-center cursor-pointer gap-1",
-          alignRight ? "flex-row-reverse" : "flex-row",
+          alignRight ? "flex-row-reverse" : "flex-row"
         )}
         onClick={() => props.column.toggleSorting()}
       >
@@ -514,7 +532,7 @@ export default function StatsTable(props: StatsTableProps) {
                       ? null
                       : flexRender(
                           header.column.columnDef.header,
-                          header.getContext(),
+                          header.getContext()
                         )}
                   </TableHead>
                 );
@@ -554,7 +572,7 @@ export default function StatsTable(props: StatsTableProps) {
                       ? null
                       : flexRender(
                           header.column.columnDef.footer,
-                          header.getContext(),
+                          header.getContext()
                         )}
                   </TableHead>
                 );
@@ -569,7 +587,7 @@ export default function StatsTable(props: StatsTableProps) {
 
 function findSlot(
   team: MmolbTeam,
-  playerId: string,
+  playerId: string
 ): { slot: MmolbRosterSlot | undefined; index: number } {
   const index = team.Players.findIndex((x) => x.PlayerID === playerId);
   return { slot: team.Players[index], index: index };
@@ -582,7 +600,7 @@ function processStats(props: StatsTableProps): RowData[] {
 
     const stats = calculateAdvancedStats(
       row,
-      props.aggs.find((x) => x.league_id == team_data.League),
+      props.aggs.find((x) => x.league_id == team_data.League)
     );
     if (props.type == "batting" && stats.plate_appearances == 0) continue;
     if (props.type == "pitching" && stats.ip == 0) continue;
