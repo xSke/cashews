@@ -56,25 +56,24 @@ function LeadersTable(props: LeadersTableProps) {
         <TableBody>
           {data.map((row, i) => {
             return (
-              <TableRow key={i}>
-                <TableCell>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
+              <Tooltip key={i}>
+                <TooltipTrigger asChild>
+                  <TableRow>
+                    <TableCell>
                       <a href={`https://mmolb.com/player/${row.player_id}`}>
                         {row.team_emoji} {row.player_name}
                       </a>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      {row.team_emoji} {row.team_name} ({row.plate_appearances}{" "}
-                      PAs)
-                    </TooltipContent>
-                  </Tooltip>
-                </TableCell>
+                    </TableCell>
 
-                <TableCell className="tabular-nums text-right">
-                  {props.format(row[props.col] ?? 0)}
-                </TableCell>
-              </TableRow>
+                    <TableCell className="tabular-nums text-right">
+                      {props.format(row[props.col] ?? 0)}
+                    </TableCell>
+                  </TableRow>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {row.team_emoji} {row.team_name} ({row.plate_appearances} PAs)
+                </TooltipContent>
+              </Tooltip>
             );
           })}
         </TableBody>
