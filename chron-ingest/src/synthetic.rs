@@ -1,7 +1,9 @@
 use std::collections::HashMap;
 
-use chron_db::{json_hash, models::{EntityKind, NewObject}};
-use futures::TryStreamExt;
+use chron_db::{
+    json_hash,
+    models::{EntityKind, NewObject},
+};
 use serde::Deserialize;
 use time::{Duration, OffsetDateTime};
 use tracing::info;
@@ -94,17 +96,17 @@ async fn rebuild_entity(ctx: &WorkerContext, kind: EntityKind, id: String) -> an
 
     let mut new_objects = HashMap::new();
     let mut new_obs = Vec::new();
+
     for ver in versions_lite {
         let data = ctx.db.get_object(ver.hash).await?;
         if let Some(data) = data {
             let value = serde_json::Value::deserialize(&*data.0)?;
-            
+
             for s in derive_from(ver.kind, &ver.entity_id, &value)? {
                 let (hash, data) = json_hash(s.data)?;
                 if !new_objects.contains_key(&hash) && !ctx.db.saved_objects.contains(&hash) {
                     new_objects.insert(hash, data);
                 }
-
 
                 new_obs.push((s.kind, s.entity_id, ver.valid_from.0, 0.0, hash));
             }

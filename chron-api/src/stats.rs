@@ -30,6 +30,7 @@ pub enum GroupColumn {
     Day, // implies season
     Game,
     Slot,
+    PlayerName,
 }
 
 struct StatOutputRow {
@@ -89,9 +90,9 @@ impl Serialize for StatOutputRow {
         }
         if self.q.group.contains(&GroupColumn::Player) {
             state.serialize_field("player_id", &self.row.player.as_deref())?;
-            if self.q.names {
-                state.serialize_field("player_name", &self.row.player_name.as_deref())?;
-            }
+        }
+        if self.q.names || self.q.group.contains(&GroupColumn::PlayerName) {
+            state.serialize_field("player_name", &self.row.player_name.as_deref())?;
         }
         if self.q.group.contains(&GroupColumn::Slot) {
             state.serialize_field("slot", &self.row.slot)?;
@@ -179,6 +180,7 @@ pub async fn stats(
         group_day: q.group.contains(&GroupColumn::Day),
         group_game: q.group.contains(&GroupColumn::Game),
         group_slot: q.group.contains(&GroupColumn::Slot),
+        group_player_name: q.group.contains(&GroupColumn::PlayerName),
         sort: q.sort,
         count: Some(count),
         fields: q.fields.clone(),

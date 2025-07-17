@@ -3,11 +3,11 @@ use chron_base::{StatKey, objectid_to_timestamp};
 use compact_str::CompactString;
 use futures::{Stream, TryStreamExt};
 use sea_query::{
-    Asterisk, Cond, ConditionalStatement, Expr, ExprTrait, Func, PostgresQueryBuilder, Query,
+    Asterisk, Cond, Expr, ExprTrait, Func, PostgresQueryBuilder, Query,
 };
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
-use sqlx::{Executor, FromRow, Row, Statement, postgres::PgRow};
+use sqlx::{FromRow, Row, postgres::PgRow};
 use strum::{EnumCount, IntoStaticStr, VariantArray};
 use time::OffsetDateTime;
 
@@ -117,6 +117,7 @@ pub struct StatsQueryNew {
     pub group_day: bool,
     pub group_game: bool,
     pub group_slot: bool,
+    pub group_player_name: bool,
 
     pub sort: Option<StatKey>,
     pub count: Option<u64>,
@@ -420,6 +421,7 @@ impl ChronDb {
 
         let mut needs_teams_table_join = false;
         let mut needs_players_table_join = false;
+        let mut needs_player_name_expr = false;
 
         if let Some(player) = q.player {
             qq = qq.and_where(
@@ -459,10 +461,9 @@ impl ChronDb {
                 .group_by_col((Idens::GamePlayerStatsExploded, Idens::PlayerId))
                 .column((Idens::GamePlayerStatsExploded, Idens::PlayerId));
 
-            if q.include_names {
-                needs_players_table_join = true;
+            if q.include_names && !q.group_player_name {
                 let full_name =
-                    Func::cust(Idens::AnyValue).arg(Expr::col((Idens::Players, Idens::FullName)));
+                    Func::cust(Idens::AnyValue).arg(Expr::col((Idens::GamePlayerStatsExploded, Idens::PlayerName)));
                 qq = qq.expr_as(full_name, "player_name");
             }
         }
@@ -496,6 +497,10 @@ impl ChronDb {
 
         if q.group_slot {
             qq = qq.group_by_col(Idens::Slot).column(Idens::Slot);
+        }
+
+        if q.group_player_name {
+            qq = qq.group_by_col(Idens::PlayerName).column(Idens::PlayerName);
         }
 
         if let Some((s, d)) = q.start {

@@ -5,7 +5,6 @@ use chron_db::models::EntityKind;
 use reqwest::StatusCode;
 use serde::{Deserialize, Serialize};
 use tracing::{info, warn};
-use unicode_normalization::UnicodeNormalization;
 use uuid::Uuid;
 
 use crate::{

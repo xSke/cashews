@@ -74,6 +74,16 @@ impl IntervalWorker for ProcessFeeds {
                 .await?;
         }
 
+        // add in names from chron
+        sqlx::query("insert into player_name_map (player_id, player_name, timestamp) select entity_id as player_id, (data->>'FirstName') || ' ' || (data->>'LastName') as player_name, valid_from as timestamp from versions inner join objects using (hash) where kind = 9 on conflict do nothing")
+            .execute(&ctx.db.pool)
+            .await?;
+
+        // for every player, smash their earliest known name into -infinity
+        sqlx::query("insert into player_name_map (player_id, player_name, timestamp) select distinct player_id, first_value(player_name) over (partition by player_id order by timestamp) as player_name, ('-infinity'::timestamptz) as timestamp from player_name_map on conflict (player_id, timestamp) do update set player_name = excluded.player_name")
+            .execute(&ctx.db.pool)
+            .await?;
+
         Ok(())
     }
 }

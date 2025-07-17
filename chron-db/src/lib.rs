@@ -46,6 +46,8 @@ pub enum Idens {
     Objects,
     Payload,
     PlayerId,
+    PlayerName,
+    PlayerNameMap,
     Players,
     Raw,
     Season,

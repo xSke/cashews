@@ -144,6 +144,13 @@ create materialized view game_player_stats_exploded as
         gps.player_id,
         gps.team_id,
         rsh.slot,
+        (
+            select player_name
+            from player_name_map pnm
+            where
+                pnm.player_id = gps.player_id and pnm.timestamp < (objectid_to_timestamp(gps.game_id) + '15 minutes')
+            order by timestamp desc limit 1
+        ) as player_name,
         jt.*
     from game_player_stats gps
     join lateral json_table(data, '$[*]' columns (
