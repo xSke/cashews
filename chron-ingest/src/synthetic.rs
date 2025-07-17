@@ -77,7 +77,7 @@ async fn rebuild_type_and_clear(
 
 async fn rebuild_type(ctx: &WorkerContext, kind: EntityKind) -> anyhow::Result<()> {
     let ids = ctx.db.get_all_entity_ids(kind).await?;
-    ctx.process_many_with_progress(ids, 10, &format!("rebuild {:?}", kind), |ctx, id| {
+    ctx.process_many_with_progress(ids, 3, &format!("rebuild {:?}", kind), |ctx, id| {
         rebuild_entity(ctx, kind, id)
     })
     .await;

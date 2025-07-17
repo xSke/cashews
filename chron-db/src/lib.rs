@@ -196,9 +196,17 @@ impl ChronDb {
         .await??;
 
         // step 2: save all objects
-        let hashes = processed.iter().map(|(x, _)| x.4).collect_vec();
-        let datas = processed.iter().map(|(_, x)| x).collect_vec();
-        self.save_objects_raw_bulk(&hashes, &datas).await?;
+        let mut hashes = Vec::new();
+        let mut datas = Vec::new();
+        for ((_, _, _, _, hash), data) in &processed {
+            if !self.saved_objects.contains(hash) {
+                hashes.push(*hash);
+                datas.push(data);
+            }
+        }
+        if !hashes.is_empty() {
+            self.save_objects_raw_bulk(&hashes, &datas).await?;
+        }
 
         // step 3: save observations
         let obs = processed.into_iter().map(|(x, _)| x).collect_vec();
