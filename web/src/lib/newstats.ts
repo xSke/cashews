@@ -1,5 +1,7 @@
-import Papa from "papaparse";
-import { API_BASE } from "./data";
+import * as uDSV from "udsv";
+import { ColumnTable, table } from "arquero";
+import { API_BASE, chronLatestEntityQuery } from "./data";
+import { queryOptions, useQuery } from "@tanstack/react-query";
 
 // WIP
 export type StatKey =
@@ -66,6 +68,11 @@ export type GroupKey = "player" | "team" | "game" | "league" | "season" | "day";
 export interface StatsQuery {
   fields: StatKey[];
   group?: GroupKey[];
+  league?: string;
+  season?: number;
+  day?: number;
+  team?: string;
+  names?: boolean;
 }
 
 export type StatRow = {
@@ -77,31 +84,47 @@ export type StatRow = {
   day?: number;
 } & { [stat in StatKey]?: number };
 
-export async function getStats(q: StatsQuery) {
+export async function getStats(q: StatsQuery): Promise<ColumnTable> {
   const qs = new URLSearchParams();
   qs.set("fields", q.fields.join(","));
   if (q.group) qs.set("group", q.group.join(","));
-  // if (q.season !== undefined) qs.set("season", q.season.toString());
-  // if (q.day !== undefined) qs.set("day", q.day.toString());
-  // if (q.team !== undefined) qs.set("team", q.team);
+  if (q.season !== undefined) qs.set("season", q.season.toString());
+  if (q.day !== undefined) qs.set("day", q.day.toString());
+  if (q.team !== undefined) qs.set("team", q.team);
+  if (q.league !== undefined) qs.set("league", q.league);
+  if (q.names !== undefined) qs.set("names", q.names?.toString());
 
-  const url = API_BASE + `/stat?${qs.toString()}`;
-  const fetchCsv: Promise<Papa.ParseResult<StatRow>> = new Promise(
-    (res, rej) => {
-      Papa.parse<StatRow>(url, {
-        download: true,
-        header: true,
-        dynamicTyping: true,
-        complete(results, _) {
-          res(results);
-        },
-        error(error, _) {
-          rej(error);
-        },
-      });
-    },
+  const url = API_BASE + `/stats?${qs.toString()}`;
+
+  const resp = await fetch(url);
+  const textStream = resp.body!.pipeThrough(new TextDecoderStream());
+  let parser: uDSV.Parser | null = null;
+
+  for await (const strChunk of textStream) {
+    parser ??= uDSV.initParser(uDSV.inferSchema(strChunk));
+    parser.chunk(strChunk, parser.typedCols);
+  }
+  const colNames = parser?.schema.cols.map((c) => c.name) ?? [];
+
+  const result = parser?.end() ?? [];
+  const resultObj = Object.fromEntries(
+    colNames.map((name, i) => [name, result[i]])
   );
 
-  const result = await fetchCsv;
-  return result.data;
+  const t = table(resultObj, colNames);
+  return t;
+}
+
+export function statsQuery(q: StatsQuery) {
+  return queryOptions({
+    queryKey: [
+      "stats",
+      q.fields.join(",") ?? null,
+      q.group?.join(",") ?? null,
+      q.league ?? null,
+      q.season ?? null,
+      q.day ?? null,
+    ],
+    queryFn: () => getStats(q),
+  });
 }

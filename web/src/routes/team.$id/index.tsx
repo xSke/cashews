@@ -185,7 +185,7 @@ function RouteComponent() {
           </SelectTrigger>
           <SelectContent>
             {seasons.map((s) => (
-              <SelectItem id={s} value={s.toString()}>
+              <SelectItem key={s} value={s.toString()}>
                 Season {s}
               </SelectItem>
             ))}

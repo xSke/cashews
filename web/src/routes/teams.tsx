@@ -2,6 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/teams")({
   component: RouteComponent,
+  loader: ({ context }) =>
+    Promise.all([
+      context.queryClient.prefetchQuery(allTeamsQuery),
+      context.queryClient.prefetchQuery(allLeaguesQuery),
+    ]),
 });
 
 import { Input } from "@/components/ui/input";
@@ -13,7 +18,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BasicLeague, BasicTeam, useAllLeagues, useAllTeams } from "@/lib/data";
+import {
+  allLeaguesQuery,
+  allTeamsQuery,
+  BasicLeague,
+  BasicTeam,
+  useAllLeagues,
+  useAllTeams,
+} from "@/lib/data";
 import {
   CellContext,
   ColumnDef,
@@ -194,7 +206,7 @@ function RouteComponent() {
                         ? null
                         : flexRender(
                             header.column.columnDef.header,
-                            header.getContext(),
+                            header.getContext()
                           )}
                     </TableHead>
                   );
@@ -219,7 +231,7 @@ function RouteComponent() {
                     >
                       {flexRender(
                         cell.column.columnDef.cell,
-                        cell.getContext(),
+                        cell.getContext()
                       )}
                     </TableCell>
                   ))}

@@ -2,6 +2,7 @@
 
 import {
   QueryClient,
+  queryOptions,
   useQueries,
   useQuery,
   UseQueryOptions,
@@ -45,7 +46,7 @@ export const API_BASE = import.meta.env.SSR
 export async function getEntity<T>(
   kind: string,
   id: string,
-  at: string | null = null,
+  at: string | null = null
 ): Promise<ChronEntity<T>> {
   const qs = new URLSearchParams();
   qs.append("kind", kind);
@@ -59,18 +60,33 @@ export async function getEntity<T>(
 
 export async function getEntities<T>(
   kind: string,
-  id: string[],
+  id: string[]
 ): Promise<Record<string, T>> {
   const dedupIds = [...new Set(id)];
-  const resp = await fetch(
-    API_BASE + `/chron/v0/entities?kind=${kind}&id=${dedupIds.join(",")}`,
-  );
-  const data = (await resp.json()) as ChronPaginatedResponse<ChronEntity<T>>;
 
-  return Object.fromEntries(data.items.map((x) => [x.entity_id, x.data]));
+  let chunks: string[][] = [];
+  for (var i = 0; i < dedupIds.length; i += 50) {
+    chunks.push(dedupIds.slice(i, i + 50));
+  }
+
+  const resps = await Promise.all(
+    chunks.map(async (chunk) => {
+      const resp = await fetch(
+        API_BASE + `/chron/v0/entities?kind=${kind}&id=${chunk.join(",")}`
+      );
+      const data = (await resp.json()) as ChronPaginatedResponse<
+        ChronEntity<T>
+      >;
+      return data;
+    })
+  );
+
+  const items = resps.map((x) => x.items).flat();
+  return Object.fromEntries(items.map((x) => [x.entity_id, x.data]));
 }
 
 export async function getBasicTeams(): Promise<Record<string, BasicTeam>> {
+  // console.log("get basic teams");
   const resp = await fetch(API_BASE + `/teams`, {});
   const data = (await resp.json()) as ChronPaginatedResponse<BasicTeam>;
 
@@ -101,11 +117,11 @@ export async function getGames(q: {
 
 export async function getTeamStats(
   team: string,
-  season: number,
+  season: number
 ): Promise<PlayerStatsEntry[]> {
   const resp = await fetch(
     API_BASE +
-      `/player-stats?team=${team}&start=${season},0&end=${season + 1},0`,
+      `/player-stats?team=${team}&start=${season},0&end=${season + 1},0`
   );
   const data = (await resp.json()) as PlayerStatsEntry[];
 
@@ -115,7 +131,7 @@ export async function getTeamStats(
 export function chronLatestEntityQuery<T>(
   kind: string,
   id: string,
-  at: string | null = null,
+  at: string | null = null
 ) {
   return {
     queryKey: ["entity", kind, id, at],
@@ -123,15 +139,29 @@ export function chronLatestEntityQuery<T>(
   };
 }
 
+export function chronLatestEntitiesQuery<T>(
+  kind: string,
+  ids: string[],
+  at: string | null = null
+) {
+  const sorted = [...new Set(ids)];
+  sorted.sort();
+
+  return {
+    queryKey: ["entity", kind, sorted.join(",")],
+    queryFn: () => getEntities<T>(kind, sorted),
+  };
+}
+
 export const timeQuery = chronLatestEntityQuery<MmolbTime>(
   "time",
   "time",
-  null,
+  null
 );
 export const stateQuery = chronLatestEntityQuery<MmolbState>(
   "state",
   "state",
-  null,
+  null
 );
 
 export interface PercentileStats {
@@ -176,10 +206,10 @@ export interface AveragesResponse {
 }
 
 export async function getLeagueAggregates(
-  season: number,
+  season: number
 ): Promise<PercentileResponse> {
   const resp = await fetch(
-    API_BASE + `/league-aggregate-stats?season=${season}`,
+    API_BASE + `/league-aggregate-stats?season=${season}`
   );
   const data = (await resp.json()) as PercentileResponse;
 
@@ -187,35 +217,37 @@ export async function getLeagueAggregates(
     return data;
   } else {
     const resp2 = await fetch(
-      API_BASE + `/league-aggregate-stats?season=${season - 1}`,
+      API_BASE + `/league-aggregate-stats?season=${season - 1}`
     );
     return (await resp2.json()) as PercentileResponse;
   }
 }
 
 export async function getLeagueAverages(
-  season: number,
+  season: number
 ): Promise<AveragesResponse[]> {
   const resp = await fetch(API_BASE + `/league-averages?season=${season}`);
   // const data = (await resp.json()) as AveragesResponse;
   return (await resp.json()) as AveragesResponse[];
 }
 
+export const allTeamsQuery = queryOptions({
+  queryKey: ["teams"],
+  queryFn: getBasicTeams,
+});
+
+export const allLeaguesQuery = queryOptions({
+  queryKey: ["leagues"],
+  queryFn: getBasicLeagues,
+});
+
 export function useAllTeams() {
-  const { data } = useSuspenseQuery({
-    queryKey: ["teams"],
-    queryFn: getBasicTeams,
-    staleTime: 60 * 1000,
-  });
+  const { data } = useSuspenseQuery(allTeamsQuery);
   return data;
 }
 
 export function useAllLeagues() {
-  const { data } = useSuspenseQuery({
-    queryKey: ["leagues"],
-    queryFn: getBasicLeagues,
-    staleTime: 60 * 1000,
-  });
+  const { data } = useSuspenseQuery(allLeaguesQuery);
   return data;
 }
 
