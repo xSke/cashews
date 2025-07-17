@@ -148,8 +148,25 @@ export function chronLatestEntitiesQuery<T>(
   sorted.sort();
 
   return queryOptions({
-    queryKey: ["entity", kind, sorted.join(",")],
-    queryFn: () => getEntities<T>(kind, sorted),
+    queryKey: ["entity", kind, sorted.join(","), at],
+    queryFn: async ({ client, queryKey }) => {
+      const ids = new Set(queryKey[2]?.split(","));
+      const existings = {};
+      for (let id of ids) {
+        const existing = client.getQueryData(["entity", kind, id, at]);
+        if (existing) {
+          existings[id] = existing;
+          ids.delete(id);
+        }
+      }
+
+      const resp = await getEntities<T>(kind, sorted);
+      for (let key of Object.keys(resp)) {
+        client.setQueryData(["entity", kind, key, at], () => resp[key]);
+      }
+
+      return { ...existings, resp };
+    },
   });
 }
 
