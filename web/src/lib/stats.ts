@@ -15,6 +15,7 @@ export interface AdvancedStats {
   home_runs: number;
   walked: number;
   struck_out: number;
+  hit_by_pitch: number;
   ba: number;
   obp: number;
   slg: number;
@@ -30,10 +31,15 @@ export interface AdvancedStats {
   starts: number;
   wins: number;
   losses: number;
+  saves: number;
+  blown_saves: number;
+  earned_runs: number;
+  unearned_runs: number;
   hits_allowed: number;
   home_runs_allowed: number;
   strikeouts: number;
   walks: number;
+  hit_batters: number;
   era: number;
   era_minus: number;
   fip: number;
@@ -43,6 +49,7 @@ export interface AdvancedStats {
   bb9: number;
   k9: number;
   hr9: number;
+  k_bb: number;
 }
 
 export function calculateAdvancedStats(
@@ -62,6 +69,7 @@ export function calculateAdvancedStats(
   const triples = data.stats.triples ?? 0;
   const home_runs = data.stats.home_runs ?? 0;
   const earned_runs = data.stats.earned_runs ?? 0;
+  const unearned_runs = data.stats.unearned_runs ?? 0;
   const outs = data.stats.outs ?? 0;
   const walks = data.stats.walks ?? 0;
   const hits_allowed = data.stats.hits_allowed ?? 0;
@@ -81,6 +89,8 @@ export function calculateAdvancedStats(
   const starts = data.stats.starts ?? 0;
   const wins = data.stats.wins ?? 0;
   const losses = data.stats.losses ?? 0;
+  const saves = data.stats.saves ?? 0;
+  const blown_saves = data.stats.blown_saves ?? 0;
 
   const abs = data.stats.at_bats ?? 0;
   const pas = data.stats.plate_appearances ?? 0;
@@ -104,6 +114,7 @@ export function calculateAdvancedStats(
   const bb9 = (9 * walks) / ip;
   const k9 = (9 * strikeouts) / ip;
   const h9 = (9 * hits_allowed) / ip;
+  const k_bb = strikeouts / walks;
 
   return {
     at_bats: abs,
@@ -112,6 +123,7 @@ export function calculateAdvancedStats(
     doubles,
     triples,
     home_runs,
+    hit_by_pitch,
     walked,
     struck_out,
     ba,
@@ -129,10 +141,15 @@ export function calculateAdvancedStats(
     starts,
     wins,
     losses,
+    saves,
+    blown_saves,
+    earned_runs,
+    unearned_runs,
     hits_allowed,
     home_runs_allowed,
     strikeouts,
     walks,
+    hit_batters,
     era,
     era_minus,
     fip,
@@ -142,5 +159,6 @@ export function calculateAdvancedStats(
     bb9,
     k9,
     hr9,
+    k_bb,
   };
 }

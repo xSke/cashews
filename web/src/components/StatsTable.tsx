@@ -334,6 +334,12 @@ const columnsBatting: ColumnDef<RowData>[] = [
     // footer: StatFooter(),
   },
   {
+    header: SortableHeader("HBP", true),
+    accessorKey: "hit_by_pitch",
+    cell: StatCell(0),
+    // footer: StatFooter(),
+  },
+  {
     header: SortableHeader("BB", true),
     accessorKey: "walked",
     cell: StatCell(0),
@@ -417,6 +423,26 @@ const columnsPitching: ColumnDef<RowData>[] = [
     cell: StatCell(0),
   },
   {
+    header: SortableHeader("S", true),
+    accessorKey: "saves",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("BS", true),
+    accessorKey: "blown_saves",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("ER", true),
+    accessorKey: "earned_runs",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("UR", true),
+    accessorKey: "unearned_runs",
+    cell: StatCell(0),
+  },
+  {
     header: SortableHeader("H", true),
     accessorKey: "hits_allowed",
     cell: StatCell(0),
@@ -434,6 +460,11 @@ const columnsPitching: ColumnDef<RowData>[] = [
   {
     header: SortableHeader("BB", true),
     accessorKey: "walks",
+    cell: StatCell(0),
+  },
+  {
+    header: SortableHeader("HB", true),
+    accessorKey: "hit_batters",
     cell: StatCell(0),
   },
   {
@@ -480,6 +511,11 @@ const columnsPitching: ColumnDef<RowData>[] = [
     header: SortableHeader("BB/9", true),
     accessorKey: "bb9",
     cell: StatCell(2, "bb9", true),
+  },
+  {
+    header: SortableHeader("K/BB", true),
+    accessorKey: "k_bb",
+    cell: StatCell(2, "k_bb", true),
   },
 ];
 

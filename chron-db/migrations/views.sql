@@ -377,6 +377,7 @@ select
     (sum(9 * walks)::real / nullif(sum(ip), 0)) as bb9,
     (sum(9 * strikeouts)::real / nullif(sum(ip), 0)) as k9,
     (sum(9 * hits_allowed)::real / nullif(sum(ip), 0)) as h9,
+    (sum(strikeouts)::real / nullif(sum(walks), 0)) as k_bb,
     (sum(13 * home_runs_allowed + 3 * (walks + hit_batters) - 2 * strikeouts)::real / nullif(sum(ip), 0)) as fip_base,
 
     sum(stolen_bases) as stolen_bases,
@@ -518,12 +519,15 @@ select
     (sum(singles + doubles * 2 + triples * 3 + home_runs * 4)::real / nullif(sum(at_bats)::real, 0)) as slg,
     (sum(hits + walked + hit_by_pitch)::real / nullif(sum(plate_appearances)::real, 0) + sum(singles + doubles * 2 + triples * 3 + home_runs * 4)::real / nullif(sum(at_bats)::real, 0)) as ops,
 
+    sum(pitches_thrown) as pitches_thrown,
+    sum(outs) as outs,
     ((9 * sum(earned_runs))::real / nullif(sum(ip), 0)) as era,
     (sum(walks + hits_allowed)::real / nullif(sum(ip), 0)) as whip,
     (sum(9 * home_runs_allowed)::real / nullif(sum(ip), 0)) as hr9,
     (sum(9 * walks)::real / nullif(sum(ip), 0)) as bb9,
     (sum(9 * strikeouts)::real / nullif(sum(ip), 0)) as k9,
     (sum(9 * hits_allowed)::real / nullif(sum(ip), 0)) as h9,
+    (sum(strikeouts)::real / nullif(sum(walks), 0)) as k_bb,
     (sum(13 * home_runs_allowed + 3 * (walks + hit_batters) - 2 * strikeouts)::real / nullif(sum(ip), 0)) as fip_base,
 
     sum(stolen_bases + caught_stealing) as sb_attempts,
@@ -670,6 +674,7 @@ select
     (sum(9 * walks)::real / nullif(sum(ip), 0)) as bb9,
     (sum(9 * strikeouts)::real / nullif(sum(ip), 0)) as k9,
     (sum(9 * hits_allowed)::real / nullif(sum(ip), 0)) as h9,
+    (sum(strikeouts)::real / nullif(sum(walks), 0)) as k_bb,
     (sum(13 * home_runs_allowed + 3 * (walks + hit_batters) - 2 * strikeouts)::real / nullif(sum(ip), 0)) as fip_base,
 
     sum(stolen_bases + caught_stealing) as sb_attempts,
@@ -700,6 +705,7 @@ create or replace function league_percentiles(real[]) returns table(
                                                                        h9 real[],
                                                                        k9 real[],
                                                                        bb9 real[],
+                                                                       k_bb real[],
                                                                        hr9 real[]
                                                                    )
 AS $$
@@ -719,6 +725,7 @@ select
     percentile_cont($1) within group (order by h.h9 desc) filter (where h.ip > 20) as h9,
     percentile_cont($1) within group (order by h.k9) filter (where h.ip > 20) as k9,
     percentile_cont($1) within group (order by h.bb9 desc) filter (where h.ip > 20) as bb9,
+    percentile_cont($1) within group (order by h.k_bb) filter (where h.ip > 20) as k_bb,
     percentile_cont($1) within group (order by h.hr9 desc) filter (where h.ip > 20) as hr9
 from game_player_stats_advanced h
          inner join teams t on (t.team_id = h.team_id)
@@ -742,6 +749,7 @@ create or replace function global_percentiles(real[]) returns table(
                                                                        h9 real[],
                                                                        k9 real[],
                                                                        bb9 real[],
+                                                                       k_bb real[],
                                                                        hr9 real[]
                                                                    )
 AS $$
@@ -760,6 +768,7 @@ select
     percentile_cont($1) within group (order by h.h9 desc) filter (where h.ip > 20) as h9,
     percentile_cont($1) within group (order by h.k9) filter (where h.ip > 20) as k9,
     percentile_cont($1) within group (order by h.bb9 desc) filter (where h.ip > 20) as bb9,
+    percentile_cont($1) within group (order by h.k_bb) filter (where h.ip > 20) as k_bb,
     percentile_cont($1) within group (order by h.hr9 desc) filter (where h.ip > 20) as hr9
 from game_player_stats_advanced h
          inner join teams t on (t.team_id = h.team_id)
@@ -784,6 +793,7 @@ create or replace function league_avgs() returns table(
                                                           h9 real,
                                                           k9 real,
                                                           bb9 real,
+                                                          k_bb real,
                                                           hr9 real
                                                       )
 AS $$
@@ -803,6 +813,7 @@ select
     avg(h9) filter (where h.ip > 20) as h9,
     avg(k9) filter (where h.ip > 20) as k9,
     avg(bb9) filter (where h.ip > 20) as bb9,
+    avg(k_bb) filter (where h.ip > 20) as k_bb,
     avg(hr9) filter (where h.ip > 20) as hr9
 from game_player_stats_advanced h
          inner join teams t on (t.team_id = h.team_id)
@@ -826,6 +837,7 @@ create or replace function global_avgs() returns table(
                                                           h9 real,
                                                           k9 real,
                                                           bb9 real,
+                                                          k_bb real,
                                                           hr9 real
                                                       )
 AS $$
@@ -844,6 +856,7 @@ select
     avg(h9) filter (where h.ip > 20) as h9,
     avg(k9) filter (where h.ip > 20) as k9,
     avg(bb9) filter (where h.ip > 20) as bb9,
+    avg(k_bb) filter (where h.ip > 20) as k_bb,
     avg(hr9) filter (where h.ip > 20) as hr9
 from game_player_stats_advanced h
          inner join teams t on (t.team_id = h.team_id)
@@ -867,6 +880,7 @@ create or replace function global_stddevs() returns table(
                                                             h9 real,
                                                             k9 real,
                                                             bb9 real,
+                                                            k_bb real,
                                                             hr9 real
                                                         )
 AS $$
@@ -885,6 +899,7 @@ select
     stddev_samp(h9) filter (where h.ip > 20) as h9,
     stddev_samp(k9) filter (where h.ip > 20) as k9,
     stddev_samp(bb9) filter (where h.ip > 20) as bb9,
+    stddev_samp(k_bb) filter (where h.ip > 20) as k_bb,
     stddev_samp(hr9) filter (where h.ip > 20) as hr9
 from game_player_stats_advanced h
          inner join teams t on (t.team_id = h.team_id)
