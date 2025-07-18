@@ -10,6 +10,7 @@ chron-base = { workspace = true }
 chron-db = { workspace = true }
 ciborium = "0.2.2"
 dashmap.workspace = true
+duckdb.workspace = true
 futures = { workspace = true }
 rand = "0.9.1"
 reqwest = { workspace = true }

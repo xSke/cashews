@@ -4,9 +4,7 @@ import {
   defaultShouldDehydrateQuery,
   dehydrate,
   hydrate,
-  HydrationBoundary,
   QueryClient,
-  QueryClientProvider,
 } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -32,10 +30,8 @@ export function createRouter() {
       },
       dehydrate: {
         shouldDehydrateQuery: (query) => {
-          console.log(query.state.status, query.queryKey);
           return (
-            defaultShouldDehydrateQuery(query) ||
-            query.state.status === "pending"
+            defaultShouldDehydrateQuery(query) && query.queryKey[0] !== "duckdb"
           );
         },
 
@@ -80,7 +76,17 @@ export function createRouter() {
       return (
         <PersistQueryClientProvider
           client={queryClient}
-          persistOptions={{ persister: asyncStoragePersister }}
+          persistOptions={{
+            persister: asyncStoragePersister,
+            dehydrateOptions: {
+              shouldDehydrateQuery: (query) => {
+                return (
+                  defaultShouldDehydrateQuery(query) &&
+                  query.queryKey[0] !== "duckdb"
+                );
+              },
+            },
+          }}
         >
           {children}
         </PersistQueryClientProvider>

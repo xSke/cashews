@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as ScorigamiRouteImport } from './routes/scorigami'
+import { Route as QueryRouteImport } from './routes/query'
 import { Route as PlayersRouteImport } from './routes/players'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LeadersRouteImport } from './routes/leaders'
@@ -31,6 +32,11 @@ const TeamsRoute = TeamsRouteImport.update({
 const ScorigamiRoute = ScorigamiRouteImport.update({
   id: '/scorigami',
   path: '/scorigami',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QueryRoute = QueryRouteImport.update({
+  id: '/query',
+  path: '/query',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PlayersRoute = PlayersRouteImport.update({
@@ -94,6 +100,7 @@ export interface FileRoutesByFullPath {
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
+  '/query': typeof QueryRoute
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/league/$id': typeof LeagueIdRouteRouteWithChildren
@@ -109,6 +116,7 @@ export interface FileRoutesByTo {
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
+  '/query': typeof QueryRoute
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/team/$id/games': typeof TeamIdGamesRoute
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
+  '/query': typeof QueryRoute
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/league/$id': typeof LeagueIdRouteRouteWithChildren
@@ -140,6 +149,7 @@ export interface FileRouteTypes {
     | '/leaders'
     | '/map'
     | '/players'
+    | '/query'
     | '/scorigami'
     | '/teams'
     | '/league/$id'
@@ -155,6 +165,7 @@ export interface FileRouteTypes {
     | '/leaders'
     | '/map'
     | '/players'
+    | '/query'
     | '/scorigami'
     | '/teams'
     | '/team/$id/games'
@@ -168,6 +179,7 @@ export interface FileRouteTypes {
     | '/leaders'
     | '/map'
     | '/players'
+    | '/query'
     | '/scorigami'
     | '/teams'
     | '/league/$id'
@@ -184,6 +196,7 @@ export interface RootRouteChildren {
   LeadersRoute: typeof LeadersRoute
   MapRoute: typeof MapRoute
   PlayersRoute: typeof PlayersRoute
+  QueryRoute: typeof QueryRoute
   ScorigamiRoute: typeof ScorigamiRoute
   TeamsRoute: typeof TeamsRoute
   LeagueIdRouteRoute: typeof LeagueIdRouteRouteWithChildren
@@ -204,6 +217,13 @@ declare module '@tanstack/react-router' {
       path: '/scorigami'
       fullPath: '/scorigami'
       preLoaderRoute: typeof ScorigamiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/query': {
+      id: '/query'
+      path: '/query'
+      fullPath: '/query'
+      preLoaderRoute: typeof QueryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/players': {
@@ -321,6 +341,7 @@ const rootRouteChildren: RootRouteChildren = {
   LeadersRoute: LeadersRoute,
   MapRoute: MapRoute,
   PlayersRoute: PlayersRoute,
+  QueryRoute: QueryRoute,
   ScorigamiRoute: ScorigamiRoute,
   TeamsRoute: TeamsRoute,
   LeagueIdRouteRoute: LeagueIdRouteRouteWithChildren,

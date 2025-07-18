@@ -12,7 +12,7 @@ use workers::{
     league::{self},
 };
 
-use crate::workers::feeds::ProcessFeeds;
+use crate::workers::{export::ExportParquet, feeds::ProcessFeeds};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -94,17 +94,18 @@ async fn main() -> anyhow::Result<()> {
         };
         Ok(())
     } else {
-        spawn(ctx.clone(), PollLeague);
-        spawn(ctx.clone(), PollNewPlayers);
-        spawn(ctx.clone(), RefreshMatviews);
-        spawn(ctx.clone(), PollMessage);
-        spawn(ctx.clone(), PollGameDays);
-        spawn(ctx.clone(), PollLiveGames);
-        spawn(ctx.clone(), PollAllPlayers);
-        spawn(ctx.clone(), PollMiscData);
-        spawn(ctx.clone(), LookupMapLocations);
-        spawn(ctx.clone(), HandleEventGames);
-        spawn(ctx.clone(), ProcessFeeds);
+        // spawn(ctx.clone(), PollLeague);
+        // spawn(ctx.clone(), PollNewPlayers);
+        // spawn(ctx.clone(), RefreshMatviews);
+        // spawn(ctx.clone(), PollMessage);
+        // spawn(ctx.clone(), PollGameDays);
+        // spawn(ctx.clone(), PollLiveGames);
+        // spawn(ctx.clone(), PollAllPlayers);
+        // spawn(ctx.clone(), PollMiscData);
+        // spawn(ctx.clone(), LookupMapLocations);
+        // spawn(ctx.clone(), HandleEventGames);
+        // spawn(ctx.clone(), ProcessFeeds);
+        spawn(ctx.clone(), ExportParquet);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");

@@ -13,6 +13,7 @@
     "start": "vite start"
   },
   "dependencies": {
+    "@duckdb/duckdb-wasm": "^1.29.1-dev132.0",
     "@radix-ui/react-dialog": "^1.1.14",
     "@radix-ui/react-dropdown-menu": "^2.1.15",
     "@radix-ui/react-navigation-menu": "^1.2.13",
@@ -31,6 +32,7 @@
     "@tanstack/react-router": "^1.123.2",
     "@tanstack/react-start": "^1.123.2",
     "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.13.12",
     "@tanstack/start": "^1.120.20",
     "@types/chroma-js": "^3.1.1",
     "arquero": "^8.0.3",
@@ -38,6 +40,7 @@
     "chroma-js": "^3.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "duckdb-wasm-kit": "^0.1.39",
     "leaflet": "^1.9.4",
     "leaflet-extra-markers": "^1.2.2",
     "lucide-react": "^0.525.0",

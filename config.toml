@@ -1,1 +1,2 @@
 database_uri = "postgres://postgres:password@localhost:5432/postgres"
+export_path = "export"

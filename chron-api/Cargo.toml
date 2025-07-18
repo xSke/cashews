@@ -12,17 +12,20 @@ chron-base = { workspace = true }
 chron-db = { workspace = true }
 crossbeam = "0.8.4"
 csv = "1.3.1"
+duckdb.workspace = true
 futures.workspace = true
 moka = { version = "0.12.10", features = ["future"] }
-polars = { version = "0.49.1", features = ["dtype-categorical", "dtype-u16", "lazy", "polars-io", "performant"] }
-polars-arrow = "0.49.1"
+#polars = { version = "0.49.1", features = ["dtype-categorical", "dtype-u16", "lazy", "polars-io", "performant"] }
+#polars-arrow = "0.49.1"
 serde = { workspace = true }
 serde_json.workspace = true
 serde_qs = { version = "0.15.0", features = ["axum", "tracing", "futures"] }
 serde_with = "3.12.0"
 sqlx.workspace = true
 strum.workspace = true
+tempfile = "3.20.0"
 time = { workspace = true }
 tokio = { workspace = true }
-tower-http = { workspace = true }
+tower-http = { workspace = true, features = ["fs"] }
 tracing = { workspace = true }
+url = "2.5.4"

@@ -13,6 +13,7 @@ pub mod cache;
 pub struct ChronConfig {
     pub database_uri: String,
     pub maps_api_key: Option<String>,
+    pub export_path: Option<String>,
 
     #[serde(default)]
     pub jitter: bool,

@@ -13,8 +13,10 @@ services:
     entrypoint: ["/app/chron-api"]
     environment:
       - CHRON_DATABASE_URI=postgres://postgres:password@postgres:5432/postgres
+      - CHRON_EXPORT_PATH=/export
     volumes:
       - ./config.toml:/app/config.toml
+      - export:/export
     restart: unless-stopped
     ports:
     - 127.0.0.1:3001:3001
@@ -24,10 +26,12 @@ services:
     volumes:
       - ./mnt:/mnt
       - ./config.toml:/app/config.toml
+      - export:/export
     restart: unless-stopped
     environment:
       - CHRON_MAPS_API_KEY=${CHRON_MAPS_API_KEY}
       - CHRON_JITTER=true
+      - CHRON_EXPORT_PATH=/export
       - CHRON_DATABASE_URI=postgres://postgres:password@postgres:5432/postgres
   postgres:
     image: postgres:17-alpine 
@@ -42,3 +46,4 @@ services:
     shm_size: 1G
 volumes:
   postgres_db:
+  export:

@@ -6,30 +6,34 @@ use axum::{
     response::{IntoResponse, Response},
     routing::get,
 };
-use chron_base::{cache::SwrCache2, load_config, stop_signal};
+use chron_base::{ChronConfig, cache::SwrCache2, load_config, stop_signal};
 use chron_db::ChronDb;
 use crossbeam::atomic::AtomicCell;
 use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
-use polars::enable_string_cache;
+// use polars::enable_string_cache;
 use tower_http::{
     compression::CompressionLayer,
     cors::{Any, CorsLayer},
+    services::ServeDir,
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::info;
 
-use crate::polar::PolarsState;
+use crate::duck::DuckDBState;
 
 mod chron_api;
 mod derived_api;
-mod polar;
+mod duck;
+// mod polar;
 mod stats;
 
 #[derive(Clone)]
 pub struct AppState {
+    config: Arc<ChronConfig>,
     db: ChronDb,
     percentile_cache: SwrCache2<(), Vec<LeagueAggregateResponse>, AppState>,
-    polars: Arc<AtomicCell<PolarsState>>,
+    // polars: Arc<AtomicCell<PolarsState>>,
+    duckdb: Arc<DuckDBState>,
 }
 
 pub struct AppError(anyhow::Error);
@@ -48,21 +52,23 @@ impl IntoResponse for AppError {
 
 #[tokio::main(flavor = "multi_thread")]
 async fn main() -> anyhow::Result<()> {
-    enable_string_cache();
+    // enable_string_cache();
 
     let config = load_config()?;
     let db = ChronDb::new(&config).await?;
 
     let state = AppState {
         db,
+        duckdb: Arc::new(DuckDBState::new(&config.database_uri)?),
         percentile_cache: SwrCache2::new(Duration::from_secs(60 * 10), 10, move |_, ctx| {
             refresh_league_aggregate(ctx)
         }),
-        polars: Arc::new(AtomicCell::new(PolarsState::new())),
+        // polars: Arc::new(AtomicCell::new(PolarsState::new())),
+        config: Arc::new(config),
     };
     state.percentile_cache.set_context(state.clone());
 
-    // tokio::spawn(polar::worker(state.clone()));
+    // tokio::spawn(duck::worker(state.clone()));\
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET])
@@ -72,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
         .on_request(DefaultOnRequest::new())
         .on_response(DefaultOnResponse::new());
 
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/chron/v0/entities", get(chron_api::get_entities))
         .route("/chron/v0/versions", get(chron_api::get_versions))
         .route("/games", get(derived_api::get_games))
@@ -86,7 +92,15 @@ async fn main() -> anyhow::Result<()> {
             "/league-aggregate-stats",
             get(derived_api::league_aggregate),
         )
-        .route("/league-averages", get(derived_api::league_averages))
+        .route("/league-averages", get(derived_api::league_averages));
+    // .route("/export.parquet", get(duck::export));
+
+    if let Some(dir) = &state.config.export_path {
+        dbg!(dir);
+        app = app.nest_service("/export", ServeDir::new(dir));
+    }
+
+    let app = app
         .layer(cors)
         .layer(CompressionLayer::new())
         .layer(trace)
