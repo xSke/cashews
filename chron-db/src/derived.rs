@@ -20,6 +20,7 @@ pub struct DbGame {
     pub game_id: String,
     pub season: i32,
     pub day: i32,
+    pub day_special: Option<String>,
     pub home_team_id: String,
     pub away_team_id: String,
     pub state: String,
@@ -585,7 +586,7 @@ impl ChronDb {
     }
 
     pub async fn update_game(&self, game: DbGameSaveModel<'_>) -> anyhow::Result<()> {
-        sqlx::query("insert into games (game_id, season, day, home_team_id, away_team_id, state, event_count, last_update) values ($1, $2, $3, $4, $5, $6, $7, $8) on conflict (game_id) do update set state = excluded.state, event_count = excluded.event_count, last_update = excluded.last_update")
+        sqlx::query("insert into games (game_id, season, day, home_team_id, away_team_id, state, event_count, last_update, day_special) values ($1, $2, $3, $4, $5, $6, $7, $8, $9) on conflict (game_id) do update set state = excluded.state, event_count = excluded.event_count, last_update = excluded.last_update, day_special = excluded.day_special")
             .bind(game.game_id)
             .bind(game.season)
             .bind(game.day)
@@ -594,6 +595,7 @@ impl ChronDb {
             .bind(game.state)
             .bind(game.event_count)
             .bind(game.last_update)
+            .bind(game.day_special)
             .execute(&self.pool)
             .await?;
         Ok(())
@@ -728,6 +730,7 @@ pub struct DbGameSaveModel<'a> {
     pub game_id: &'a str,
     pub season: i32,
     pub day: i32,
+    pub day_special: Option<&'a str>,
     pub home_team_id: &'a str,
     pub away_team_id: &'a str,
     pub state: &'a str,

@@ -19,7 +19,7 @@ pub struct MmolbState {
     pub season_id: String,
 
     #[serde(rename = "Day")]
-    pub day: i32,
+    pub day: GameDayNumber,
 }
 
 #[derive(Deserialize, Debug)]
@@ -95,12 +95,35 @@ pub struct MmolbPlayer {
     pub last_name: String,
 }
 
+#[derive(Debug, Deserialize, Clone)]
+#[serde(untagged)]
+pub enum GameDayNumber {
+    Normal(i32),
+    Special(String),
+}
+
+impl GameDayNumber {
+    pub fn to_int(&self) -> i32 {
+        match self {
+            GameDayNumber::Normal(i) => *i,
+            GameDayNumber::Special(_) => -1,
+        }
+    }
+
+    pub fn get_special(&self) -> Option<&str> {
+        match self {
+            GameDayNumber::Normal(_) => None,
+            GameDayNumber::Special(s) => Some(&s),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 pub struct MmolbGame {
     #[serde(rename = "Season")]
     pub season: i32,
     #[serde(rename = "Day")]
-    pub day: i32,
+    pub day: GameDayNumber,
 
     #[serde(rename = "AwayTeamID")]
     pub away_team_id: String,
@@ -128,7 +151,7 @@ pub struct MmolbGameEvent {
 
 #[derive(Debug, Deserialize)]
 pub struct MmolbTime {
-    pub season_day: i32,
+    pub season_day: GameDayNumber,
     pub season_number: i32,
     pub season_status: String,
 }

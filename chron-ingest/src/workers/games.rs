@@ -10,7 +10,7 @@ use time::OffsetDateTime;
 use tokio::time::interval;
 
 use crate::{
-    models::{MmolbDay, MmolbGame, MmolbGameEvent, MmolbSeason, MmolbTeam},
+    models::{GameDayNumber, MmolbDay, MmolbGame, MmolbGameEvent, MmolbSeason, MmolbTeam},
     workers::{IntervalWorker, WorkerContext, league},
 };
 use futures::{StreamExt, TryStreamExt};
@@ -87,46 +87,91 @@ impl IntervalWorker for PollGameDays {
     }
 }
 
+pub struct HandleSuperstarGames;
+
+#[derive(Deserialize)]
+struct SuperstarGamesResponse {
+    games: Vec<SuperstarGame>,
+}
+
+#[derive(Deserialize)]
+// i swear every endpoint that returns games has a different schema...
+struct SuperstarGame {
+    #[serde(default)]
+    game_id: Option<String>,
+}
+
+impl IntervalWorker for HandleSuperstarGames {
+    fn interval() -> tokio::time::Interval {
+        interval(Duration::from_secs(60 * 5))
+    }
+
+    async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
+        let resp = ctx
+            .fetch_and_save(
+                "https://mmolb.com/api/superstar-games",
+                EntityKind::SuperstarGames,
+                "superstar-games",
+            )
+            .await?;
+
+        let game_ids = resp
+            .parse::<SuperstarGamesResponse>()?
+            .games
+            .into_iter()
+            .flat_map(|x| x.game_id)
+            .collect::<Vec<_>>();
+
+        poll_games_and_their_players(&ctx, &game_ids).await?;
+        Ok(())
+    }
+}
+
 // mostly just a quick hack to make sure we get the game IDs from the state object in as well
 // for eg. exhibition games
 impl IntervalWorker for HandleEventGames {
     fn interval() -> tokio::time::Interval {
-        interval(Duration::from_secs(60))
+        interval(Duration::from_secs(60 * 5))
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
         let state = ctx.try_update_state().await?;
 
-        // maybe should only poll if incomplete, but eh, there's not many going at once usually
-        ctx.process_many(state.event_game_ids.clone(), 3, poll_game_by_id)
-            .await;
-
-        // this is a bit cheating but whatever
-        let event_teams: Vec<String> = sqlx::query_scalar(
-            "select distinct team_id from game_player_stats where game_id = any($1)",
-        )
-        .bind(&state.event_game_ids)
-        .fetch_all(&ctx.db.pool)
-        .await?;
-
-        let event_players: Vec<String> = sqlx::query_scalar(
-            "select distinct player_id from game_player_stats where game_id = any($1)",
-        )
-        .bind(&state.event_game_ids)
-        .fetch_all(&ctx.db.pool)
-        .await?;
-
-        ctx.process_many_with_progress(event_teams, 5, "event teams", league::fetch_team)
-            .await;
-        ctx.process_many_with_progress(
-            event_players.chunks(100),
-            5,
-            "event players",
-            league::fetch_players_bulk,
-        )
-        .await;
+        poll_games_and_their_players(ctx, &state.event_game_ids).await?;
         Ok(())
     }
+}
+
+// mostly used for events/superstars
+async fn poll_games_and_their_players(ctx: &WorkerContext, ids: &[String]) -> anyhow::Result<()> {
+    // maybe should only poll if incomplete, but eh, there's not many going at once usually
+    ctx.process_many(ids.to_vec(), 3, poll_game_by_id).await;
+
+    // this is a bit cheating but whatever
+    let event_teams: Vec<String> = sqlx::query_scalar(
+        "select distinct team_id from game_player_stats where game_id = any($1)",
+    )
+    .bind(&ids)
+    .fetch_all(&ctx.db.pool)
+    .await?;
+
+    let event_players: Vec<String> = sqlx::query_scalar(
+        "select distinct player_id from game_player_stats where game_id = any($1)",
+    )
+    .bind(&ids)
+    .fetch_all(&ctx.db.pool)
+    .await?;
+
+    ctx.process_many_with_progress(event_teams, 5, "event teams", league::fetch_team)
+        .await;
+    ctx.process_many_with_progress(
+        event_players.chunks(100),
+        5,
+        "event players",
+        league::fetch_players_bulk,
+    )
+    .await;
+    Ok(())
 }
 
 async fn get_all_game_ids_from_days(ctx: &WorkerContext) -> anyhow::Result<Vec<String>> {
@@ -219,7 +264,8 @@ async fn process_game_data(
         .update_game(DbGameSaveModel {
             game_id: &id,
             season: game.season,
-            day: game.day,
+            day: game.day.to_int(),
+            day_special: game.day.get_special(),
             home_team_id: &game.home_team_id,
             away_team_id: &game.away_team_id,
             state: &game.state,
@@ -233,7 +279,7 @@ async fn process_game_data(
         home_team_id: &game.home_team_id,
         game_id: &id,
         season: game.season,
-        day: game.day,
+        day: game.day.clone(),
     };
     save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
 
@@ -246,7 +292,7 @@ async fn process_game_data(
         }
 
         ctx.db
-            .update_game_player_stats(&id, game.season, game.day, &stats)
+            .update_game_player_stats(&id, game.season, game.day.to_int(), &stats)
             .await?;
     }
 
@@ -257,10 +303,11 @@ async fn process_game_data(
 struct GenericGame<'a> {
     game_id: &'a str,
     season: i32,
-    day: i32,
+    day: GameDayNumber,
     home_team_id: &'a str,
     away_team_id: &'a str,
 }
+
 struct EnrichedGameEvent {
     pitcher_id: Option<String>,
     batter_id: Option<String>,
@@ -322,7 +369,7 @@ async fn save_game_events(
         .update_game_events(
             &game.game_id,
             game.season,
-            game.day,
+            game.day.to_int(),
             &timestamp,
             &indexes,
             &datas,
@@ -382,7 +429,11 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
         home_team_id: &game.home_team_id,
         game_id: &game.game_id,
         season: game.season,
-        day: game.day,
+        day: if let Some(ref special) = game.day_special {
+            GameDayNumber::Special(special.to_string())
+        } else {
+            GameDayNumber::Normal(game.day)
+        },
     };
     save_game_events(
         ctx,
@@ -418,6 +469,7 @@ async fn poll_live_game(ctx: &WorkerContext, game: DbGame) -> anyhow::Result<()>
                 game_id: &game.game_id,
                 season: game.season,
                 day: game.day,
+                day_special: game.day_special.as_deref(),
                 home_team_id: &game.home_team_id,
                 away_team_id: &game.away_team_id,
                 state: &new_state,

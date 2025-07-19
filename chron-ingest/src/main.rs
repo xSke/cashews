@@ -12,7 +12,7 @@ use workers::{
     league::{self},
 };
 
-use crate::workers::{export::ExportParquet, feeds::ProcessFeeds};
+use crate::workers::{export::ExportParquet, feeds::ProcessFeeds, games::HandleSuperstarGames};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -104,6 +104,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), PollMiscData);
         spawn(ctx.clone(), LookupMapLocations);
         spawn(ctx.clone(), HandleEventGames);
+        spawn(ctx.clone(), HandleSuperstarGames);
         spawn(ctx.clone(), ProcessFeeds);
         spawn(ctx.clone(), ExportParquet);
 
