@@ -906,15 +906,15 @@ from game_player_stats_advanced h
 group by (season);
 $$
     language sql;
-
-select println('creating pitches');
-create materialized view if not exists pitches as
-    select
-        *,
-        split_part(data->>'pitch_info', ' ', 1)::real as pitch_speed,
-        split_part(data->>'pitch_info', 'MPH ', 2) as pitch_type,
-        nullif(data->>'zone', '')::smallint as pitch_zone
-    from game_events
-        where pitcher_id is distinct from null and data->>'event' = 'Pitch';
-select println('creating pitches index');
-create unique index pitches_idx on pitches(game_id, index);
+    
+-- select println('creating pitches');
+-- create materialized view if not exists pitches as
+--     select
+--         *,
+--         split_part(data->>'pitch_info', ' ', 1)::real as pitch_speed,
+--         split_part(data->>'pitch_info', 'MPH ', 2) as pitch_type,
+--         nullif(data->>'zone', '')::smallint as pitch_zone
+--     from game_events
+--         where pitcher_id is distinct from null and data->>'event' = 'Pitch';
+-- select println('creating pitches index');
+-- create unique index pitches_idx on pitches(game_id, index);

@@ -20,7 +20,7 @@ impl IntervalWorker for RefreshMatviews {
             "game_player_stats_exploded",
             "game_player_stats_league_aggregate",
             "game_player_stats_global_aggregate",
-            "pitches",
+            // "pitches",
         ];
         for matview in matviews {
             info!("refreshing matview {}...", matview);
