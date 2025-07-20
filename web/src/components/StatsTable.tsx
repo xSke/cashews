@@ -515,7 +515,7 @@ const columnsPitching: ColumnDef<RowData>[] = [
   {
     header: SortableHeader("K/BB", true),
     accessorKey: "k_bb",
-    cell: StatCell(2, "k_bb", true),
+    cell: StatCell(2, null, true),
   },
 ];
 
