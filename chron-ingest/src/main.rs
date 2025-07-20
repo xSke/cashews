@@ -12,7 +12,11 @@ use workers::{
     league::{self},
 };
 
-use crate::workers::{export::ExportParquet, feeds::ProcessFeeds, games::HandleSuperstarGames};
+use crate::workers::{
+    export::{self, ExportParquet},
+    feeds::ProcessFeeds,
+    games::HandleSuperstarGames,
+};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -129,6 +133,7 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "crunch" => crunch::crunch(ctx).await?,
         "migrate" => ctx.db.migrate(false).await?,
         "migrate-full" => ctx.db.migrate(true).await?,
+        "export" => export::export_async(&ctx.config).await?,
         _ => panic!("unknown function: {}", name),
     }
 
