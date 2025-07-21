@@ -1,7 +1,7 @@
 import * as uDSV from "udsv";
 import * as aq from "arquero";
 import qs from "qs";
-import { API_BASE, chronLatestEntityQuery } from "./data";
+import { API_BASE, chronLatestEntityQuery, throwOnError } from "./data";
 import {
   queryOptions,
   useQuery,
@@ -128,7 +128,7 @@ export async function getStats(q: StatsQuery): Promise<aq.ColumnTable> {
     })}`;
 
   const resp = await fetch(url);
-  console.log(url);
+  throwOnError(resp);
   const textStream = resp.body!.pipeThrough(new TextDecoderStream());
   let parser: uDSV.Parser | null = null;
 

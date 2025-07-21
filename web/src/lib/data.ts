@@ -25,6 +25,9 @@ import { PercentileStat } from "./percentile";
 
 export interface Team {}
 
+export function throwOnError(resp: Response) {
+  if (resp.status >= 400) throw new Error(`HTTP error: ${resp.statusText}`);
+}
 // const API_BASE = "https://freecashe.ws";
 
 // export const getTeams = cache(
@@ -54,6 +57,7 @@ export async function getEntity<T>(
   if (at) qs.append("at", at);
 
   const resp = await fetch(API_BASE + `/chron/v0/entities?${qs.toString()}`);
+  throwOnError(resp);
   const data = (await resp.json()) as ChronPaginatedResponse<ChronEntity<T>>;
   return data.items[0];
 }
@@ -74,6 +78,7 @@ export async function getEntities<T>(
       const resp = await fetch(
         API_BASE + `/chron/v0/entities?kind=${kind}&id=${chunk.join(",")}`
       );
+      throwOnError(resp);
       const data = (await resp.json()) as ChronPaginatedResponse<
         ChronEntity<T>
       >;
@@ -86,8 +91,8 @@ export async function getEntities<T>(
 }
 
 export async function getBasicTeams(): Promise<Record<string, BasicTeam>> {
-  // console.log("get basic teams");
   const resp = await fetch(API_BASE + `/teams`, {});
+  throwOnError(resp);
   const data = (await resp.json()) as ChronPaginatedResponse<BasicTeam>;
 
   return Object.fromEntries(data.items.map((x) => [x.team_id, x]));
@@ -95,6 +100,7 @@ export async function getBasicTeams(): Promise<Record<string, BasicTeam>> {
 
 export async function getBasicLeagues(): Promise<Record<string, BasicLeague>> {
   const resp = await fetch(API_BASE + `/leagues`, {});
+  throwOnError(resp);
   const data = (await resp.json()) as ChronPaginatedResponse<BasicLeague>;
 
   return Object.fromEntries(data.items.map((x) => [x.league_id, x]));
@@ -115,6 +121,7 @@ export async function getGames(
   if (q.team !== undefined) qs.set("team", q.team);
 
   const resp = await fetch(API_BASE + `/games?${qs.toString()}`);
+  throwOnError(resp);
   const data = (await resp.json()) as ChronPaginatedResponse<ChronGame>;
   return data;
 }
@@ -127,6 +134,7 @@ export async function getTeamStats(
     API_BASE +
       `/player-stats?team=${team}&start=${season},0&end=${season + 1},0`
   );
+  throwOnError(resp);
   const data = (await resp.json()) as PlayerStatsEntry[];
 
   return data;
@@ -239,6 +247,7 @@ export async function getLeagueAggregates(
   const resp = await fetch(
     API_BASE + `/league-aggregate-stats?season=${season}`
   );
+  // throwOnError(resp);
   const data = (await resp.json()) as PercentileResponse;
 
   if (resp.status == 200 && Object.keys(data.leagues).length > 0) {
@@ -247,6 +256,7 @@ export async function getLeagueAggregates(
     const resp2 = await fetch(
       API_BASE + `/league-aggregate-stats?season=${season - 1}`
     );
+    throwOnError(resp);
     return (await resp2.json()) as PercentileResponse;
   }
 }
@@ -255,6 +265,7 @@ export async function getLeagueAverages(
   season: number
 ): Promise<AveragesResponse[]> {
   const resp = await fetch(API_BASE + `/league-averages?season=${season}`);
+  throwOnError(resp);
   // const data = (await resp.json()) as AveragesResponse;
   return (await resp.json()) as AveragesResponse[];
 }
