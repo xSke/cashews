@@ -127,30 +127,34 @@ export async function getStats(q: StatsQuery): Promise<aq.ColumnTable> {
       group: q.group?.join(","),
     })}`;
 
-  const resp = await fetch(url);
-  throwOnError(resp);
-  const textStream = resp.body!.pipeThrough(new TextDecoderStream());
-  let parser: uDSV.Parser | null = null;
+  const table = await aq.loadCSV(url, {
+    header: true,
+  });
+  return table;
+  // const resp = await fetch(url);
+  // throwOnError(resp);
+  // const textStream = resp.body!.pipeThrough(new TextDecoderStream());
+  // let parser: uDSV.Parser | null = null;
 
-  for await (const strChunk of textStream) {
-    if (parser == null) {
-      let schema = uDSV.inferSchema(
-        strChunk.slice(0, strChunk.lastIndexOf("\n"))
-      );
-      parser = uDSV.initParser(schema);
-    }
-    parser.chunk(strChunk, parser.typedCols);
-  }
+  // for await (const strChunk of textStream) {
+  //   if (parser == null) {
+  //     let schema = uDSV.inferSchema(
+  //       strChunk.slice(0, strChunk.lastIndexOf("\n"))
+  //     );
+  //     parser = uDSV.initParser(schema);
+  //   }
+  //   parser.chunk(strChunk, parser.typedCols);
+  // }
 
-  const colNames = parser?.schema.cols.map((c) => c.name) ?? [];
+  // const colNames = parser?.schema.cols.map((c) => c.name) ?? [];
 
-  const result = parser?.end() ?? [];
-  const resultObj = Object.fromEntries(
-    colNames.map((name, i) => [name, result[i]])
-  );
+  // const result = parser?.end() ?? [];
+  // const resultObj = Object.fromEntries(
+  //   colNames.map((name, i) => [name, result[i]])
+  // );
 
-  const t = { data: resultObj, colNames };
-  return aq.table(t.data, t.colNames);
+  // const t = { data: resultObj, colNames };
+  // return aq.table(t.data, t.colNames);
 }
 
 export function statsQuery(q: StatsQuery) {
