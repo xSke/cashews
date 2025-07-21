@@ -173,7 +173,7 @@ function RouteComponent() {
     enabled: !!teamQuery.data,
   });
 
-  const teamBatting = useQuery(
+  const teamBattingQuery = useQuery(
     statsQuery({
       season,
       group: ["player", "team", "player_name", "slot"],
@@ -232,16 +232,7 @@ function RouteComponent() {
     return leaguePitchingFiltered
       ? generatePercentileIndexes(
           calculatePitchingStats(leaguePitchingFiltered, pitchingAgg),
-          [
-            "era",
-            "fip",
-            "whip",
-            "h9",
-            "hr9",
-            "k9",
-            "bb9",
-            "k_bb",
-          ]
+          ["era", "fip", "whip", "h9", "hr9", "k9", "bb9", "k_bb"]
         )
       : {};
   }, [leaguePitchingFiltered, pitchingAgg]);
@@ -249,9 +240,9 @@ function RouteComponent() {
   const [hideInactive, setHideInactive] = useState(true);
 
   const battingStats = useMemo(() => {
-    if (!teamBatting.data) return undefined;
+    if (!teamBattingQuery.data) return undefined;
 
-    let data = calculateBattingStats(teamBatting.data, battingAgg)
+    let data = calculateBattingStats(teamBattingQuery.data, battingAgg)
       .params({ currentRoster })
       .derive({
         current: (d, $) =>
@@ -269,7 +260,7 @@ function RouteComponent() {
     }
     if (hideInactive) data = data.filter((d) => d.current);
     return data.reify();
-  }, [teamBatting.data, battingAgg, battingOrder, hideInactive]);
+  }, [teamBattingQuery.data, battingAgg, battingOrder, hideInactive]);
 
   const pitchingStats = useMemo(() => {
     if (!teamPitching.data) return undefined;
@@ -320,23 +311,33 @@ function RouteComponent() {
       </div>
       <div>
         <h2 className="mb-2 font-medium text-lg">Batting</h2>
-        {battingStats && (
+        {battingStats ? (
           <NewStatsTable
             position={"batting"}
             data={battingStats}
             indexes={battingIndexes}
           />
+        ) : (
+          <span>
+            status: {teamBattingQuery.status}, error:{" "}
+            {teamBattingQuery.error?.message?.toString()}
+          </span>
         )}
       </div>
 
       <div>
         <h2 className="mb-2 font-medium text-lg">Pitching</h2>
-        {pitchingStats && (
+        {pitchingStats ? (
           <NewStatsTable
             position={"pitching"}
             data={pitchingStats}
             indexes={pitchingIndexes}
           />
+        ) : (
+          <span>
+            status: {teamBattingQuery.status}, error:{" "}
+            {teamBattingQuery.error?.message?.toString()}
+          </span>
         )}
       </div>
 

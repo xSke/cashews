@@ -13,21 +13,11 @@ import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persi
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { ColumnTable, fromArrow } from "arquero";
 import base64js from "base64-js";
+import ErrorBox from "./components/ErrorBox";
 
 function Spinner() {
   return (
     <div className="w-full text-center py-4 animate-spin text-4xl">⚾</div>
-  );
-}
-
-function Error(props: ErrorComponentProps) {
-  return (
-    <div className="rounded-md bg-red-800/20 border-2 border-red-800/50 p-4 text-sm">
-      <pre className="font-semibold mb-1">
-        Error: {props.error.message?.toString()}
-      </pre>
-      <pre>{props.error.stack}</pre>
-    </div>
   );
 }
 
@@ -109,7 +99,7 @@ export function createRouter() {
     defaultPendingComponent: Spinner,
     defaultPendingMinMs: 200,
     defaultPendingMs: 100,
-    defaultErrorComponent: Error,
+    defaultErrorComponent: ErrorBox,
   });
 
   return router;
