@@ -160,8 +160,11 @@ export function statsQuery(q: StatsQuery) {
       q.fields.join(",") ?? null,
       q.group?.join(",") ?? null,
       q.league ?? null,
+      q.team ?? null,
       q.season ?? null,
       q.day ?? null,
+      q.names ?? null,
+      q.filter ?? null,
     ],
     queryFn: () => getStats(q),
   });
