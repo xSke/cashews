@@ -232,7 +232,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         statColumn("hit_batters", "HB", { order: "asc" }),
         statColumn("era", "ERA", { decimals: 2, order: "asc" }),
         statColumn("era_minus", "ERA-", { order: "asc" }),
-        statColumn("fip", "FIP", { decimals: 2 }),
+        statColumn("fip", "FIP", { decimals: 2, order: "asc" }),
         statColumn("fip_minus", "FIP-", { order: "asc" }),
         statColumn("whip", "WHIP", { decimals: 2, order: "asc" }),
         statColumn("h9", "H/9", { decimals: 2, order: "asc" }),
