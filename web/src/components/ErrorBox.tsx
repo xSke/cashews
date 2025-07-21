@@ -7,6 +7,8 @@ export default function ErrorBox(props: ErrorComponentProps) {
         Error: {props.error.message?.toString()}
       </pre>
       <pre>{props.error.stack}</pre>
+      <pre>{JSON.stringify(props.error.cause)}</pre>
+      <pre>{props.info?.componentStack ?? ""}</pre>
     </div>
   );
 }
