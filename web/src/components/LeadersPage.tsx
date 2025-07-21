@@ -19,7 +19,7 @@ export interface LeadersPageProps {
 
 interface LeadersTableProps {
   title: string;
-  data: ColumnTable;
+  data: aq.ColumnTable;
   col: string;
   format: (number) => string;
 }
@@ -115,7 +115,10 @@ function statsQueryBatting(props: LeadersPageProps) {
   });
 }
 
-export async function preload(client: QueryClient, props: LeadersPageProps) {
+export async function preloadData(
+  client: QueryClient,
+  props: LeadersPageProps
+) {
   await Promise.all([client.prefetchQuery(statsQueryBatting(props))]);
 }
 

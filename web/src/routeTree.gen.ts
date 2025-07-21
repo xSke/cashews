@@ -15,11 +15,13 @@ import { Route as QueryRouteImport } from './routes/query'
 import { Route as PlayersRouteImport } from './routes/players'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LeadersRouteImport } from './routes/leaders'
+import { Route as DucktestRouteImport } from './routes/ducktest'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TeamIdRouteRouteImport } from './routes/team.$id/route'
 import { Route as LeagueIdRouteRouteImport } from './routes/league.$id/route'
 import { Route as TeamIdIndexRouteImport } from './routes/team.$id/index'
 import { Route as LeagueIdIndexRouteImport } from './routes/league.$id/index'
+import { Route as TeamIdStats2RouteImport } from './routes/team.$id/stats2'
 import { Route as TeamIdStatsRouteImport } from './routes/team.$id/stats'
 import { Route as TeamIdRosterRouteImport } from './routes/team.$id/roster'
 import { Route as TeamIdGamesRouteImport } from './routes/team.$id/games'
@@ -54,6 +56,11 @@ const LeadersRoute = LeadersRouteImport.update({
   path: '/leaders',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DucktestRoute = DucktestRouteImport.update({
+  id: '/ducktest',
+  path: '/ducktest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -79,6 +86,11 @@ const LeagueIdIndexRoute = LeagueIdIndexRouteImport.update({
   path: '/',
   getParentRoute: () => LeagueIdRouteRoute,
 } as any)
+const TeamIdStats2Route = TeamIdStats2RouteImport.update({
+  id: '/stats2',
+  path: '/stats2',
+  getParentRoute: () => TeamIdRouteRoute,
+} as any)
 const TeamIdStatsRoute = TeamIdStatsRouteImport.update({
   id: '/stats',
   path: '/stats',
@@ -97,6 +109,7 @@ const TeamIdGamesRoute = TeamIdGamesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/ducktest': typeof DucktestRoute
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
@@ -108,11 +121,13 @@ export interface FileRoutesByFullPath {
   '/team/$id/games': typeof TeamIdGamesRoute
   '/team/$id/roster': typeof TeamIdRosterRoute
   '/team/$id/stats': typeof TeamIdStatsRoute
+  '/team/$id/stats2': typeof TeamIdStats2Route
   '/league/$id/': typeof LeagueIdIndexRoute
   '/team/$id/': typeof TeamIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/ducktest': typeof DucktestRoute
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
@@ -122,12 +137,14 @@ export interface FileRoutesByTo {
   '/team/$id/games': typeof TeamIdGamesRoute
   '/team/$id/roster': typeof TeamIdRosterRoute
   '/team/$id/stats': typeof TeamIdStatsRoute
+  '/team/$id/stats2': typeof TeamIdStats2Route
   '/league/$id': typeof LeagueIdIndexRoute
   '/team/$id': typeof TeamIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/ducktest': typeof DucktestRoute
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
@@ -139,6 +156,7 @@ export interface FileRoutesById {
   '/team/$id/games': typeof TeamIdGamesRoute
   '/team/$id/roster': typeof TeamIdRosterRoute
   '/team/$id/stats': typeof TeamIdStatsRoute
+  '/team/$id/stats2': typeof TeamIdStats2Route
   '/league/$id/': typeof LeagueIdIndexRoute
   '/team/$id/': typeof TeamIdIndexRoute
 }
@@ -146,6 +164,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/ducktest'
     | '/leaders'
     | '/map'
     | '/players'
@@ -157,11 +176,13 @@ export interface FileRouteTypes {
     | '/team/$id/games'
     | '/team/$id/roster'
     | '/team/$id/stats'
+    | '/team/$id/stats2'
     | '/league/$id/'
     | '/team/$id/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/ducktest'
     | '/leaders'
     | '/map'
     | '/players'
@@ -171,11 +192,13 @@ export interface FileRouteTypes {
     | '/team/$id/games'
     | '/team/$id/roster'
     | '/team/$id/stats'
+    | '/team/$id/stats2'
     | '/league/$id'
     | '/team/$id'
   id:
     | '__root__'
     | '/'
+    | '/ducktest'
     | '/leaders'
     | '/map'
     | '/players'
@@ -187,12 +210,14 @@ export interface FileRouteTypes {
     | '/team/$id/games'
     | '/team/$id/roster'
     | '/team/$id/stats'
+    | '/team/$id/stats2'
     | '/league/$id/'
     | '/team/$id/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DucktestRoute: typeof DucktestRoute
   LeadersRoute: typeof LeadersRoute
   MapRoute: typeof MapRoute
   PlayersRoute: typeof PlayersRoute
@@ -247,6 +272,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LeadersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/ducktest': {
+      id: '/ducktest'
+      path: '/ducktest'
+      fullPath: '/ducktest'
+      preLoaderRoute: typeof DucktestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -281,6 +313,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/league/$id/'
       preLoaderRoute: typeof LeagueIdIndexRouteImport
       parentRoute: typeof LeagueIdRouteRoute
+    }
+    '/team/$id/stats2': {
+      id: '/team/$id/stats2'
+      path: '/stats2'
+      fullPath: '/team/$id/stats2'
+      preLoaderRoute: typeof TeamIdStats2RouteImport
+      parentRoute: typeof TeamIdRouteRoute
     }
     '/team/$id/stats': {
       id: '/team/$id/stats'
@@ -322,6 +361,7 @@ interface TeamIdRouteRouteChildren {
   TeamIdGamesRoute: typeof TeamIdGamesRoute
   TeamIdRosterRoute: typeof TeamIdRosterRoute
   TeamIdStatsRoute: typeof TeamIdStatsRoute
+  TeamIdStats2Route: typeof TeamIdStats2Route
   TeamIdIndexRoute: typeof TeamIdIndexRoute
 }
 
@@ -329,6 +369,7 @@ const TeamIdRouteRouteChildren: TeamIdRouteRouteChildren = {
   TeamIdGamesRoute: TeamIdGamesRoute,
   TeamIdRosterRoute: TeamIdRosterRoute,
   TeamIdStatsRoute: TeamIdStatsRoute,
+  TeamIdStats2Route: TeamIdStats2Route,
   TeamIdIndexRoute: TeamIdIndexRoute,
 }
 
@@ -338,6 +379,7 @@ const TeamIdRouteRouteWithChildren = TeamIdRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DucktestRoute: DucktestRoute,
   LeadersRoute: LeadersRoute,
   MapRoute: MapRoute,
   PlayersRoute: PlayersRoute,

@@ -100,11 +100,15 @@ export async function getBasicLeagues(): Promise<Record<string, BasicLeague>> {
   return Object.fromEntries(data.items.map((x) => [x.league_id, x]));
 }
 
-export async function getGames(q: {
+export interface GamesQuery {
   season?: number;
   day?: number;
   team?: string;
-}): Promise<ChronPaginatedResponse<ChronGame>> {
+}
+
+export async function getGames(
+  q: GamesQuery
+): Promise<ChronPaginatedResponse<ChronGame>> {
   const qs = new URLSearchParams();
   if (q.season !== undefined) qs.set("season", q.season.toString());
   if (q.day !== undefined) qs.set("day", q.day.toString());
@@ -180,6 +184,13 @@ export const stateQuery = chronLatestEntityQuery<MmolbState>(
   "state",
   null
 );
+
+export function gamesQuery(q: GamesQuery) {
+  return queryOptions({
+    queryKey: ["games", q.season, q.day, q.team],
+    queryFn: async () => await getGames(q),
+  });
+}
 
 export interface PercentileStats {
   ba: PercentileStat;
@@ -443,6 +454,8 @@ export interface MmolbGame {
   AwayTeamID: string;
   HomeTeamID: string;
   EventLog: MmolbGameEvent[];
+  AwayLineup?: string[];
+  HomeLineup?: string[];
 }
 
 export interface MmolbTime {
