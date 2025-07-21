@@ -54,7 +54,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
   function slotColumn(): ColumnDef<number, string> {
     const getter = enriched.getter("slot");
     const currentGetter = enriched.getter("current");
-    const order = [
+    const order  = [
       "C",
       "1B",
       "2B",
@@ -136,6 +136,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     return {
       id: col,
       header: title,
+      sortDescFirst: (order == "desc"),
       cell: (c) => {
         const val = c.getValue();
         let perc: PercentileResult | undefined;
@@ -169,8 +170,8 @@ export default function NewStatsTable(props: NewStatsTableProps) {
                   <span>{inner}</span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  #{perc.rank + 1}/{perc.total}, better than{" "}
-                  {(perc.percentile * 100).toFixed(1)}%
+                  Better than{" "}
+                  {(perc.percentile * 100).toFixed(1)}% of qualifying players
                 </TooltipContent>
               </Tooltip>
             ) : (
@@ -190,11 +191,13 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     if (props.position === "batting")
       return [
         // idColumn(),
-        { ...statColumn("battingOrder", "#"), maxSize: 40 },
+        { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 40 },
         nameColumn(),
         slotColumn(),
         statColumn("plate_appearances", "PAs"),
         statColumn("at_bats", "ABs"),
+        statColumn("runs", "R"),
+        statColumn("runs_batted_in", "RBI"),
         statColumn("hits", "H"),
         statColumn("singles", "1B"),
         statColumn("doubles", "2B"),
@@ -223,8 +226,8 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         statColumn("losses", "L", { order: "asc" }),
         statColumn("saves", "S"),
         statColumn("blown_saves", "BS", { order: "asc" }),
+        statColumn("total_runs", "R"),
         statColumn("earned_runs", "ER"),
-        statColumn("unearned_runs", "UR"),
         statColumn("hits_allowed", "H", { order: "asc" }),
         statColumn("home_runs_allowed", "HR", { order: "asc" }),
         statColumn("strikeouts", "K"),

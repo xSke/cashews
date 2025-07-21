@@ -213,6 +213,7 @@ export function calculatePitchingStats(
       ip: (d) => d.outs / 3,
     })
     .derive({
+      total_runs: (d) => d.earned_runs + d.unearned_runs,
       era: (d) => (9 * d.earned_runs) / d.ip,
       fip_base: (d) =>
         (13 * d.home_runs_allowed +

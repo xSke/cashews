@@ -52,6 +52,8 @@ const battingStatFields: StatKey[] = [
   "stolen_bases",
   "caught_stealing",
   "struck_out",
+  "runs",
+  "runs_batted_in",
 ];
 
 const pitchingStatFields: StatKey[] = [
@@ -221,7 +223,7 @@ function RouteComponent() {
     return leagueBattingFiltered
       ? generatePercentileIndexes(
           calculateBattingStats(leagueBattingFiltered, battingAgg),
-          ["ba", "obp", "slg", "ops", "ops_plus", "sb_success"]
+          ["ba", "obp", "slg", "ops", "sb_success"]
         )
       : {};
   }, [leagueBattingFiltered, battingAgg]);
@@ -232,9 +234,7 @@ function RouteComponent() {
           calculatePitchingStats(leaguePitchingFiltered, pitchingAgg),
           [
             "era",
-            "era_minus",
             "fip",
-            "fip_minus",
             "whip",
             "h9",
             "hr9",
