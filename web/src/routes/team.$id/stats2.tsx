@@ -54,6 +54,7 @@ const battingStatFields: StatKey[] = [
   "struck_out",
   "runs",
   "runs_batted_in",
+  "sac_flies",
 ];
 
 const pitchingStatFields: StatKey[] = [
