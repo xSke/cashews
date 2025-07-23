@@ -32,7 +32,7 @@ import { Tooltip, TooltipContent } from "./ui/tooltip";
 import { TooltipTrigger } from "@radix-ui/react-tooltip";
 
 export interface NewStatsTableProps {
-  position: "batting" | "pitching";
+  position: "batting" | "pitching" | "advancedBatting" | "advancedPitching";
   data: aq.ColumnTable;
   indexes: Record<string, PercentileIndex>;
 }
@@ -194,8 +194,8 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 40 },
         nameColumn(),
         slotColumn(),
-        statColumn("plate_appearances", "PAs"),
-        statColumn("at_bats", "ABs"),
+        statColumn("plate_appearances", "PA"),
+        statColumn("at_bats", "AB"),
         statColumn("runs", "R"),
         statColumn("runs_batted_in", "RBI"),
         statColumn("hits", "H"),
@@ -210,10 +210,33 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         statColumn("obp", "OBP", { decimals: 3 }),
         statColumn("slg", "SLG", { decimals: 3 }),
         statColumn("ops", "OPS", { decimals: 3 }),
-        statColumn("ops_plus", "OPS+"),
+        // statColumn("ops_plus", "OPS+"),
         statColumn("stolen_bases", "SB"),
         statColumn("caught_stealing", "CS", { order: "asc" }),
-        statColumn("sb_success", "SB%", { decimals: 2 }),
+        // statColumn("sb_success", "SB%", { decimals: 1 }),
+      ];
+    if (props.position === "advancedBatting")
+      return [
+        // idColumn(),
+        { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 40 },
+        nameColumn(),
+        slotColumn(),
+        statColumn("plate_appearances", "PA"),
+        statColumn("bb_pct", "BB%", {decimals: 1}),
+        statColumn("k_pct", "K%", { decimals: 1, order: "asc" }),
+        statColumn("hr_pct", "HR%", {decimals: 1}),
+        // statColumn("ba", "BA", { decimals: 3 }),
+        // statColumn("obp", "OBP", { decimals: 3 }),
+        // statColumn("slg", "SLG", { decimals: 3 }),
+        // statColumn("ops", "OPS", { decimals: 3 }),
+        statColumn("ops_plus", "OPS+"),
+        statColumn("iso", "ISO", { decimals: 3 }),
+        statColumn("babip", "BABIP", { decimals: 3 }),
+        statColumn("sb_success", "SB%", { decimals: 1 }),
+        statColumn("ground_pct", "GB%", { decimals: 1 }),
+        statColumn("fly_pct", "FB%", { decimals: 1 }),
+        statColumn("line_pct", "LD%", { decimals: 1 }),
+        statColumn("gb_fb", "GB/(LD+FB)", { decimals: 2 }),
       ];
     if (props.position === "pitching")
       return [
@@ -234,15 +257,29 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         statColumn("walks", "BB", { order: "asc" }),
         statColumn("hit_batters", "HB", { order: "asc" }),
         statColumn("era", "ERA", { decimals: 2, order: "asc" }),
-        statColumn("era_minus", "ERA-", { order: "asc" }),
+        // statColumn("era_minus", "ERA-", { order: "asc" }),
         statColumn("fip", "FIP", { decimals: 2, order: "asc" }),
-        statColumn("fip_minus", "FIP-", { order: "asc" }),
+        // statColumn("fip_minus", "FIP-", { order: "asc" }),
         statColumn("whip", "WHIP", { decimals: 2, order: "asc" }),
         statColumn("h9", "H/9", { decimals: 2, order: "asc" }),
         statColumn("hr9", "HR/9", { decimals: 2, order: "asc" }),
         statColumn("k9", "K/9", { decimals: 2 }),
         statColumn("bb9", "BB/9", { decimals: 2, order: "asc" }),
-        statColumn("k_bb", "K/BB", { decimals: 2 }),
+      ];
+    if (props.position === "advancedPitching")
+      return [
+        nameColumn(),
+        slotColumn(),
+        statColumn("ip", "IP", { format: "ip" }),
+        statColumn("batters_faced", "BF"),
+        statColumn("ra9", "RA9", { decimals: 2, order: "asc" }),
+        statColumn("era_minus", "ERA-", { order: "asc" }),
+        // statColumn("fip", "FIP", { decimals: 2, order: "asc" }),
+        statColumn("fip_minus", "FIP-", { order: "asc" }),
+        statColumn("bb_pct_p", "BB%", {decimals: 1, order: "asc" }),
+        statColumn("k_pct_p", "K%", { decimals: 1}),
+        statColumn("hr_pct_p", "HR%", {decimals: 1, order: "asc" }),
+        statColumn("balks", "BK"),
       ];
     return [];
   }, [enriched, props.indexes, props.position]);

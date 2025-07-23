@@ -54,9 +54,16 @@ const battingStatFields: StatKey[] = [
   "struck_out",
   "runs",
   "runs_batted_in",
+  "sac_flies",
+  "sacrifice_double_plays",
+  "groundouts",
+  "flyouts",
+  "lineouts",
+  "popouts",
 ];
 
 const pitchingStatFields: StatKey[] = [
+  "batters_faced",
   "outs",
   "earned_runs",
   "home_runs_allowed",
@@ -71,6 +78,7 @@ const pitchingStatFields: StatKey[] = [
   "unearned_runs",
   "appearances",
   "starts",
+  // "balks",
 ];
 
 export const Route = createFileRoute("/team/$id/stats2")({
@@ -223,7 +231,7 @@ function RouteComponent() {
     return leagueBattingFiltered
       ? generatePercentileIndexes(
           calculateBattingStats(leagueBattingFiltered, battingAgg),
-          ["ba", "obp", "slg", "ops", "sb_success"]
+          ["k_pct", "bb_pct", "hr_pct", "ba", "obp", "slg", "ops", "ops_plus", "iso", "sb_success", "babip", "ground_pct", "fly_pct", "line_pct", "gb_fb"]
         )
       : {};
   }, [leagueBattingFiltered, battingAgg]);
@@ -232,7 +240,7 @@ function RouteComponent() {
     return leaguePitchingFiltered
       ? generatePercentileIndexes(
           calculatePitchingStats(leaguePitchingFiltered, pitchingAgg),
-          ["era", "fip", "whip", "h9", "hr9", "k9", "bb9", "k_bb"]
+          ["era", "era_minus", "fip", "fip_minus", "whip", "h9", "hr9", "k9", "bb9", "k_bb", "bb_pct_p", "k_pct_p", "hr_pct_p", "ra9"]
         )
       : {};
   }, [leaguePitchingFiltered, pitchingAgg]);
@@ -337,6 +345,38 @@ function RouteComponent() {
           <span>
             status: {teamBattingQuery.status}, error:{" "}
             {teamBattingQuery.error?.message?.toString()}
+          </span>
+        )}
+      </div>
+
+      <div>
+        <h2 className="mb-2 font-medium text-lg">Advanced Batting</h2>
+        {pitchingStats ? (
+            <NewStatsTable
+                position={"advancedBatting"}
+                data={battingStats}
+                indexes={battingIndexes}
+            />
+        ) : (
+            <span>
+            status: {teamBattingQuery.status}, error:{" "}
+              {teamBattingQuery.error?.message?.toString()}
+          </span>
+        )}
+      </div>
+
+      <div>
+        <h2 className="mb-2 font-medium text-lg">Advanced Pitching</h2>
+        {pitchingStats ? (
+            <NewStatsTable
+                position={"advancedPitching"}
+                data={pitchingStats}
+                indexes={pitchingIndexes}
+            />
+        ) : (
+            <span>
+            status: {teamBattingQuery.status}, error:{" "}
+              {teamBattingQuery.error?.message?.toString()}
           </span>
         )}
       </div>

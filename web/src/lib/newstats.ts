@@ -15,6 +15,7 @@ export type StatKey =
   | "appearances"
   | "assists"
   | "at_bats"
+  | "balks"
   | "batters_faced"
   | "blown_saves"
   | "caught_double_play"
@@ -187,6 +188,7 @@ export function calculateBattingStats(
   let d = data
     .derive({
       hits: (d) => d.singles + d.doubles + d.triples + d.home_runs,
+      fielded_outs: (d) => d.groundouts + d.flyouts + d.lineouts + d.popouts,
     })
     .derive({
       pa: (d) => d.at_bats + d.walked + d.hit_by_pitch + d.sac_flies,
@@ -195,12 +197,19 @@ export function calculateBattingStats(
       slg: (d) =>
         (d.singles + 2 * d.doubles + 3 * d.triples + 4 * d.home_runs) /
         d.at_bats,
-      sb_success: (d) => d.stolen_bases / (d.stolen_bases + d.caught_stealing),
+      sb_success: (d) => 100 * d.stolen_bases / (d.stolen_bases + d.caught_stealing),
     })
     .derive({
       ops: (d) => d.obp + d.slg,
-      k_pct: (d) => d.struck_out / d.pa,
-      bb_pct: (d) => d.walked / d.pa,
+      iso: (d) => d.slg - d.ba,
+      k_pct: (d) => 100 * d.struck_out / d.pa,
+      bb_pct: (d) => 100 * d.walked / d.pa,
+      hr_pct: (d) => 100 * d.home_runs / d.pa,
+      babip: (d) => (d.hits - d.home_runs) / (d.at_bats - d.struck_out - d.home_runs - d.sac_flies),
+      fly_pct: (d) => 100 * (d.flyouts) / d.fielded_outs,
+      ground_pct: (d) => 100 * (d.groundouts) / d.fielded_outs,
+      line_pct: (d) => 100 * (d.lineouts) / d.fielded_outs,
+      gb_fb: (d) => d.groundouts / (d.flyouts + d.lineouts),
     });
 
   if (ref) {
@@ -243,6 +252,10 @@ export function calculatePitchingStats(
       .derive({
         era_minus: (d, $) => (100 * d.era) / $.meanEra,
         fip_minus: (d, $) => (100 * d.fip) / $.meanEra,
+        ra9: (d) => (9 * d.total_runs) / d.ip,
+        k_pct_p: (d) => 100 * d.strikeouts / d.batters_faced,
+        bb_pct_p: (d) => 100 * d.walks / d.batters_faced,
+        hr_pct_p: (d) => 100 * d.home_runs_allowed / d.batters_faced,
       });
   }
   return d;
