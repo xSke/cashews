@@ -189,8 +189,9 @@ export function calculateBattingStats(
       hits: (d) => d.singles + d.doubles + d.triples + d.home_runs,
     })
     .derive({
+      pa: (d) => d.at_bats + d.walked + d.hit_by_pitch + d.sac_flies,
       ba: (d) => d.hits / d.at_bats,
-      obp: (d) => (d.hits + d.walked + d.hit_by_pitch) / d.plate_appearances,
+      obp: (d) => (d.hits + d.walked + d.hit_by_pitch) / (d.at_bats + d.walked + d.hit_by_pitch + d.sac_flies),
       slg: (d) =>
         (d.singles + 2 * d.doubles + 3 * d.triples + 4 * d.home_runs) /
         d.at_bats,
@@ -198,6 +199,8 @@ export function calculateBattingStats(
     })
     .derive({
       ops: (d) => d.obp + d.slg,
+      k_pct: (d) => d.struck_out / d.pa,
+      bb_pct: (d) => d.walked / d.pa,
     });
 
   if (ref) {
