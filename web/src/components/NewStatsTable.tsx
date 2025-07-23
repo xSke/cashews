@@ -191,7 +191,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     if (props.position === "batting")
       return [
         // idColumn(),
-        { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 40 },
+        { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 38},
         nameColumn(),
         slotColumn(),
         statColumn("plate_appearances", "PA"),
@@ -218,7 +218,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     if (props.position === "advancedBatting")
       return [
         // idColumn(),
-        { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 40 },
+        { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 38 },
         nameColumn(),
         slotColumn(),
         statColumn("plate_appearances", "PA"),
@@ -327,7 +327,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
                   <TableHead
                     key={header.id}
                     className={clsx(
-                      "font-semibold text-left border-b bg-background",
+                      "p-1 font-semibold text-left border-b border-r bg-background",
                       canSort && "cursor-pointer"
                     )}
                     onClick={
@@ -386,12 +386,12 @@ export default function NewStatsTable(props: NewStatsTableProps) {
                     return (
                       <TableCell
                         key={cell.id}
-                        className={clsx("p-0 border-b bg-background")}
+                        className={clsx("p-0 border-b border-r bg-background")}
                         style={{ ...getCommonPinningStyles(column) }}
                       >
                         <div
                           className={clsx(
-                            "p-2 group-hover:bg-gray-300/50 dark:group-hover:bg-gray-800/50 transition-colors",
+                            "p-1 group-hover:bg-gray-300/50 dark:group-hover:bg-gray-800/50 transition-colors",
                             !isCurrent && "bg-orange-800/20"
                           )}
                         >
