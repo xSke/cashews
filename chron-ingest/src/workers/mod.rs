@@ -2,6 +2,8 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use chron_base::ChronConfig;
+use chron_db::json_hash;
+use chron_db::scylla_backend::ChronScyllaDb;
 use chron_db::{ChronDb, models::EntityKind};
 use futures::StreamExt;
 use futures::stream;
@@ -24,12 +26,14 @@ pub mod map;
 pub mod matviews;
 pub mod message;
 pub mod misc;
+pub mod scylla;
 
 #[derive(Clone)]
 pub struct WorkerContext {
     pub _sim: Arc<RwLock<SimState>>,
     pub config: Arc<ChronConfig>,
     pub db: ChronDb,
+    pub scylla: ChronScyllaDb,
     pub client: DataClient,
 }
 
@@ -43,7 +47,6 @@ impl WorkerContext {
     //     let mut s = self.sim.write().expect("should never be poisoned");
     //     *s = new_state;
     // }
-
     pub async fn try_update_time(&self) -> anyhow::Result<MmolbTime> {
         let latest_time = self
             .db
@@ -89,9 +92,9 @@ impl WorkerContext {
         entity_id: impl Into<String>,
     ) -> anyhow::Result<ClientResponse> {
         let resp = self.client.fetch(url).await?;
-        self.db
-            .save(resp.to_chron(kind, &entity_id.into())?)
-            .await?;
+        let entity_id = entity_id.into();
+        self.db.save(resp.to_chron(kind, &entity_id)?).await?;
+        // self.scylla.save(resp.to_chron(kind, &entity_id)?).await?;
         Ok(resp)
     }
 

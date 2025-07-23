@@ -44,6 +44,16 @@ services:
       - 127.0.0.1:5432:5432
     command: ["-c", "shared_buffers=4GB", "-c", "max_connections=250", "-c", "maintenance_work_mem=4GB", "-c", "work_mem=1GB", "-c", "wal_buffers=16MB"]
     shm_size: 1G
+  scylla:
+    image: scylladb/scylla
+    volumes:
+      - scylla_db:/var/lib/scylla
+      - ./mnt:/mnt
+    ports:
+      - 127.0.0.1:9042:9042
+    command: ["--developer-mode", "1", "--smp", "4", "--memory", "4G", "--overprovisioned", "1"]
+
 volumes:
   postgres_db:
+  scylla_db:
   export:

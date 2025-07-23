@@ -3,11 +3,14 @@ use std::{fmt::Display, str::FromStr};
 use base64::Engine;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sqlx::{FromRow, Type, types::JsonRawValue};
+use strum::{FromRepr, VariantArray};
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
 #[repr(i16)]
-#[derive(Debug, Clone, Copy, Type, Deserialize, Serialize, PartialEq, Eq)]
+#[derive(
+    Debug, Clone, Copy, Type, Deserialize, Serialize, PartialEq, Eq, VariantArray, FromRepr,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum EntityKind {
     State = 1,
@@ -68,6 +71,15 @@ pub struct EntityObservation {
     pub entity_id: String,
     pub timestamp: IsoDateTime,
     pub data: serde_json::Value,
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct EntityObservationRaw {
+    pub kind: EntityKind,
+    pub entity_id: String,
+    pub timestamp: OffsetDateTime,
+    pub hash: Uuid,
+    pub request_time: f64,
 }
 
 impl EntityObservation {

@@ -12,6 +12,7 @@ pub mod cache;
 #[derive(Deserialize)]
 pub struct ChronConfig {
     pub database_uri: String,
+    pub scylla_uri: String,
     pub maps_api_key: Option<String>,
     pub export_path: Option<String>,
 

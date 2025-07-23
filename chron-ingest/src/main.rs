@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use chron_base::{load_config, stop_signal};
-use chron_db::ChronDb;
+use chron_db::{ChronDb, scylla_backend::ChronScyllaDb};
 use http::DataClient;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -71,10 +71,12 @@ async fn main() -> anyhow::Result<()> {
     } else {
         ChronDb::new(&config).await?
     };
+    let scylla = ChronScyllaDb::new(&config).await?;
     let client = DataClient::new()?;
     let ctx = WorkerContext {
         client,
         db,
+        scylla,
         config: config,
         _sim: Arc::new(RwLock::new(SimState {
             _season: Uuid::default(),
@@ -134,6 +136,7 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "migrate" => ctx.db.migrate(false).await?,
         "migrate-full" => ctx.db.migrate(true).await?,
         "export" => export::export_async(&ctx.config).await?,
+        "scylla" => workers::scylla::init(&ctx).await?,
         _ => panic!("unknown function: {}", name),
     }
 
