@@ -1,20 +1,26 @@
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    hash::RandomState,
+    time::Duration,
+};
 
+use chron_base::objectid_to_timestamp;
 use chron_db::{
     ChronDb,
     derived::{DbGame, DbGameSaveModel, GetGamesQuery},
     models::{EntityKind, EntityVersion},
 };
 use serde::Deserialize;
+use sqlx::FromRow;
 use time::OffsetDateTime;
 use tokio::time::interval;
+use tracing::{error, info, warn};
 
 use crate::{
     models::{GameDayNumber, MmolbDay, MmolbGame, MmolbGameEvent, MmolbSeason, MmolbTeam},
     workers::{IntervalWorker, WorkerContext, league},
 };
 use futures::{StreamExt, TryStreamExt};
-use tracing::{error, info, warn};
 
 pub struct PollGameDays;
 
@@ -284,10 +290,21 @@ async fn process_game_data(
     save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
 
     if let Some(game_stats) = &game.stats {
+        let analysis = analyze_game(ctx, id, &game).await?;
+
         let mut stats = Vec::new();
         for (team_id, team_stats) in game_stats {
             for (player_id, player_stats) in team_stats {
-                stats.push((team_id.as_str(), player_id.as_str(), player_stats));
+                let player_name = analysis
+                    .player_id_to_names
+                    .get(player_id)
+                    .map(|x| x.as_str());
+                stats.push((
+                    team_id.as_str(),
+                    player_id.as_str(),
+                    player_name,
+                    player_stats,
+                ));
             }
         }
 
@@ -543,7 +560,7 @@ async fn rebuild_games_slow_inner(
 }
 
 async fn rebuild_game(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
-    info!("rebuilding game {}", game_id);
+    // info!("rebuilding game {}", game_id);
     let game_data = ctx.db.get_latest(EntityKind::Game, &game_id).await?;
     if let Some(game_data) = game_data {
         let parsed = game_data.parse()?;
@@ -621,4 +638,133 @@ async fn get_known_incomplete_game_ids(ctx: &WorkerContext) -> anyhow::Result<Ha
     }
 
     Ok(game_ids)
+}
+
+struct GameAnalysisResult {
+    player_id_to_names: HashMap<String, String>,
+}
+
+async fn analyze_game(
+    ctx: &WorkerContext,
+    game_id: &str,
+    game: &MmolbGame,
+) -> anyhow::Result<GameAnalysisResult> {
+    // step 1: collect a list of names we've seen in this game, pitching or batting, by each team
+    // todo: extend this to parse eg. the batting order at the start?
+    let mut home_team_names = HashSet::new();
+    let mut away_team_names = HashSet::new();
+    for ele in game.event_log.iter() {
+        let evt = MmolbGameEvent::deserialize(ele)?;
+        if evt.inning_side == 0 {
+            away_team_names.extend(evt.batter);
+            home_team_names.extend(evt.pitcher);
+        } else if evt.inning_side == 1 {
+            home_team_names.extend(evt.batter);
+            away_team_names.extend(evt.pitcher);
+        }
+    }
+
+    // step 2: go through the player ids in the stat object, figure out what names they've gone by, and check if there's a match
+    let home_team_roster_history = fetch_team_names(ctx, &game.home_team_id).await?;
+    let away_team_roster_history = fetch_team_names(ctx, &game.away_team_id).await?;
+
+    let mut player_id_to_names = HashMap::new();
+    if let Some(stats) = &game.stats {
+        for (team_id, player_map) in stats.iter() {
+            for (player_id, _) in player_map.iter() {
+                // here we could use the stats for some heuristics?
+                let (names, history) = if *team_id == game.home_team_id {
+                    (&home_team_names, &home_team_roster_history)
+                } else {
+                    (&away_team_names, &away_team_roster_history)
+                };
+
+                if let Some(history_for_player_id) = history.get(player_id) {
+                    for ele in history_for_player_id {
+                        if names.contains(&ele.player_name) {
+                            player_id_to_names.insert(player_id.clone(), ele.player_name.clone());
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // step 3: log if we've missed any, i guess?
+    if let Some(stats) = &game.stats {
+        for (team_id, player_map) in stats.iter() {
+            for (player_id, _) in player_map.iter() {
+                if !player_id_to_names.contains_key(player_id) {
+                    warn!(
+                        "game {} (s{}d{}), could not find name for player {} on team {}, falling back to player name map",
+                        game_id,
+                        game.season,
+                        game.day.to_int(),
+                        player_id,
+                        team_id
+                    );
+
+                    let (names, _) = if *team_id == game.home_team_id {
+                        (&home_team_names, &home_team_roster_history)
+                    } else {
+                        (&away_team_names, &away_team_roster_history)
+                    };
+
+                    let player_names_from_map: Vec<(String, OffsetDateTime)> = sqlx::query_as(
+                        "select player_name, greatest(timestamp, '1970-01-01') from player_name_map where player_id = $1 order by timestamp desc",
+                    ).bind(player_id)
+                    .fetch_all(&ctx.db.pool)
+                    .await?;
+
+                    let res = player_names_from_map.iter().find(|x| names.contains(&x.0));
+                    if let Some((found_player_name, _)) = res {
+                        player_id_to_names.insert(player_id.clone(), found_player_name.clone());
+                    } else {
+                        let ts = objectid_to_timestamp(game_id)? + Duration::from_secs(15 * 60);
+                        let first_valid_entry = player_names_from_map
+                            .iter()
+                            .find(|x| x.1 < ts)
+                            .or(player_names_from_map.first());
+                        if let Some((first_name_entry, _)) = first_valid_entry {
+                            // fuck it. this was probably this player's name at some point, probably, who cares
+                            player_id_to_names.insert(player_id.clone(), first_name_entry.clone());
+                        } else {
+                            // i give up!
+                            warn!(
+                                "game={}, player={}: *really* could not find a valid player name at all...",
+                                game_id, player_id
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(GameAnalysisResult { player_id_to_names })
+}
+
+#[derive(FromRow)]
+struct RosterHistoryEntry {
+    player_name: String,
+    player_id: String,
+    slot: Option<String>,
+    position: String,
+}
+
+async fn fetch_team_names(
+    ctx: &WorkerContext,
+    team_id: &str,
+) -> anyhow::Result<HashMap<String, Vec<RosterHistoryEntry>, RandomState>> {
+    let entries: Vec<RosterHistoryEntry> = sqlx::query_as("select distinct player_id, first_name || ' ' || last_name as player_name, slot, position from versions inner join objects using (hash) join lateral json_table(data, '$.Players[*] ? (@.PlayerID != \"#\")' COLUMNS (first_name text PATH '$.FirstName', last_name text PATH '$.LastName', player_id text PATH '$.PlayerID', slot text PATH '$.Slot', position text PATH '$.Position')) as jt on (true) where (versions.kind = 10) AND (versions.entity_id = $1)")
+        .bind(team_id)
+        .fetch_all(&ctx.db.pool)
+        .await?;
+
+    let mut map = HashMap::new();
+    for entry in entries {
+        let arr: &mut Vec<RosterHistoryEntry> = map.entry(entry.player_id.clone()).or_default();
+        arr.push(entry);
+    }
+    Ok(map)
 }

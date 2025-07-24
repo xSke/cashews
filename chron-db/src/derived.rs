@@ -403,9 +403,7 @@ impl ChronDb {
         &self,
         q: StatsQueryNew,
     ) -> anyhow::Result<impl Stream<Item = Result<StatsRow, anyhow::Error>> + use<'_>> {
-        let mut qqq = Query::select()
-            .from(Idens::GamePlayerStatsExploded)
-            .to_owned();
+        let mut qqq = Query::select().from(Idens::GamePlayerStats).to_owned();
 
         let mut qq: &mut _ = &mut qqq;
         // todo: can prob clean this up. or just use a better damn query builder
@@ -423,13 +421,11 @@ impl ChronDb {
         let mut needs_player_name_expr = false;
 
         if let Some(player) = q.player {
-            qq = qq.and_where(
-                Expr::col((Idens::GamePlayerStatsExploded, Idens::PlayerId)).eq(&player),
-            );
+            qq = qq.and_where(Expr::col((Idens::GamePlayerStats, Idens::PlayerId)).eq(&player));
         }
 
         if let Some(team) = q.team {
-            qq = qq.and_where(Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId)).eq(&team));
+            qq = qq.and_where(Expr::col((Idens::GamePlayerStats, Idens::TeamId)).eq(&team));
         }
 
         if let Some(league) = q.league {
@@ -457,22 +453,20 @@ impl ChronDb {
 
         if q.group_player {
             qq = qq
-                .group_by_col((Idens::GamePlayerStatsExploded, Idens::PlayerId))
-                .column((Idens::GamePlayerStatsExploded, Idens::PlayerId));
+                .group_by_col((Idens::GamePlayerStats, Idens::PlayerId))
+                .column((Idens::GamePlayerStats, Idens::PlayerId));
 
             if q.include_names && !q.group_player_name {
-                let full_name = Func::cust(Idens::AnyValue).arg(Expr::col((
-                    Idens::GamePlayerStatsExploded,
-                    Idens::PlayerName,
-                )));
+                let full_name = Func::cust(Idens::AnyValue)
+                    .arg(Expr::col((Idens::GamePlayerStats, Idens::PlayerName)));
                 qq = qq.expr_as(full_name, "player_name");
             }
         }
 
         if q.group_team {
             qq = qq
-                .group_by_col((Idens::GamePlayerStatsExploded, Idens::TeamId))
-                .column((Idens::GamePlayerStatsExploded, Idens::TeamId));
+                .group_by_col((Idens::GamePlayerStats, Idens::TeamId))
+                .column((Idens::GamePlayerStats, Idens::TeamId));
 
             if q.include_names {
                 needs_teams_table_join = true;
@@ -527,7 +521,7 @@ impl ChronDb {
         if needs_teams_table_join {
             qq = qq.left_join(
                 Idens::Teams,
-                Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId))
+                Expr::col((Idens::GamePlayerStats, Idens::TeamId))
                     .equals((Idens::Teams, Idens::TeamId)),
             );
         }
@@ -535,7 +529,7 @@ impl ChronDb {
         if needs_players_table_join {
             qq = qq.left_join(
                 Idens::Players,
-                Expr::col((Idens::GamePlayerStatsExploded, Idens::PlayerId))
+                Expr::col((Idens::GamePlayerStats, Idens::PlayerId))
                     .equals((Idens::Players, Idens::PlayerId)),
             );
         }
@@ -617,7 +611,7 @@ impl ChronDb {
         assert!(event_indexes.len() == event_pitchers.len());
         assert!(event_indexes.len() == event_batters.len());
 
-        let chunk_size = 100;
+        let chunk_size = 10;
         for i in (0..event_indexes.len()).step_by(chunk_size) {
             sqlx::query("insert into game_events (game_id, index, data, pitcher_id, batter_id, observed_at, season, day) select $1 as game_id, unnest($2::int[]) as index, unnest($3::jsonb[]) as data, unnest($4::text[]) as pitcher_id, unnest($5::text[]) as batter_id, $6 as observed_at, $7 as season, $8 as day on conflict (game_id, index) do update set observed_at = excluded.observed_at, pitcher_id = excluded.pitcher_id, batter_id = excluded.batter_id, season = excluded.season, day = excluded.day where (game_events.observed_at is null or excluded.observed_at <= game_events.observed_at)")
                 .bind(game_id)
@@ -639,23 +633,26 @@ impl ChronDb {
         game_id: &str,
         season: i32,
         day: i32,
-        stats: &[(&str, &str, &serde_json::Value)],
+        stats: &[(&str, &str, Option<&str>, &serde_json::Value)],
     ) -> anyhow::Result<()> {
         let mut team_ids = Vec::with_capacity(stats.len());
         let mut player_ids = Vec::with_capacity(stats.len());
+        let mut player_names = Vec::with_capacity(stats.len());
         let mut datas = Vec::with_capacity(stats.len());
-        for (team_id, player_id, data) in stats {
+        for (team_id, player_id, player_name, data) in stats {
             team_ids.push(*team_id);
             player_ids.push(*player_id);
+            player_names.push(*player_name);
             datas.push(data);
         }
 
-        sqlx::query("insert into game_player_stats (game_id, season, day, team_id, player_id, data) select $1 as game_id, $2 as season, $3 as day, unnest($4::text[]) as team_id, unnest($5::text[]) as player_id, unnest($6::jsonb[]) as data on conflict (game_id, team_id, player_id) do update set data=excluded.data")
+        sqlx::query("insert into game_player_stats (game_id, season, day, team_id, player_id, player_name, data) select $1 as game_id, $2 as season, $3 as day, unnest($4::text[]) as team_id, unnest($5::text[]) as player_id, unnest($6::text[]) as player_name, unnest($7::jsonb[]) as data on conflict (game_id, team_id, player_id) do update set player_name=excluded.player_name, data=excluded.data")
             .bind(game_id)
             .bind(season)
             .bind(day)
             .bind(&team_ids)
             .bind(&player_ids)
+            .bind(&player_names)
             .bind(&datas)
             .execute(&self.pool).await?;
 

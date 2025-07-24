@@ -79,8 +79,8 @@ impl IntervalWorker for ProcessFeeds {
             .execute(&ctx.db.pool)
             .await?;
 
-        // for every player, smash their earliest known name into -infinity
-        sqlx::query("insert into player_name_map (player_id, player_name, timestamp) select distinct player_id, first_value(player_name) over (partition by player_id order by timestamp) as player_name, ('-infinity'::timestamptz) as timestamp from player_name_map on conflict (player_id, timestamp) do update set player_name = excluded.player_name")
+        // for every player, smash their earliest known name into -infinity (or close enough)
+        sqlx::query("insert into player_name_map (player_id, player_name, timestamp) select distinct player_id, first_value(player_name) over (partition by player_id order by timestamp) as player_name, ('1970-01-01'::timestamptz) as timestamp from player_name_map on conflict (player_id, timestamp) do update set player_name = excluded.player_name")
             .execute(&ctx.db.pool)
             .await?;
 

@@ -29,7 +29,7 @@ pub enum GroupColumn {
     Season,
     Day, // implies season
     Game,
-    Slot,
+    // Slot,
     PlayerName,
 }
 
@@ -98,9 +98,9 @@ impl Serialize for StatOutputRow {
         {
             state.serialize_field("player_name", &self.row.player_name.as_deref())?;
         }
-        if self.q.group.contains(&GroupColumn::Slot) {
-            state.serialize_field("slot", &self.row.slot)?;
-        }
+        // if self.q.group.contains(&GroupColumn::Slot) {
+        //     state.serialize_field("slot", &self.row.slot)?;
+        // }
         if self.q.group.contains(&GroupColumn::Team) {
             state.serialize_field("team_id", &self.row.team.as_deref())?;
             if self.q.names {
@@ -130,8 +130,7 @@ pub struct StatsRequest {
     pub team: Option<String>,
     pub league: Option<String>,
     pub game: Option<String>,
-    pub slot: Option<SlotOrPosition>,
-
+    // pub slot: Option<SlotOrPosition>,
     #[serde(deserialize_with = "comma_separated2")]
     pub fields: Vec<StatKey>,
 
@@ -176,14 +175,16 @@ pub async fn stats(
         team: q.team.clone(),
         league: q.league.clone(),
         game: q.game.clone(),
-        slot: q.slot.clone(),
+        slot: None,
+        // slot: q.slot.clone(),
         group_league: q.group.contains(&GroupColumn::League),
         group_team: q.group.contains(&GroupColumn::Team),
         group_player: q.group.contains(&GroupColumn::Player),
         group_season: q.group.contains(&GroupColumn::Season),
         group_day: q.group.contains(&GroupColumn::Day),
         group_game: q.group.contains(&GroupColumn::Game),
-        group_slot: q.group.contains(&GroupColumn::Slot),
+        group_slot: false,
+        // group_slot: q.group.contains(&GroupColumn::Slot),
         group_player_name: q.group.contains(&GroupColumn::PlayerName),
         sort: q.sort,
         count: Some(count),
