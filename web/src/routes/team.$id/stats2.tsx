@@ -146,18 +146,35 @@ function RouteComponent() {
 
   const teamQuery = useQuery(chronLatestEntityQuery<MmolbTeam>("team", teamId));
 
-  const currentRoster = useMemo(() => {
-    return teamQuery.data
-      ? teamQuery.data.data.Players.map(
-          (x) => `${x.PlayerID}/${x.FirstName} ${x.LastName}`
-        ).filter((x) => x != "#")
-      : [];
+  const currentRosterTable = useMemo(() => {
+    const slots: string[] = [];
+    const playerIds: string[] = [];
+    const keys: string[] = [];
+    const positionType: string[] = [];
+
+    // if undefined, still return a table with the right columns
+    if (teamQuery.data) {
+      for (let player of teamQuery.data.data.Players) {
+        if (player.PlayerID === "#") continue;
+        playerIds.push(player.PlayerID);
+        slots.push(player.Slot);
+        keys.push(`${player.PlayerID}/${player.FirstName} ${player.LastName}`);
+        positionType.push(player.PositionType);
+      }
+    }
+
+    return aq.table({
+      slot: slots,
+      player_id: playerIds,
+      key: keys,
+      position_type: positionType,
+    });
   }, [teamQuery.data]);
 
   const leagueBatting = useQuery({
     ...statsQuery({
       season,
-      group: ["player", "team", "player_name", "slot"],
+      group: ["player", "team", "player_name"],
       league: teamQuery.data?.data?.League,
       fields: battingStatFields,
     }),
@@ -167,7 +184,7 @@ function RouteComponent() {
   const leaguePitching = useQuery({
     ...statsQuery({
       season,
-      group: ["player", "team", "player_name", "slot"],
+      group: ["player", "team", "player_name"],
       league: teamQuery?.data?.data.League,
       fields: pitchingStatFields,
     }),
@@ -177,7 +194,7 @@ function RouteComponent() {
   const teamBattingQuery = useQuery(
     statsQuery({
       season,
-      group: ["player", "team", "player_name", "slot"],
+      group: ["player", "team", "player_name"],
       team: teamId,
       fields: battingStatFields,
     })
@@ -186,7 +203,7 @@ function RouteComponent() {
   const teamPitching = useQuery(
     statsQuery({
       season,
-      group: ["player", "team", "player_name", "slot"],
+      group: ["player", "team", "player_name"],
       team: teamId,
       fields: pitchingStatFields,
     })
@@ -243,12 +260,13 @@ function RouteComponent() {
   const battingStats = useMemo(() => {
     if (!teamBattingQuery.data) return undefined;
 
-    let data = calculateBattingStats(teamBattingQuery.data, battingAgg)
-      .params({ currentRoster })
-      .derive({
-        current: (d, $) =>
-          aq.op.includes($.currentRoster, d.player_id + "/" + d.player_name),
-      });
+    let data = calculateBattingStats(teamBattingQuery.data, battingAgg).derive({
+      key: (d) => d.player_id + "/" + d.player_name,
+    });
+    if (currentRosterTable) {
+      data = data.lookup(currentRosterTable, "key");
+    }
+    data = data.derive({ current: (d) => d.position_type === "Batter" });
 
     if (battingOrder) {
       const battingOrderTable = aq.table({
@@ -259,21 +277,43 @@ function RouteComponent() {
       });
       data = data.lookup(battingOrderTable, "slot", "battingOrder");
     }
+    // data = data.derive({
+    //   status: (d) => {
+    //     if (!d.slot) return "💩 ";
+    //     if (!d.current) return "🔀 ";
+    //     return "";
+    //   },
+    // });
     if (hideInactive) data = data.filter((d) => d.current);
     return data.reify();
-  }, [teamBattingQuery.data, battingAgg, battingOrder, hideInactive]);
+  }, [
+    teamBattingQuery.data,
+    battingAgg,
+    battingOrder,
+    hideInactive,
+    currentRosterTable,
+  ]);
 
   const pitchingStats = useMemo(() => {
     if (!teamPitching.data) return undefined;
-    let data = calculatePitchingStats(teamPitching.data, pitchingAgg)
-      .params({ currentRoster })
-      .derive({
-        current: (d, $) =>
-          aq.op.includes($.currentRoster, d.player_id + "/" + d.player_name),
-      });
+    let data = calculatePitchingStats(teamPitching.data, pitchingAgg).derive({
+      key: (d) => d.player_id + "/" + d.player_name,
+    });
+    if (currentRosterTable) {
+      data = data.lookup(currentRosterTable, "key");
+    }
+    data = data.derive({ current: (d) => d.position_type === "Pitcher" });
     if (hideInactive) data = data.filter((d) => d.current);
+    // data = data.derive({
+    //   status: (d) => {
+    //     if (!d.slot) return "💩 ";
+    //     if (!d.current) return "🔀 ";
+    //     return "";
+    //   },
+    // });
+
     return data.reify();
-  }, [teamPitching.data, pitchingAgg, hideInactive]);
+  }, [teamPitching.data, pitchingAgg, hideInactive, currentRosterTable]);
 
   const navigate = useNavigate({ from: Route.fullPath });
 
@@ -287,7 +327,7 @@ function RouteComponent() {
             onCheckedChange={(e) => setHideInactive(e as boolean)}
             id="terms"
           />
-          <Label htmlFor="terms">Hide inactive players</Label>
+          <Label htmlFor="terms">Only show current positions</Label>
         </div>
 
         <div className="place-self-end">

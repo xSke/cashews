@@ -54,7 +54,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
   function slotColumn(): ColumnDef<number, string> {
     const getter = enriched.getter("slot");
     const currentGetter = enriched.getter("current");
-    const order  = [
+    const order = [
       "C",
       "1B",
       "2B",
@@ -92,6 +92,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
   function nameColumn(): ColumnDef<number, string> {
     const getter = enriched.getter("player_name");
     const idGetter = enriched.getter("player_id");
+    // const statusGetter = enriched.getter("status");
     return {
       id: "name",
       header: "Name",
@@ -136,7 +137,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     return {
       id: col,
       header: title,
-      sortDescFirst: (order == "desc"),
+      sortDescFirst: order == "desc",
       cell: (c) => {
         const val = c.getValue();
         let perc: PercentileResult | undefined;
@@ -170,8 +171,8 @@ export default function NewStatsTable(props: NewStatsTableProps) {
                   <span>{inner}</span>
                 </TooltipTrigger>
                 <TooltipContent>
-                  Better than{" "}
-                  {(perc.percentile * 100).toFixed(1)}% of qualifying players
+                  Better than {(perc.percentile * 100).toFixed(1)}% of
+                  qualifying players
                 </TooltipContent>
               </Tooltip>
             ) : (
