@@ -255,7 +255,7 @@ async fn poll_game_by_id(ctx: &WorkerContext, id: String) -> anyhow::Result<()> 
     let resp = ctx.fetch_and_save(url, EntityKind::Game, &id).await?;
 
     let game: MmolbGame = resp.parse()?;
-    process_game_data(ctx, &id, &game, &resp.timestamp()).await?;
+    process_game_data(ctx, &id, &game, &resp.timestamp(), true).await?;
 
     Ok(())
 }
@@ -265,6 +265,7 @@ async fn process_game_data(
     id: &str,
     game: &MmolbGame,
     timestamp: &OffsetDateTime,
+    should_save_game_events: bool,
 ) -> anyhow::Result<()> {
     ctx.db
         .update_game(DbGameSaveModel {
@@ -287,7 +288,10 @@ async fn process_game_data(
         season: game.season,
         day: game.day.clone(),
     };
-    save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
+
+    if should_save_game_events {
+        save_game_events(ctx, *timestamp, &generic_game, &game.event_log, 0).await?;
+    }
 
     if let Some(game_stats) = &game.stats {
         let analysis = analyze_game(ctx, id, &game).await?;
@@ -520,13 +524,15 @@ pub struct LiveResponse {
     entries: Vec<serde_json::Value>,
 }
 
-pub async fn rebuild_games(ctx: &WorkerContext) -> anyhow::Result<()> {
+pub async fn rebuild_games(ctx: &WorkerContext, stats_only: bool) -> anyhow::Result<()> {
     // get game ids separately because "all game objects" is gonna be massive
     let mut all_game_ids = ctx.db.get_all_entity_ids(EntityKind::Game).await?;
     all_game_ids.sort();
 
-    ctx.process_many_with_progress(all_game_ids, 20, "rebuild games", rebuild_game)
-        .await;
+    ctx.process_many_with_progress(all_game_ids, 20, "rebuild games", |ctx, g| {
+        rebuild_game(ctx, g, !stats_only)
+    })
+    .await;
     Ok(())
 }
 
@@ -557,16 +563,34 @@ async fn rebuild_games_slow_inner(
 ) -> anyhow::Result<()> {
     let version = version?;
     let parsed = version.parse::<MmolbGame>()?;
-    process_game_data(ctx, &version.entity_id, &parsed, &version.valid_from.0).await?;
+    process_game_data(
+        ctx,
+        &version.entity_id,
+        &parsed,
+        &version.valid_from.0,
+        true,
+    )
+    .await?;
     Ok(())
 }
 
-async fn rebuild_game(ctx: &WorkerContext, game_id: String) -> anyhow::Result<()> {
+async fn rebuild_game(
+    ctx: &WorkerContext,
+    game_id: String,
+    should_save_game_events: bool,
+) -> anyhow::Result<()> {
     // info!("rebuilding game {}", game_id);
     let game_data = ctx.db.get_latest(EntityKind::Game, &game_id).await?;
     if let Some(game_data) = game_data {
         let parsed = game_data.parse()?;
-        process_game_data(ctx, &game_id, &parsed, &game_data.valid_from.0).await?;
+        process_game_data(
+            ctx,
+            &game_id,
+            &parsed,
+            &game_data.valid_from.0,
+            should_save_game_events,
+        )
+        .await?;
     }
 
     Ok(())

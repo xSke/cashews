@@ -122,7 +122,8 @@ async fn main() -> anyhow::Result<()> {
 
 async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::Result<()> {
     match name {
-        "rebuild-games" => games::rebuild_games(ctx).await?,
+        "rebuild-games" => games::rebuild_games(ctx, false).await?,
+        "rebuild-games-stats" => games::rebuild_games(ctx, true).await?,
         "rebuild-games-slow" => games::rebuild_games_slow(ctx).await?,
         "fetch-league" => league::poll_league(ctx).await?,
         "fetch-all-seasons" => games::fetch_all_seasons(ctx).await?,
