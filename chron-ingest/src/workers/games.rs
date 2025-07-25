@@ -522,9 +522,11 @@ pub struct LiveResponse {
 
 pub async fn rebuild_games(ctx: &WorkerContext) -> anyhow::Result<()> {
     // get game ids separately because "all game objects" is gonna be massive
-    let all_game_ids = ctx.db.get_all_entity_ids(EntityKind::Game).await?;
+    let mut all_game_ids = ctx.db.get_all_entity_ids(EntityKind::Game).await?;
+    all_game_ids.sort();
 
-    ctx.process_many(all_game_ids, 20, rebuild_game).await;
+    ctx.process_many_with_progress(all_game_ids, 20, "rebuild games", rebuild_game)
+        .await;
     Ok(())
 }
 
