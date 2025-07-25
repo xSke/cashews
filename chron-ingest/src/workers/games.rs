@@ -528,6 +528,7 @@ pub async fn rebuild_games(ctx: &WorkerContext, stats_only: bool) -> anyhow::Res
     // get game ids separately because "all game objects" is gonna be massive
     let mut all_game_ids = ctx.db.get_all_entity_ids(EntityKind::Game).await?;
     all_game_ids.sort();
+    all_game_ids.reverse();
 
     ctx.process_many_with_progress(all_game_ids, 20, "rebuild games", |ctx, g| {
         rebuild_game(ctx, g, !stats_only)
