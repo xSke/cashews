@@ -6,6 +6,7 @@ use std::{
 use chron_db::models::EntityKind;
 use futures::{StreamExt, TryStreamExt, stream};
 use sqlx::{SqlitePool, prelude::FromRow};
+use strum::VariantArray;
 use time::OffsetDateTime;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -181,5 +182,13 @@ async fn submit(
     ctx.db
         .insert_observations_raw_bulk(&foo.into_iter().filter_map(|x| x.ok()).collect::<Vec<_>>())
         .await?;
+    Ok(())
+}
+
+pub async fn rebuild_all(ctx: &WorkerContext) -> anyhow::Result<()> {
+    for kind in EntityKind::VARIANTS {
+        info!("rebuilding {:?}", kind);
+        ctx.db.rebuild_all(*kind).await?;
+    }
     Ok(())
 }

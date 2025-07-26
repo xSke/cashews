@@ -718,6 +718,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "strum",
  "time",
  "tokio",
  "tracing",
