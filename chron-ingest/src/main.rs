@@ -8,8 +8,8 @@ use uuid::Uuid;
 use workers::{
     IntervalWorker, SimState, WorkerContext,
     games::{self},
-    import,
     league::{self},
+    maintenance,
 };
 
 use crate::workers::{feeds::ProcessFeeds, games::HandleSuperstarGames};
@@ -118,7 +118,8 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "rebuild-games" => games::rebuild_games(ctx, false).await?,
         "rebuild-games-stats" => games::rebuild_games(ctx, true).await?,
         "rebuild-games-slow" => games::rebuild_games_slow(ctx).await?,
-        "rebuild-all" => import::rebuild_all(ctx).await?,
+        "rebuild-all" => maintenance::rebuild_all(ctx).await?,
+        "recompress" => maintenance::recompress(ctx).await?,
         "fetch-league" => league::poll_league(ctx).await?,
         "fetch-all-seasons" => games::fetch_all_seasons(ctx).await?,
         "fetch-all-games" => games::fetch_all_games(ctx).await?,
