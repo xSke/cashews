@@ -14,7 +14,6 @@ services:
     environment:
       - CHRON_DATABASE_URI=postgres://postgres:password@postgres:5432/postgres
       - CHRON_EXPORT_PATH=/export
-      - CHRON_DUCKDB_PATH=/export
     volumes:
       - ./config.toml:/app/config.toml
       - export:/export
@@ -33,7 +32,6 @@ services:
       - CHRON_MAPS_API_KEY=${CHRON_MAPS_API_KEY}
       - CHRON_JITTER=true
       - CHRON_EXPORT_PATH=/export
-      - CHRON_DUCKDB_PATH=/export
       - CHRON_DATABASE_URI=postgres://postgres:password@postgres:5432/postgres
   postgres:
     image: postgres:17-alpine 

@@ -3,7 +3,6 @@ use std::{collections::HashSet, str::FromStr, sync::Arc};
 use anyhow::anyhow;
 use chron_base::ChronConfig;
 use dashmap::DashSet;
-use duckdb::DuckdbConnectionManager;
 use futures::{StreamExt, stream};
 use itertools::Itertools;
 use models::{EntityKind, NewObject};
@@ -19,10 +18,7 @@ use tracing::{error, info};
 use util::HashingWriter;
 use uuid::Uuid;
 
-use crate::duck::new_duckdb;
-
 pub mod derived;
-pub mod duck;
 pub mod models;
 pub mod queries;
 pub mod util;
@@ -68,8 +64,6 @@ pub enum Idens {
 pub struct ChronDb {
     pub pool: PgPool,
     pub saved_objects: Arc<DashSet<Uuid>>,
-    pub duckdb_read: r2d2::Pool<DuckdbConnectionManager>,
-    pub duckdb_write: r2d2::Pool<DuckdbConnectionManager>,
 }
 
 impl ChronDb {
@@ -78,12 +72,9 @@ impl ChronDb {
         let conn_opts = PgConnectOptions::from_str(&config.database_uri)?;
         let pool = pool_opts.connect_with(conn_opts).await?;
 
-        let (duckdb_read, duckdb_write) = new_duckdb(&config)?;
         Ok(ChronDb {
             pool,
             saved_objects: Arc::new(DashSet::new()),
-            duckdb_read,
-            duckdb_write,
         })
     }
 
@@ -98,12 +89,9 @@ impl ChronDb {
             ))?;
         }
 
-        let (duckdb_read, duckdb_write) = new_duckdb(&config)?;
         Ok(ChronDb {
             pool,
             saved_objects: Arc::new(DashSet::new()),
-            duckdb_read,
-            duckdb_write,
         })
     }
 

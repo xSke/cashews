@@ -12,11 +12,7 @@ use workers::{
     maintenance,
 };
 
-use crate::workers::{
-    duck::{self, RefreshDuckDb},
-    feeds::ProcessFeeds,
-    games::HandleSuperstarGames,
-};
+use crate::workers::{feeds::ProcessFeeds, games::HandleSuperstarGames};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -110,7 +106,6 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), HandleEventGames);
         spawn(ctx.clone(), HandleSuperstarGames);
         spawn(ctx.clone(), ProcessFeeds);
-        spawn(ctx.clone(), RefreshDuckDb);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");
@@ -134,7 +129,6 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "rebuild-players" => synthetic::rebuild_players(ctx).await?,
         "migrate" => ctx.db.migrate(false).await?,
         "migrate-full" => ctx.db.migrate(true).await?,
-        "refresh-duckdb" => duck::refresh_duckdb(ctx.clone()).await?,
         _ => panic!("unknown function: {}", name),
     }
 

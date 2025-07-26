@@ -15,7 +15,6 @@ pub struct ChronConfig {
     pub scylla_uri: String,
     pub maps_api_key: Option<String>,
     pub export_path: Option<String>,
-    pub duckdb_path: Option<String>,
 
     #[serde(default)]
     pub jitter: bool,
