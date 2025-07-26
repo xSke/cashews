@@ -14,6 +14,7 @@ use uuid::Uuid;
 use crate::http::{ClientResponse, DataClient};
 use crate::models::{MmolbState, MmolbTime};
 
+pub mod duck;
 pub mod feeds;
 pub mod games;
 pub mod league;

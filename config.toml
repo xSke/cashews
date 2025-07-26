@@ -1,3 +1,4 @@
 database_uri = "postgres://postgres:password@localhost:5432/postgres"
 export_path = "export"
+duckdb_path = "export"
 scylla_uri = "localhost:9042"

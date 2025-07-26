@@ -1,7 +1,11 @@
-use async_stream::try_stream;
 use chron_base::{StatKey, objectid_to_timestamp};
 use compact_str::CompactString;
-use futures::{Stream, TryStreamExt};
+use duckdb::{
+    ToSql, params_from_iter,
+    types::{Null, ToSqlOutput, ValueRef},
+};
+use futures::{Stream, stream};
+use itertools::Itertools;
 use sea_query::{
     Asterisk, Cond, Expr, ExprTrait, Func, InsertStatement, IntoIden, OnConflict,
     PostgresQueryBuilder, Query, SelectStatement, SimpleExpr,
@@ -402,7 +406,7 @@ impl ChronDb {
         Ok(res)
     }
 
-    pub fn get_stats(
+    pub async fn get_stats(
         &self,
         q: StatsQueryNew,
     ) -> anyhow::Result<impl Stream<Item = Result<StatsRow, anyhow::Error>> + use<'_>> {
@@ -571,15 +575,72 @@ impl ChronDb {
         let (q, vals) = qq.build_sqlx(PostgresQueryBuilder);
 
         tracing::info!("generated query: {}, {:?}", &q, &vals);
-        let s = try_stream! {
-            let mut rows = sqlx::query_as_with(&q, vals).fetch(&self.pool);
+        let x = q.clone();
 
-            while let Some(row) = rows.try_next().await? {
-                yield row;
+        let read = self.duckdb_read.clone();
+        let jh = tokio::task::spawn_blocking(move || -> anyhow::Result<Vec<StatsRow>> {
+            let conn = read.get()?;
+            let mut stmt = conn.prepare(&x.replace("_exploded", ""))?;
+
+            let params: Vec<ToSqlOutput<'_>> = vals
+                .0
+                .0
+                .iter()
+                .map(|x| match x {
+                    sea_query::Value::Bool(x) => x.to_sql(),
+                    sea_query::Value::TinyInt(x) => x.to_sql(),
+                    sea_query::Value::SmallInt(x) => x.to_sql(),
+                    sea_query::Value::Int(x) => x.to_sql(),
+                    sea_query::Value::BigInt(x) => x.to_sql(),
+                    sea_query::Value::TinyUnsigned(x) => x.to_sql(),
+                    sea_query::Value::SmallUnsigned(x) => x.to_sql(),
+                    sea_query::Value::Unsigned(x) => x.to_sql(),
+                    sea_query::Value::BigUnsigned(x) => x.to_sql(),
+                    sea_query::Value::Float(x) => x.to_sql(),
+                    sea_query::Value::Double(x) => x.to_sql(),
+                    sea_query::Value::String(x) => x.to_sql(),
+                    _ => Null.to_sql(),
+                })
+                .try_collect()?;
+            let mut rows = stmt.query(params_from_iter(params))?;
+
+            fn compact_str(foo: Option<ValueRef>) -> Option<CompactString> {
+                foo.and_then(|x| {
+                    x.as_str()
+                        .ok()
+                        .map(|x| CompactString::from_utf8_lossy(x.as_bytes()))
+                })
             }
-        };
 
-        Ok(Box::pin(s))
+            let mut buf = Vec::new();
+            while let Some(row) = rows.next()? {
+                let mut values = [0u32; StatKey::COUNT];
+                for (i, sk) in StatKey::VARIANTS.iter().enumerate() {
+                    let name: &'static str = sk.into();
+                    values[i] = row.get(name).unwrap_or(0) as u32;
+                }
+
+                let sr = StatsRow {
+                    player: compact_str(row.get_ref("player_id").ok()),
+                    player_name: compact_str(row.get_ref("player_name").ok()),
+                    game: compact_str(row.get_ref("game_id").ok()),
+                    team: compact_str(row.get_ref("team_id").ok()),
+                    team_name: compact_str(row.get_ref("team_name").ok()),
+                    league: compact_str(row.get_ref("league_id").ok()),
+                    season: row.get("season").ok(),
+                    day: row.get("season").ok(),
+                    slot: None, // todo
+                    values,
+                };
+                buf.push(sr);
+            }
+            Ok(buf)
+        });
+
+        // todo: don't fake-stream it
+        let result = jh.await??;
+        let stream = stream::iter(result.into_iter().map(|x| Ok(x)));
+        Ok(Box::pin(stream))
     }
 
     pub async fn update_game(&self, game: DbGameSaveModel<'_>) -> anyhow::Result<()> {

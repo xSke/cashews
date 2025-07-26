@@ -194,7 +194,7 @@ pub async fn stats(
 
     let db = ctx.db.clone();
 
-    let mut stream = db.get_stats(qq.clone())?;
+    let mut stream = db.get_stats(qq.clone()).await?;
     let results = stream
         .map_ok(|row| StatOutputRow { row, q: q.clone() })
         .try_collect::<Vec<_>>()

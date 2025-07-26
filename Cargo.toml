@@ -11,7 +11,7 @@ chron-db = { path = "chron-db" }
 compact_str = { version = "0.9.0", features = ["serde", "sqlx", "sqlx-postgres"] }
 config = { version = "0.15.11", default-features = false, features = ["toml"] }
 dashmap = "6.1.0"
-duckdb = { version = "1.3.2", features = ["bundled"] }
+duckdb = { version = "1.3.2", features = ["bundled", "r2d2"] }
 futures = "0.3.31"
 itertools = "0.14.0"
 log = "0.4.27"
