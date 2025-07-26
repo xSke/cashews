@@ -39,7 +39,6 @@ function RouteComponent() {
   const pages = [
     { name: "Info", url: "/team/$id" },
     { name: "Stats", url: "/team/$id/stats" },
-    { name: "Stats (NEW)", url: "/team/$id/stats2" },
     // { name: "Games", url: "/team/$id/games" },
   ];
 
