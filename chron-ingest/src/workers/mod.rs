@@ -2,8 +2,6 @@ use std::sync::{Arc, RwLock};
 use std::time::Duration;
 
 use chron_base::ChronConfig;
-use chron_db::json_hash;
-use chron_db::scylla_backend::ChronScyllaDb;
 use chron_db::{ChronDb, models::EntityKind};
 use futures::StreamExt;
 use futures::stream;
@@ -16,8 +14,6 @@ use uuid::Uuid;
 use crate::http::{ClientResponse, DataClient};
 use crate::models::{MmolbState, MmolbTime};
 
-pub mod crunch;
-pub mod export;
 pub mod feeds;
 pub mod games;
 pub mod import;
@@ -26,14 +22,12 @@ pub mod map;
 pub mod matviews;
 pub mod message;
 pub mod misc;
-pub mod scylla;
 
 #[derive(Clone)]
 pub struct WorkerContext {
     pub _sim: Arc<RwLock<SimState>>,
     pub config: Arc<ChronConfig>,
     pub db: ChronDb,
-    pub scylla: ChronScyllaDb,
     pub client: DataClient,
 }
 

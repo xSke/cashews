@@ -4,14 +4,13 @@ use std::{
     sync::Arc,
 };
 
-use async_stream::try_stream;
 use axum::{extract::State, http::HeaderValue, response::IntoResponse};
 use axum_streams::{
     CsvStreamFormat, JsonArrayStreamFormat, JsonNewLineStreamFormat, StreamBodyAs,
     StreamBodyAsOptions,
 };
 use chron_base::StatKey;
-use chron_db::derived::{SlotOrPosition, StatFilter, StatsQueryNew, StatsRow};
+use chron_db::derived::{StatFilter, StatsQueryNew, StatsRow};
 use futures::{StreamExt, TryStreamExt, stream};
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 use serde_qs::axum::QsQuery;

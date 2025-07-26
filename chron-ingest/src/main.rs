@@ -1,22 +1,18 @@
 use std::sync::{Arc, RwLock};
 
 use chron_base::{load_config, stop_signal};
-use chron_db::{ChronDb, scylla_backend::ChronScyllaDb};
+use chron_db::ChronDb;
 use http::DataClient;
 use tracing::{error, info};
 use uuid::Uuid;
 use workers::{
-    IntervalWorker, SimState, WorkerContext, crunch,
+    IntervalWorker, SimState, WorkerContext,
     games::{self},
     import,
     league::{self},
 };
 
-use crate::workers::{
-    export::{self, ExportParquet},
-    feeds::ProcessFeeds,
-    games::HandleSuperstarGames,
-};
+use crate::workers::{feeds::ProcessFeeds, games::HandleSuperstarGames};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -71,12 +67,10 @@ async fn main() -> anyhow::Result<()> {
     } else {
         ChronDb::new(&config).await?
     };
-    let scylla = ChronScyllaDb::new(&config).await?;
     let client = DataClient::new()?;
     let ctx = WorkerContext {
         client,
         db,
-        scylla,
         config: config,
         _sim: Arc::new(RwLock::new(SimState {
             _season: Uuid::default(),
@@ -112,7 +106,6 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), HandleEventGames);
         spawn(ctx.clone(), HandleSuperstarGames);
         spawn(ctx.clone(), ProcessFeeds);
-        spawn(ctx.clone(), ExportParquet);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");
@@ -133,12 +126,8 @@ async fn handle_fn(ctx: &WorkerContext, name: &str, args: &[String]) -> anyhow::
         "fetch-all-players" => league::fetch_all_players(ctx).await?,
         "rebuild-teams" => synthetic::rebuild_teams(ctx).await?,
         "rebuild-players" => synthetic::rebuild_players(ctx).await?,
-        "import-db" => import::import(ctx, &args[0]).await?,
-        "crunch" => crunch::crunch(ctx).await?,
         "migrate" => ctx.db.migrate(false).await?,
         "migrate-full" => ctx.db.migrate(true).await?,
-        "export" => export::export_async(&ctx.config).await?,
-        "scylla" => workers::scylla::init(&ctx).await?,
         _ => panic!("unknown function: {}", name),
     }
 

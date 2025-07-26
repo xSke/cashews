@@ -12,16 +12,7 @@ impl IntervalWorker for RefreshMatviews {
     }
 
     async fn tick(&mut self, ctx: &mut super::WorkerContext) -> anyhow::Result<()> {
-        let matviews = [
-            "players",
-            "team_feeds",
-            "rosters",
-            "roster_slot_history",
-            "game_player_stats_exploded",
-            "game_player_stats_league_aggregate",
-            "game_player_stats_global_aggregate",
-            // "pitches",
-        ];
+        let matviews = ["players", "team_feeds", "rosters", "roster_slot_history"];
         for matview in matviews {
             info!("refreshing matview {}...", matview);
 

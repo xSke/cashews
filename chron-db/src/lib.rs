@@ -21,7 +21,6 @@ use uuid::Uuid;
 pub mod derived;
 pub mod models;
 pub mod queries;
-pub mod scylla_backend;
 pub mod util;
 
 #[derive(Iden)]
@@ -36,7 +35,6 @@ pub enum Idens {
     FullName,
     GameId,
     GamePlayerStats,
-    GamePlayerStatsExploded,
     Games,
     Hash,
     HomeTeamId,

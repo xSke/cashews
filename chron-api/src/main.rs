@@ -8,7 +8,6 @@ use axum::{
 };
 use chron_base::{ChronConfig, cache::SwrCache2, load_config, stop_signal};
 use chron_db::ChronDb;
-use crossbeam::atomic::AtomicCell;
 use derived_api::{LeagueAggregateResponse, refresh_league_aggregate};
 // use polars::enable_string_cache;
 use tower_http::{
@@ -19,12 +18,8 @@ use tower_http::{
 };
 use tracing::info;
 
-use crate::duck::DuckDBState;
-
 mod chron_api;
 mod derived_api;
-mod duck;
-// mod polar;
 mod stats;
 
 #[derive(Clone)]
@@ -32,8 +27,6 @@ pub struct AppState {
     config: Arc<ChronConfig>,
     db: ChronDb,
     percentile_cache: SwrCache2<(), Vec<LeagueAggregateResponse>, AppState>,
-    // polars: Arc<AtomicCell<PolarsState>>,
-    duckdb: Arc<DuckDBState>,
 }
 
 pub struct AppError(anyhow::Error);
@@ -59,16 +52,12 @@ async fn main() -> anyhow::Result<()> {
 
     let state = AppState {
         db,
-        duckdb: Arc::new(DuckDBState::new(&config.database_uri)?),
         percentile_cache: SwrCache2::new(Duration::from_secs(60 * 10), 10, move |_, ctx| {
             refresh_league_aggregate(ctx)
         }),
-        // polars: Arc::new(AtomicCell::new(PolarsState::new())),
         config: Arc::new(config),
     };
     state.percentile_cache.set_context(state.clone());
-
-    // tokio::spawn(duck::worker(state.clone()));\
 
     let cors = CorsLayer::new()
         .allow_methods([Method::GET])
@@ -87,13 +76,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/player-stats", get(derived_api::get_player_stats))
         .route("/scorigami", get(derived_api::scorigami))
         .route("/locations", get(derived_api::locations))
-        .route("/stats", get(stats::stats))
-        .route(
-            "/league-aggregate-stats",
-            get(derived_api::league_aggregate),
-        )
-        .route("/league-averages", get(derived_api::league_averages));
-    // .route("/export.parquet", get(duck::export));
+        .route("/stats", get(stats::stats));
 
     if let Some(dir) = &state.config.export_path {
         dbg!(dir);
