@@ -104,46 +104,6 @@ pub async fn get_player_stats(
     Ok(Json(aggregate_player_stats(&stats)))
 }
 
-#[derive(Deserialize, Debug)]
-pub struct LeagueAggregateQuery {
-    pub season: i32,
-}
-
-pub async fn league_aggregate(
-    State(ctx): State<AppState>,
-    Query(q): Query<LeagueAggregateQuery>,
-) -> Result<Json<LeagueAggregateResponse>, AppError> {
-    let data = ctx.percentile_cache.get(()).await?;
-
-    if q.season < 0 {
-        return Err(AppError(anyhow::anyhow!("invalid season")));
-    }
-
-    if let Some(data) = data.get(q.season as usize) {
-        Ok(Json(data.clone()))
-    } else {
-        Err(AppError(anyhow::anyhow!("invalid season")))
-    }
-}
-
-#[derive(Deserialize)]
-pub struct LeagueAveragesQuery {
-    pub season: i16,
-}
-
-pub async fn league_averages(
-    State(ctx): State<AppState>,
-    Query(q): Query<LeagueAveragesQuery>,
-) -> Result<Json<Vec<AverageStats>>, AppError> {
-    if q.season < 0 {
-        return Err(AppError(anyhow::anyhow!("invalid season")));
-    }
-
-    let data = ctx.db.get_league_averages(q.season).await?;
-
-    Ok(Json(data))
-}
-
 #[derive(Serialize)]
 pub struct TeamLocation {
     team: DbTeam,

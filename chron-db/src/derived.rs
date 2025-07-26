@@ -2,7 +2,10 @@ use async_stream::try_stream;
 use chron_base::{StatKey, objectid_to_timestamp};
 use compact_str::CompactString;
 use futures::{Stream, TryStreamExt};
-use sea_query::{Asterisk, Cond, Expr, ExprTrait, Func, PostgresQueryBuilder, Query};
+use sea_query::{
+    Asterisk, Cond, Expr, ExprTrait, Func, InsertStatement, IntoIden, OnConflict,
+    PostgresQueryBuilder, Query, SelectStatement, SimpleExpr,
+};
 use sea_query_binder::SqlxBinder;
 use serde::{Deserialize, Serialize};
 use sqlx::{FromRow, Row, postgres::PgRow};
@@ -403,13 +406,19 @@ impl ChronDb {
         &self,
         q: StatsQueryNew,
     ) -> anyhow::Result<impl Stream<Item = Result<StatsRow, anyhow::Error>> + use<'_>> {
-        let mut qqq = Query::select().from(Idens::GamePlayerStats).to_owned();
+        let mut qqq = Query::select()
+            .from(Idens::GamePlayerStatsExploded)
+            .to_owned();
+
+        fn col_sum(name: &str) -> SimpleExpr {
+            Expr::cust(format!("coalesce(sum({}), 0)", name))
+        }
 
         let mut qq: &mut _ = &mut qqq;
         // todo: can prob clean this up. or just use a better damn query builder
         for x in &q.fields {
             let name: &'static str = x.into();
-            qq = qq.expr_as(Expr::sum(Expr::col(name)).cast_as("int"), name);
+            qq = qq.expr_as(col_sum(name).cast_as("int"), name);
         }
 
         if let Some(count) = q.count {
@@ -417,15 +426,15 @@ impl ChronDb {
         }
 
         let mut needs_teams_table_join = false;
-        let mut needs_players_table_join = false;
-        let mut needs_player_name_expr = false;
 
         if let Some(player) = q.player {
-            qq = qq.and_where(Expr::col((Idens::GamePlayerStats, Idens::PlayerId)).eq(&player));
+            qq = qq.and_where(
+                Expr::col((Idens::GamePlayerStatsExploded, Idens::PlayerId)).eq(&player),
+            );
         }
 
         if let Some(team) = q.team {
-            qq = qq.and_where(Expr::col((Idens::GamePlayerStats, Idens::TeamId)).eq(&team));
+            qq = qq.and_where(Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId)).eq(&team));
         }
 
         if let Some(league) = q.league {
@@ -453,20 +462,22 @@ impl ChronDb {
 
         if q.group_player {
             qq = qq
-                .group_by_col((Idens::GamePlayerStats, Idens::PlayerId))
-                .column((Idens::GamePlayerStats, Idens::PlayerId));
+                .group_by_col((Idens::GamePlayerStatsExploded, Idens::PlayerId))
+                .column((Idens::GamePlayerStatsExploded, Idens::PlayerId));
 
             if q.include_names && !q.group_player_name {
-                let full_name = Func::cust(Idens::AnyValue)
-                    .arg(Expr::col((Idens::GamePlayerStats, Idens::PlayerName)));
+                let full_name = Func::cust(Idens::AnyValue).arg(Expr::col((
+                    Idens::GamePlayerStatsExploded,
+                    Idens::PlayerName,
+                )));
                 qq = qq.expr_as(full_name, "player_name");
             }
         }
 
         if q.group_team {
             qq = qq
-                .group_by_col((Idens::GamePlayerStats, Idens::TeamId))
-                .column((Idens::GamePlayerStats, Idens::TeamId));
+                .group_by_col((Idens::GamePlayerStatsExploded, Idens::TeamId))
+                .column((Idens::GamePlayerStatsExploded, Idens::TeamId));
 
             if q.include_names {
                 needs_teams_table_join = true;
@@ -521,47 +532,39 @@ impl ChronDb {
         if needs_teams_table_join {
             qq = qq.left_join(
                 Idens::Teams,
-                Expr::col((Idens::GamePlayerStats, Idens::TeamId))
+                Expr::col((Idens::GamePlayerStatsExploded, Idens::TeamId))
                     .equals((Idens::Teams, Idens::TeamId)),
-            );
-        }
-
-        if needs_players_table_join {
-            qq = qq.left_join(
-                Idens::Players,
-                Expr::col((Idens::GamePlayerStats, Idens::PlayerId))
-                    .equals((Idens::Players, Idens::PlayerId)),
             );
         }
 
         let mut nonzero_cond = Cond::any();
         for x in &q.fields {
             let name: &'static str = x.into();
-            nonzero_cond = nonzero_cond.add(Expr::col(name).sum().gt(0));
+            nonzero_cond = nonzero_cond.add(col_sum(name).gt(0));
         }
         qq = qq.cond_having(nonzero_cond);
 
         if let Some(sort) = q.sort {
             let name: &'static str = sort.into();
-            qq = qq.order_by_expr(Expr::col(name).sum(), sea_query::Order::Desc);
+            qq = qq.order_by_expr(col_sum(name), sea_query::Order::Desc);
         }
 
         for (filter_key, filter) in q.filters {
             let name: &'static str = filter_key.into();
             if let Some(v) = filter.eq {
-                qq = qq.and_having(Expr::col(name).sum().eq(v));
+                qq = qq.and_having(col_sum(name).eq(v));
             }
             if let Some(v) = filter.lt {
-                qq = qq.and_having(Expr::col(name).sum().lt(v));
+                qq = qq.and_having(col_sum(name).lt(v));
             }
             if let Some(v) = filter.gt {
-                qq = qq.and_having(Expr::col(name).sum().gt(v));
+                qq = qq.and_having(col_sum(name).gt(v));
             }
             if let Some(v) = filter.lte {
-                qq = qq.and_having(Expr::col(name).sum().lte(v));
+                qq = qq.and_having(col_sum(name).lte(v));
             }
             if let Some(v) = filter.gte {
-                qq = qq.and_having(Expr::col(name).sum().gte(v));
+                qq = qq.and_having(col_sum(name).gte(v));
             }
         }
 
@@ -655,6 +658,156 @@ impl ChronDb {
             .bind(&player_names)
             .bind(&datas)
             .execute(&self.pool).await?;
+
+        // this suuucks
+        let cols = &[
+            "allowed_stolen_bases",
+            "allowed_stolen_bases_risp",
+            "appearances",
+            "assists",
+            "assists_risp",
+            "at_bats",
+            "at_bats_risp",
+            "balks",
+            "balks_risp",
+            "batters_faced",
+            "batters_faced_risp",
+            "blown_saves",
+            "caught_double_play",
+            "caught_double_play_risp",
+            "caught_stealing",
+            "caught_stealing_risp",
+            "complete_games",
+            "double_plays",
+            "double_plays_risp",
+            "doubles",
+            "doubles_risp",
+            "earned_runs",
+            "earned_runs_risp",
+            "errors",
+            "errors_risp",
+            "field_out",
+            "field_out_risp",
+            "fielders_choice",
+            "fielders_choice_risp",
+            "flyouts",
+            "flyouts_risp",
+            "force_outs",
+            "force_outs_risp",
+            "games_finished",
+            "grounded_into_double_play",
+            "grounded_into_double_play_risp",
+            "groundout",
+            "groundout_risp",
+            "groundouts",
+            "groundouts_risp",
+            "hit_batters",
+            "hit_batters_risp",
+            "hit_by_pitch",
+            "hit_by_pitch_risp",
+            "hits_allowed",
+            "hits_allowed_risp",
+            "home_run_challenge_appearances",
+            "home_run_challenge_home_runs",
+            "home_run_challenge_home_runs_allowed",
+            "home_runs",
+            "home_runs_allowed",
+            "home_runs_allowed_risp",
+            "home_runs_risp",
+            "inherited_runners",
+            "inherited_runners_risp",
+            "inherited_runs_allowed",
+            "inherited_runs_allowed_risp",
+            "left_on_base",
+            "left_on_base_risp",
+            "lineouts",
+            "lineouts_risp",
+            "losses",
+            "mound_visits",
+            "no_hitters",
+            "outs",
+            "perfect_games",
+            "pitches_thrown",
+            "pitches_thrown_risp",
+            "plate_appearances",
+            "plate_appearances_risp",
+            "popouts",
+            "popouts_risp",
+            "putouts",
+            "putouts_risp",
+            "quality_starts",
+            "reached_on_error",
+            "reached_on_error_risp",
+            "runners_caught_stealing",
+            "runners_caught_stealing_risp",
+            "runs",
+            "runs_batted_in",
+            "runs_batted_in_risp",
+            "runs_risp",
+            "sac_flies",
+            "sac_flies_risp",
+            "sacrifice_double_plays",
+            "sacrifice_double_plays_risp",
+            "saves",
+            "shutouts",
+            "singles",
+            "singles_risp",
+            "starts",
+            "stolen_bases",
+            "stolen_bases_risp",
+            "strikeouts",
+            "strikeouts_risp",
+            "struck_out",
+            "struck_out_risp",
+            "triples",
+            "triples_risp",
+            "unearned_runs",
+            "unearned_runs_risp",
+            "walked",
+            "walked_risp",
+            "walks",
+            "walks_risp",
+            "wins",
+        ];
+        let oc = OnConflict::columns([Idens::GameId, Idens::TeamId, Idens::PlayerId])
+            .update_column("player_name")
+            .update_columns(cols.iter().map(|x| x.into_iden()))
+            .to_owned();
+        let sel = SelectStatement::new()
+            .from(Idens::GamePlayerStats)
+            .and_where(Expr::col(Idens::GameId).eq(game_id))
+            // MUST match order in insert
+            .column(Idens::Season)
+            .column(Idens::Day)
+            .column(Idens::GameId)
+            .column(Idens::TeamId)
+            .column(Idens::PlayerId)
+            .column(Idens::PlayerName)
+            .exprs(
+                cols.iter()
+                    .map(|x| Expr::cust(format!("(data->'{}')::smallint", x))),
+            )
+            .to_owned();
+
+        let mut ins_cols = Vec::new();
+        // MUST match order in select above
+        ins_cols.push(Idens::Season.into_iden());
+        ins_cols.push(Idens::Day.into_iden());
+        ins_cols.push(Idens::GameId.into_iden());
+        ins_cols.push(Idens::TeamId.into_iden());
+        ins_cols.push(Idens::PlayerId.into_iden());
+        ins_cols.push(Idens::PlayerName.into_iden());
+        ins_cols.extend(cols.iter().map(|x| x.into_iden()));
+        let ins = InsertStatement::new()
+            .columns(ins_cols)
+            .into_table(Idens::GamePlayerStatsExploded)
+            .on_conflict(oc)
+            .select_from(sel)?
+            .to_owned();
+
+        let (q, vals) = ins.build_sqlx(PostgresQueryBuilder);
+        // println!("{}", q);
+        sqlx::query_with(&q, vals).execute(&self.pool).await?;
 
         Ok(())
     }

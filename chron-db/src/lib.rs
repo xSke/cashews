@@ -35,6 +35,7 @@ pub enum Idens {
     FullName,
     GameId,
     GamePlayerStats,
+    GamePlayerStatsExploded,
     Games,
     Hash,
     HomeTeamId,
