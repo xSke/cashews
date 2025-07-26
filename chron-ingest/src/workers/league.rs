@@ -48,6 +48,14 @@ pub async fn poll_league(ctx: &WorkerContext) -> anyhow::Result<()> {
     info!("got {} team ids", team_ids.len());
     ctx.process_many_with_progress(team_ids, 3, "fetch teams", fetch_team)
         .await;
+
+    ctx.fetch_and_save(
+        "https://mmolb.com/api/postseason-bracket",
+        EntityKind::PostseasonBracket,
+        "postseason-bracket",
+    )
+    .await?;
+
     Ok(())
 }
 
