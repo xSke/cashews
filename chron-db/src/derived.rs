@@ -513,24 +513,17 @@ impl ChronDb {
             qq = qq.group_by_col(Idens::PlayerName).column(Idens::PlayerName);
         }
 
+        let sd_expr = Expr::col(Idens::Season)
+            .mul(1000)
+            .add(Expr::col(Idens::Day));
+        // todo: duckdb doesn't support BETWEEN for tuple/struct types
+        // this is a bug in duckdb that may be fixed later?
         if let Some((s, d)) = q.start {
-            qq = qq.and_where(
-                Expr::tuple([
-                    Expr::col(Idens::Season).into(),
-                    Expr::col(Idens::Day).into(),
-                ])
-                .gte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
-            );
+            qq = qq.and_where(sd_expr.clone().gte(s * 1000 + d));
         }
 
         if let Some((s, d)) = q.end {
-            qq = qq.and_where(
-                Expr::tuple([
-                    Expr::col(Idens::Season).into(),
-                    Expr::col(Idens::Day).into(),
-                ])
-                .lte(Expr::tuple([Expr::value(s as i16), Expr::value(d as i16)])),
-            );
+            qq = qq.and_where(sd_expr.clone().lte(s * 1000 + d));
         }
 
         if needs_teams_table_join {
