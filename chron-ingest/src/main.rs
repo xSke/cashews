@@ -12,7 +12,11 @@ use workers::{
     maintenance,
 };
 
-use crate::workers::{duck, feeds::ProcessFeeds, games::HandleSuperstarGames};
+use crate::workers::{
+    duck::{self, RefreshDuckDb},
+    feeds::ProcessFeeds,
+    games::HandleSuperstarGames,
+};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -106,6 +110,7 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), HandleEventGames);
         spawn(ctx.clone(), HandleSuperstarGames);
         spawn(ctx.clone(), ProcessFeeds);
+        spawn(ctx.clone(), RefreshDuckDb);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");
