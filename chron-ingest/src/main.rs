@@ -12,7 +12,7 @@ use workers::{
     maintenance,
 };
 
-use crate::workers::{feeds::ProcessFeeds, games::HandleSuperstarGames};
+use crate::workers::{feeds::ProcessFeeds, games::HandleSuperstarGames, league::PollBenches};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -96,6 +96,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         spawn(ctx.clone(), PollLeague);
         spawn(ctx.clone(), PollNewPlayers);
+        spawn(ctx.clone(), PollBenches);
         spawn(ctx.clone(), RefreshMatviews);
         spawn(ctx.clone(), PollMessage);
         spawn(ctx.clone(), PollGameDays);

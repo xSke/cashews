@@ -1,6 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     hash::RandomState,
+    ops::Deref,
     time::Duration,
 };
 
@@ -70,12 +71,12 @@ impl IntervalWorker for PollGameDays {
 
         // todo: loop multiple seasons?
         let season_id = state.season_id;
-        handle_season(ctx, season_id).await?;
+        handle_season(ctx, season_id.clone()).await?;
 
         // ok, now that we've saved all the days, query all the unfinished games
         // todo: only run this for current season?
         let mut game_ids_to_poll: HashSet<String> =
-            HashSet::from_iter(get_all_game_ids_from_days(ctx).await?);
+            HashSet::from_iter(get_all_game_ids_from_days(ctx, Some(&season_id)).await?);
         for known_complete in query_completed_game_ids(&ctx).await? {
             game_ids_to_poll.remove(&known_complete);
         }
@@ -180,16 +181,32 @@ async fn poll_games_and_their_players(ctx: &WorkerContext, ids: &[String]) -> an
     Ok(())
 }
 
-async fn get_all_game_ids_from_days(ctx: &WorkerContext) -> anyhow::Result<Vec<String>> {
+async fn get_all_game_ids_from_days(
+    ctx: &WorkerContext,
+    season_filter: Option<&str>,
+) -> anyhow::Result<Vec<String>> {
+    let mut season_map = HashMap::new();
+    let seasons = ctx.db.get_all_latest(EntityKind::Season).await?;
+    for season in seasons {
+        let season_parsed: MmolbSeason = season.parse()?;
+        for day in season_parsed.days {
+            season_map.insert(day, season.entity_id.clone());
+        }
+    }
+
     let mut game_ids = Vec::new();
     let mut stream = ctx.db.get_all_latest_stream(EntityKind::Day);
     while let Some(v) = stream.try_next().await? {
-        match v.parse::<MmolbDay>() {
-            Ok(day) => {
-                game_ids.extend(day.games.into_iter().map(|g| g.game_id).flatten());
-            }
-            Err(e) => {
-                error!("error parsing day {}: {:?}", v.entity_id, e);
+        if season_filter.is_none()
+            || season_map.get(&v.entity_id).map(|x| x.deref()) == season_filter
+        {
+            match v.parse::<MmolbDay>() {
+                Ok(day) => {
+                    game_ids.extend(day.games.into_iter().map(|g| g.game_id).flatten());
+                }
+                Err(e) => {
+                    error!("error parsing day {}: {:?}", v.entity_id, e);
+                }
             }
         }
     }
@@ -607,7 +624,7 @@ async fn get_all_known_game_ids(ctx: &WorkerContext) -> anyhow::Result<HashSet<S
         .collect();
 
     game_ids.extend(ctx.db.get_all_entity_ids(EntityKind::Game).await?);
-    game_ids.extend(get_all_game_ids_from_days(ctx).await?);
+    game_ids.extend(get_all_game_ids_from_days(ctx, None).await?);
     Ok(game_ids)
 }
 

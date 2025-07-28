@@ -1,11 +1,16 @@
-use std::{collections::HashSet, time::Duration};
+use std::{
+    collections::{HashMap, HashSet},
+    time::Duration,
+};
 
 use chron_db::{
-    derived::{DbLeagueSaveModel, DbTeamSaveModel},
+    derived::{DbLeagueSaveModel, DbTeamSaveModel, GetGamesQuery},
     models::{EntityKind, NewObject},
 };
+use futures::TryStreamExt;
 use serde::Deserialize;
-use tracing::info;
+use tokio::time::interval;
+use tracing::{info, warn};
 
 use crate::{
     http::ClientResponse,
@@ -18,6 +23,7 @@ use super::{IntervalWorker, WorkerContext};
 pub struct PollLeague;
 pub struct PollNewPlayers;
 pub struct PollAllPlayers;
+pub struct PollBenches;
 
 impl IntervalWorker for PollLeague {
     fn interval() -> tokio::time::Interval {
@@ -57,6 +63,66 @@ pub async fn poll_league(ctx: &WorkerContext) -> anyhow::Result<()> {
     .await?;
 
     Ok(())
+}
+
+#[derive(Deserialize)]
+struct GameWithBench {
+    #[serde(rename = "OriginalBench")]
+    original_bench: Option<HashMap<String, Bench>>,
+}
+
+#[derive(Deserialize)]
+struct Bench {
+    #[serde(rename = "Batters")]
+    batters: Vec<String>,
+    #[serde(rename = "Pitchers")]
+    pitchers: Vec<String>,
+}
+
+impl IntervalWorker for PollBenches {
+    fn interval() -> tokio::time::Interval {
+        tokio::time::interval(Duration::from_secs(30 * 60))
+    }
+
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
+        let mut stream = ctx.db.get_all_latest_stream(EntityKind::Game);
+        let mut bench_players = HashSet::new();
+        let mut i = 0;
+        while let Some(game_ver) = stream.try_next().await? {
+            match game_ver.parse::<GameWithBench>() {
+                Ok(parsed) => {
+                    if let Some(bench) = parsed.original_bench {
+                        for team_bench in bench.values() {
+                            // todo: mark if a bench player is a pitcher or a batter?
+                            bench_players.extend(team_bench.batters.iter().cloned());
+                            bench_players.extend(team_bench.pitchers.iter().cloned());
+                        }
+                    }
+                }
+                Err(e) => warn!(
+                    "failed to parse game with bench {}: {:?}",
+                    game_ver.entity_id, e
+                ),
+            }
+            if i % 1000 == 0 {
+                info!("finding bench players (at {} games)", i);
+            }
+            i += 1;
+        }
+
+        info!("found {} players on bench, polling", bench_players.len());
+
+        let bench_players = Vec::from_iter(bench_players);
+        ctx.process_many_with_progress(
+            bench_players.chunks(100),
+            1,
+            "fetch bench players",
+            fetch_players_bulk,
+        )
+        .await;
+
+        Ok(())
+    }
 }
 
 impl IntervalWorker for PollNewPlayers {
