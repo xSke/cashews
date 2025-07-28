@@ -147,7 +147,7 @@ export default function LeadersPage(props: LeadersPageProps) {
     });
 
   const maxPas = aq.agg(dt, aq.op.max("plate_appearances"));
-  const limit = Math.max(maxPas / 2, 100);
+  const limit = Math.min(maxPas / 3, 100);
 
   const validBatters = dt
     .params({ limit })
