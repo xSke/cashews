@@ -175,6 +175,40 @@ export function useStatsTable(raw: RawTable) {
   }, [raw]);
 }
 
+export const battingStatFields: StatKey[] = [
+  "singles",
+  "doubles",
+  "triples",
+  "home_runs",
+  "at_bats",
+  "walked",
+  "hit_by_pitch",
+  "plate_appearances",
+  "stolen_bases",
+  "caught_stealing",
+  "struck_out",
+  "runs",
+  "runs_batted_in",
+  "sac_flies",
+];
+
+export const pitchingStatFields: StatKey[] = [
+  "outs",
+  "earned_runs",
+  "home_runs_allowed",
+  "walks",
+  "hit_batters",
+  "strikeouts",
+  "hits_allowed",
+  "wins",
+  "losses",
+  "saves",
+  "blown_saves",
+  "unearned_runs",
+  "appearances",
+  "starts",
+];
+
 export function calculateBattingStats(
   data: aq.ColumnTable,
   ref?: BattingStatReferences
@@ -182,11 +216,15 @@ export function calculateBattingStats(
   let d = data
     .derive({
       hits: (d) => d.singles + d.doubles + d.triples + d.home_runs,
+      total_bases_hit: (d) =>
+        d.singles + d.doubles * 2 + d.triples * 3 + d.home_runs * 4,
     })
     .derive({
       pa: (d) => d.at_bats + d.walked + d.hit_by_pitch + d.sac_flies,
       ba: (d) => d.hits / d.at_bats,
-      obp: (d) => (d.hits + d.walked + d.hit_by_pitch) / (d.at_bats + d.walked + d.hit_by_pitch + d.sac_flies),
+      obp: (d) =>
+        (d.hits + d.walked + d.hit_by_pitch) /
+        (d.at_bats + d.walked + d.hit_by_pitch + d.sac_flies),
       slg: (d) =>
         (d.singles + 2 * d.doubles + 3 * d.triples + 4 * d.home_runs) /
         d.at_bats,

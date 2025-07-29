@@ -1,5 +1,11 @@
 import { allTeamsQuery } from "@/lib/data";
-import { statsQuery } from "@/lib/newstats";
+import {
+  battingStatFields,
+  calculateBattingStats,
+  calculatePitchingStats,
+  pitchingStatFields,
+  statsQuery,
+} from "@/lib/newstats";
 import { QueryClient, useSuspenseQueries } from "@tanstack/react-query";
 import * as aq from "arquero";
 import {
@@ -21,11 +27,12 @@ interface LeadersTableProps {
   title: string;
   data: aq.ColumnTable;
   col: string;
+  type: "batting" | "pitching";
   format: (number) => string;
 }
 
 function formatDecimal(places: number) {
-  return (x) => x.toFixed(3);
+  return (x) => x.toFixed(places);
 }
 
 function formatIp(x: number) {
@@ -43,7 +50,8 @@ function LeadersTable(props: LeadersTableProps) {
     player_name: string;
     team_emoji: string;
     team_name: string;
-    plate_appearances: number;
+    plate_appearances?: number;
+    outs?: number;
     rank: number;
   }[];
   return (
@@ -57,7 +65,7 @@ function LeadersTable(props: LeadersTableProps) {
 
         <TableHeader>
           <TableRow>
-            <TableHead colSpan={2}>{props.title}</TableHead>
+            <TableHead colSpan={3}>{props.title}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -85,7 +93,12 @@ function LeadersTable(props: LeadersTableProps) {
                   </TableRow>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {row.team_emoji} {row.team_name} ({row.plate_appearances} PAs)
+                  {row.team_emoji} {row.team_name}{" "}
+                  {props.type === "batting" ? (
+                    <span>({row.plate_appearances} PAs)</span>
+                  ) : (
+                    <span>({formatIp((row.outs ?? 0) / 3)} IP)</span>
+                  )}
                 </TooltipContent>
               </Tooltip>
             );
@@ -100,16 +113,17 @@ function statsQueryBatting(props: LeadersPageProps) {
   return statsQuery({
     season: props.season,
     league: props.league,
-    fields: [
-      "walked",
-      "singles",
-      "doubles",
-      "triples",
-      "home_runs",
-      "at_bats",
-      "hit_by_pitch",
-      "plate_appearances",
-    ],
+    fields: battingStatFields,
+    group: ["player", "team", "player_name"],
+    names: true,
+  });
+}
+
+function statsQueryPitching(props: LeadersPageProps) {
+  return statsQuery({
+    season: props.season,
+    league: props.league,
+    fields: pitchingStatFields,
     group: ["player", "team", "player_name"],
     names: true,
   });
@@ -123,62 +137,183 @@ export async function preloadData(
 }
 
 export default function LeadersPage(props: LeadersPageProps) {
-  const [stats, teams] = useSuspenseQueries({
-    queries: [statsQueryBatting(props), allTeamsQuery],
+  const [battingStats, pitchingStats, teams] = useSuspenseQueries({
+    queries: [
+      statsQueryBatting(props),
+      statsQueryPitching(props),
+      allTeamsQuery,
+    ],
   });
 
-  const dt = stats.data
+  const battingDt = calculateBattingStats(battingStats.data, undefined);
+  const pitchingDt = calculatePitchingStats(pitchingStats.data, undefined);
+
+  const maxPas = aq.agg(battingDt, aq.op.max("plate_appearances"));
+  const maxOuts = aq.agg(pitchingDt, aq.op.max("outs"));
+  const paLimit = Math.min(maxPas / 3, 100);
+  const outLimit = Math.min(maxOuts / 3, 100);
+
+  const validBatters = battingDt
     .derive({
       team_emoji: aq.escape((d) => teams.data[d.team_id].emoji),
       team_color: aq.escape((d) => teams.data[d.team_id].color),
     })
-    .derive({
-      hits: (d) => d.singles + d.doubles + d.triples + d.home_runs,
-    })
-    .derive({
-      ba: (d) => d.hits / d.at_bats,
-      obp: (d) => (d.hits + d.walked + d.hit_by_pitch) / d.plate_appearances,
-      slg: (d) =>
-        (d.singles + 2 * d.doubles + 3 * d.triples + 4 * d.home_runs) /
-        d.at_bats,
-    })
-    .derive({
-      ops: (d) => d.obp + d.slg,
-    });
-
-  const maxPas = aq.agg(dt, aq.op.max("plate_appearances"));
-  const limit = Math.min(maxPas / 3, 100);
-
-  const validBatters = dt
-    .params({ limit })
+    .params({ limit: paLimit })
     .filter((d, $) => d.plate_appearances > $.limit);
 
+  const validPitchers = pitchingDt
+    .derive({
+      team_emoji: aq.escape((d) => teams.data[d.team_id].emoji),
+      team_color: aq.escape((d) => teams.data[d.team_id].color),
+    })
+    .params({ limit: outLimit })
+    .filter((d, $) => d.outs > $.limit);
+
   return (
-    <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 container mx-auto py-4 px-4">
-      <LeadersTable
-        title="Batting Average (BA)"
-        data={validBatters.orderby(aq.desc("ba")).slice(0, 10)}
-        col="ba"
-        format={formatDecimal(3)}
-      />
-      <LeadersTable
-        title="On-Base Percentage (OBP)"
-        data={validBatters.orderby(aq.desc("obp")).slice(0, 10)}
-        col="obp"
-        format={formatDecimal(3)}
-      />
-      <LeadersTable
-        title="Slugging Percentage (SLG)"
-        data={validBatters.orderby(aq.desc("slg")).slice(0, 10)}
-        col="slg"
-        format={formatDecimal(3)}
-      />
-      <LeadersTable
-        title="On-Base + Slugging (OPS)"
-        data={validBatters.orderby(aq.desc("ops")).slice(0, 10)}
-        col="ops"
-        format={formatDecimal(3)}
-      />
+    <div>
+      <div className="container mx-auto py-4">
+        <h1 className="text-xl font-semibold">Batting Leaders</h1>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 container mx-auto py-2">
+          <LeadersTable
+            title="Batting Average (BA)"
+            data={validBatters.orderby(aq.desc("ba")).slice(0, 10)}
+            col="ba"
+            format={formatDecimal(3)}
+            type="batting"
+          />
+          <LeadersTable
+            title="On-Base Percentage (OBP)"
+            data={validBatters.orderby(aq.desc("obp")).slice(0, 10)}
+            col="obp"
+            format={formatDecimal(3)}
+            type="batting"
+          />
+          <LeadersTable
+            title="Slugging Percentage (SLG)"
+            data={validBatters.orderby(aq.desc("slg")).slice(0, 10)}
+            col="slg"
+            format={formatDecimal(3)}
+            type="batting"
+          />
+          <LeadersTable
+            title="On-Base + Slugging (OPS)"
+            data={validBatters.orderby(aq.desc("ops")).slice(0, 10)}
+            col="ops"
+            format={formatDecimal(3)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Walks"
+            data={validBatters.orderby(aq.desc("walked")).slice(0, 10)}
+            col="walked"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Strikeouts"
+            data={validBatters.orderby(aq.desc("struck_out")).slice(0, 10)}
+            col="struck_out"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Singles"
+            data={validBatters.orderby(aq.desc("singles")).slice(0, 10)}
+            col="singles"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Doubles"
+            data={validBatters.orderby(aq.desc("doubles")).slice(0, 10)}
+            col="doubles"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Triples"
+            data={validBatters.orderby(aq.desc("triples")).slice(0, 10)}
+            col="triples"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Home Runs"
+            data={validBatters.orderby(aq.desc("home_runs")).slice(0, 10)}
+            col="home_runs"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Stolen Bases"
+            data={validBatters.orderby(aq.desc("stolen_bases")).slice(0, 10)}
+            col="stolen_bases"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Caught Stealing"
+            data={validBatters.orderby(aq.desc("caught_stealing")).slice(0, 10)}
+            col="caught_stealing"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+
+          <LeadersTable
+            title="Hit By Pitch"
+            data={validBatters.orderby(aq.desc("hit_by_pitch")).slice(0, 10)}
+            col="hit_by_pitch"
+            format={formatDecimal(0)}
+            type="batting"
+          />
+        </div>
+      </div>
+      <div>
+        <h1 className="text-xl font-semibold">Pitching Leaders</h1>
+
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 container mx-auto py-2">
+          <LeadersTable
+            title="Earned Runs Average (ERA)"
+            data={validPitchers.orderby("era").slice(0, 10)}
+            col="era"
+            format={formatDecimal(2)}
+            type="pitching"
+          />
+
+          <LeadersTable
+            title="Walks and Hits per Innings Pitched (WHIP)"
+            data={validPitchers.orderby("whip").slice(0, 10)}
+            col="whip"
+            format={formatDecimal(2)}
+            type="pitching"
+          />
+
+          <LeadersTable
+            title="Strikeouts"
+            data={validPitchers.orderby(aq.desc("strikeouts")).slice(0, 10)}
+            col="strikeouts"
+            format={formatDecimal(0)}
+            type="pitching"
+          />
+
+          <LeadersTable
+            title="Hit Batters"
+            data={validPitchers.orderby(aq.desc("hit_batters")).slice(0, 10)}
+            col="hit_batters"
+            format={formatDecimal(0)}
+            type="pitching"
+          />
+        </div>
+      </div>
     </div>
   );
 }
