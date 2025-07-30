@@ -12,7 +12,11 @@ use workers::{
     maintenance,
 };
 
-use crate::workers::{feeds::ProcessFeeds, games::HandleSuperstarGames, league::PollBenches};
+use crate::workers::{
+    feeds::{PollPlayerFeeds, PollTeamFeeds, ProcessFeeds},
+    games::HandleSuperstarGames,
+    league::PollBenches,
+};
 use crate::workers::{
     games::{HandleEventGames, PollGameDays, PollLiveGames},
     league::{PollAllPlayers, PollLeague, PollNewPlayers},
@@ -107,6 +111,8 @@ async fn main() -> anyhow::Result<()> {
         spawn(ctx.clone(), HandleEventGames);
         spawn(ctx.clone(), HandleSuperstarGames);
         spawn(ctx.clone(), ProcessFeeds);
+        spawn(ctx.clone(), PollTeamFeeds);
+        spawn(ctx.clone(), PollPlayerFeeds);
 
         stop_signal().await?;
         info!("got ctrl-c, exiting");

@@ -1,6 +1,10 @@
+use std::time::Duration;
+
 use chron_db::models::EntityKind;
 use strum::VariantArray;
 use tracing::info;
+
+use crate::workers::IntervalWorker;
 
 use super::WorkerContext;
 
@@ -24,5 +28,23 @@ pub async fn recompress(ctx: &WorkerContext) -> anyhow::Result<()> {
             break;
         }
     }
+    Ok(())
+}
+
+pub struct FixupGameStatsNames;
+
+impl IntervalWorker for FixupGameStatsNames {
+    fn interval() -> tokio::time::Interval {
+        tokio::time::interval(Duration::from_secs(10 * 60))
+    }
+
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
+        fixup_game_stats_names(ctx).await?;
+        Ok(())
+    }
+}
+
+pub async fn fixup_game_stats_names(ctx: &WorkerContext) -> anyhow::Result<()> {
+    // todo: find all game stats with null player names and re-process their games
     Ok(())
 }

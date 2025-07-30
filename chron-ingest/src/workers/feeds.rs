@@ -8,6 +8,8 @@ use time::OffsetDateTime;
 use tokio::time::{Interval, interval};
 
 pub struct ProcessFeeds;
+pub struct PollPlayerFeeds;
+pub struct PollTeamFeeds;
 
 fn handle_feed(output: &mut Vec<PlayerNameMapEntry>, feed: &[FeedEntry]) {
     for entry in feed {
@@ -42,13 +44,13 @@ impl IntervalWorker for ProcessFeeds {
     async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
         let mut entries = Vec::new();
 
-        let mut player_stream = ctx.db.get_all_latest_stream(EntityKind::Player);
+        let mut player_stream = ctx.db.get_all_latest_stream(EntityKind::PlayerFeed);
         while let Some(entity) = player_stream.try_next().await? {
             let holder = entity.parse::<FeedHolder>()?;
             handle_feed(&mut entries, &holder.feed);
         }
 
-        let mut team_stream = ctx.db.get_all_latest_stream(EntityKind::Team);
+        let mut team_stream = ctx.db.get_all_latest_stream(EntityKind::TeamFeed);
         while let Some(entity) = team_stream.try_next().await? {
             let holder = entity.parse::<FeedHolder>()?;
             handle_feed(&mut entries, &holder.feed);
@@ -96,7 +98,8 @@ struct PlayerNameMapEntry {
 
 #[derive(Deserialize)]
 struct FeedHolder {
-    #[serde(rename = "Feed", default)]
+    // player/team objects had a Feed key (uppercase), feed endpoint returns a feed key (lowercase)...
+    #[serde(rename = "Feed", alias = "feed", default)]
     feed: Vec<FeedEntry>,
 }
 
@@ -122,4 +125,52 @@ struct FeedLink {
 
     #[serde(default, rename = "match")]
     string: Option<String>,
+}
+
+impl IntervalWorker for PollPlayerFeeds {
+    fn interval() -> Interval {
+        interval(Duration::from_secs(60 * 30))
+    }
+
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
+        let player_ids = ctx.db.get_all_entity_ids(EntityKind::Player).await?;
+
+        ctx.process_many_with_progress(player_ids, 10, "player feeds", fetch_player_feed)
+            .await;
+        Ok(())
+    }
+}
+
+impl IntervalWorker for PollTeamFeeds {
+    fn interval() -> Interval {
+        interval(Duration::from_secs(60 * 10))
+    }
+
+    async fn tick(&mut self, ctx: &mut WorkerContext) -> anyhow::Result<()> {
+        let team_ids = ctx.db.get_all_entity_ids(EntityKind::Team).await?;
+
+        ctx.process_many_with_progress(team_ids, 10, "team feeds", fetch_team_feed)
+            .await;
+        Ok(())
+    }
+}
+
+async fn fetch_player_feed(ctx: &WorkerContext, player_id: String) -> anyhow::Result<()> {
+    let url = format!("https://mmolb.com/api/feed?player={}", &player_id);
+    let _ = ctx
+        .fetch_and_save(url, EntityKind::PlayerFeed, player_id)
+        .await?;
+
+    // todo: do anything immediately, or wait for ProcessFeeds to come around?
+    Ok(())
+}
+
+async fn fetch_team_feed(ctx: &WorkerContext, team_id: String) -> anyhow::Result<()> {
+    let url = format!("https://mmolb.com/api/feed?team={}", &team_id);
+    let _ = ctx
+        .fetch_and_save(url, EntityKind::TeamFeed, team_id)
+        .await?;
+
+    // todo: do anything immediately, or wait for ProcessFeeds to come around?
+    Ok(())
 }
