@@ -25,7 +25,7 @@ import {
   SortingState,
   useReactTable,
 } from "@tanstack/react-table";
-import { ChevronDown, ChevronUp, Square } from "lucide-react";
+import { ChevronDown, ChevronUp, Proportions, Square } from "lucide-react";
 import clsx from "clsx";
 import { defaultScale } from "@/lib/colors";
 import { Tooltip, TooltipContent } from "./ui/tooltip";
@@ -33,6 +33,7 @@ import { TooltipTrigger } from "@radix-ui/react-tooltip";
 
 export interface NewStatsTableProps {
   position: "batting" | "pitching";
+  display: "team" | "player";
   data: aq.ColumnTable;
   indexes: Record<string, PercentileIndex>;
 }
@@ -52,8 +53,12 @@ export default function NewStatsTable(props: NewStatsTableProps) {
   }
 
   function slotColumn(): ColumnDef<number, string> {
-    const getter = enriched.getter("slot");
-    const currentGetter = enriched.getter("current");
+    const getter = enriched.column("slot")
+      ? enriched.getter("slot")
+      : () => "-";
+    const currentGetter = enriched.column("current")
+      ? enriched.getter("current")
+      : () => true;
     const order = [
       "C",
       "1B",
@@ -211,12 +216,19 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     if (props.position === "batting")
       return [
         // idColumn(),
-        {
-          ...statColumn("battingOrder", "#", { order: "asc", footer: false }),
-          maxSize: 40,
-        },
-        nameColumn(),
-        slotColumn(),
+        ...(props.display === "team"
+          ? [
+              {
+                ...statColumn("battingOrder", "#", {
+                  order: "asc",
+                  footer: false,
+                }),
+                maxSize: 40,
+              },
+              nameColumn(),
+              slotColumn(),
+            ]
+          : [nameColumn(), statColumn("season", "Season")]),
         statColumn("plate_appearances", "PAs"),
         statColumn("at_bats", "ABs"),
         statColumn("runs", "R"),
@@ -241,8 +253,9 @@ export default function NewStatsTable(props: NewStatsTableProps) {
       ];
     if (props.position === "pitching")
       return [
-        nameColumn(),
-        slotColumn(),
+        ...(props.display === "team"
+          ? [nameColumn(), slotColumn()]
+          : [nameColumn(), statColumn("season", "Season")]),
         statColumn("appearances", "G", { footer: false }),
         statColumn("starts", "GS", { footer: false }),
         statColumn("ip", "IP", { format: "ip" }),
@@ -273,17 +286,19 @@ export default function NewStatsTable(props: NewStatsTableProps) {
 
   const [data, sumRow] = useMemo(() => {
     const arr: number[] = [];
-    enriched.filter((d) => d.player_id !== "sum").scan((row) => arr.push(row!));
+    enriched
+      .filter(aq.escape((d) => d.player_id !== "sum"))
+      .scan((row) => arr.push(row!));
 
-    enriched.filter((d) => d.player_id === "sum").print();
     const sumRow = enriched.filter((d) => d.player_id === "sum").indices()[0];
-    console.log("sumRow", sumRow);
     return [arr, sumRow];
   }, [enriched]);
 
-  const [sorting, setSorting] = useState<SortingState>([
-    { desc: false, id: "position" },
-  ]);
+  const [sorting, setSorting] = useState<SortingState>(
+    props.display === "team"
+      ? [{ desc: false, id: "position" }]
+      : [{ desc: true, id: "season" }]
+  );
 
   const table = useReactTable<number>({
     data,
@@ -293,6 +308,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     getSortedRowModel: getSortedRowModel(),
     onSortingChange: setSorting,
     enableSortingRemoval: false,
+
     initialState: {
       columnPinning: {
         left: ["battingOrder", "name"],
@@ -368,7 +384,9 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         <TableBody>
           {table.getRowModel().rows?.length ? (
             table.getRowModel().rows.map((row) => {
-              const isCurrent = enriched.get("current", row.original);
+              const isCurrent = enriched.column("current")
+                ? enriched.get("current", row.original)
+                : true;
               return (
                 <TableRow
                   key={row.id}
@@ -408,28 +426,30 @@ export default function NewStatsTable(props: NewStatsTableProps) {
             </TableRow>
           )}
         </TableBody>
-        <TableFooter>
-          {table.getFooterGroups().map((footerGroup) => (
-            <TableRow key={footerGroup.id}>
-              {footerGroup.headers.map((header) => {
-                return (
-                  <TableHead
-                    key={header.id}
-                    className="font-semibold text-left bg-muted"
-                    style={{ ...getCommonPinningStyles(header.column) }}
-                  >
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(
-                          header.column.columnDef.footer,
-                          header.getContext()
-                        )}
-                  </TableHead>
-                );
-              })}
-            </TableRow>
-          ))}
-        </TableFooter>
+        {props.display === "team" && (
+          <TableFooter>
+            {table.getFooterGroups().map((footerGroup) => (
+              <TableRow key={footerGroup.id}>
+                {footerGroup.headers.map((header) => {
+                  return (
+                    <TableHead
+                      key={header.id}
+                      className="font-semibold text-left bg-muted"
+                      style={{ ...getCommonPinningStyles(header.column) }}
+                    >
+                      {header.isPlaceholder
+                        ? null
+                        : flexRender(
+                            header.column.columnDef.footer,
+                            header.getContext()
+                          )}
+                    </TableHead>
+                  );
+                })}
+              </TableRow>
+            ))}
+          </TableFooter>
+        )}
       </Table>
     </div>
   );

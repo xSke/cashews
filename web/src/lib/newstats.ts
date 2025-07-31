@@ -86,6 +86,7 @@ export interface StatsQuery {
   season?: number;
   day?: number;
   team?: string;
+  player?: string;
   names?: boolean;
   filter?: Partial<Record<StatKey, StatsQueryFilter>>;
 }
@@ -160,6 +161,7 @@ export function statsQuery(q: StatsQuery) {
       q.group?.join(",") ?? null,
       q.league ?? null,
       q.team ?? null,
+      q.player ?? null,
       q.season ?? null,
       q.day ?? null,
       q.names ?? null,

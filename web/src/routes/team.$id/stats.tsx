@@ -344,6 +344,7 @@ function RouteComponent() {
         {battingStats ? (
           <NewStatsTable
             position={"batting"}
+            display="team"
             data={battingStats}
             indexes={battingIndexes}
           />
@@ -360,6 +361,7 @@ function RouteComponent() {
         {pitchingStats ? (
           <NewStatsTable
             position={"pitching"}
+            display="team"
             data={pitchingStats}
             indexes={pitchingIndexes}
           />
