@@ -209,6 +209,14 @@ export default function LeadersPage(props: LeadersPageProps) {
           />
 
           <LeadersTable
+            title="Batting Average on Balls in Play (BABIP)"
+            data={validBatters.orderby(aq.desc("babip")).slice(0, 10)}
+            col="babip"
+            format={formatDecimal(3)}
+            type="batting"
+          />
+
+          <LeadersTable
             title="Walks"
             data={validBatters.orderby(aq.desc("walked")).slice(0, 10)}
             col="walked"
