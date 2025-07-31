@@ -190,6 +190,10 @@ export const battingStatFields: StatKey[] = [
   "runs",
   "runs_batted_in",
   "sac_flies",
+  "groundouts",
+  "flyouts",
+  "popouts",
+  "lineouts",
 ];
 
 export const pitchingStatFields: StatKey[] = [
@@ -218,6 +222,7 @@ export function calculateBattingStats(
       hits: (d) => d.singles + d.doubles + d.triples + d.home_runs,
       total_bases_hit: (d) =>
         d.singles + d.doubles * 2 + d.triples * 3 + d.home_runs * 4,
+      fielded_outs: (d) => d.groundouts + d.flyouts + d.lineouts + d.popouts,
     })
     .derive({
       pa: (d) => d.at_bats + d.walked + d.hit_by_pitch + d.sac_flies,
@@ -229,11 +234,16 @@ export function calculateBattingStats(
         (d.singles + 2 * d.doubles + 3 * d.triples + 4 * d.home_runs) /
         d.at_bats,
       sb_success: (d) => d.stolen_bases / (d.stolen_bases + d.caught_stealing),
+      babip: (d) =>
+        (d.hits - d.home_runs) /
+        (d.at_bats - d.struck_out - d.home_runs - d.sac_flies),
     })
     .derive({
       ops: (d) => d.obp + d.slg,
+      iso: (d) => d.slg - d.ba,
       k_pct: (d) => d.struck_out / d.pa,
       bb_pct: (d) => d.walked / d.pa,
+      hr_pct: (d) => d.home_runs / d.pa,
     });
 
   if (ref) {

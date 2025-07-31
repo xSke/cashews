@@ -93,10 +93,12 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     const getter = enriched.getter("player_name");
     const idGetter = enriched.getter("player_id");
     // const statusGetter = enriched.getter("status");
+
     return {
       id: "name",
       header: "Name",
       accessorFn: (r) => getter(r),
+
       cell: (c) => (
         <span className="font-semibold">
           <a
@@ -107,6 +109,9 @@ export default function NewStatsTable(props: NewStatsTableProps) {
           </a>
         </span>
       ),
+      footer: (c) => {
+        return <span className="font-semibold">Team Total</span>;
+      },
     };
   }
 
@@ -117,6 +122,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
       decimals?: number;
       format?: "number" | "ip";
       order?: "asc" | "desc";
+      footer?: boolean;
     } = {}
   ): ColumnDef<number, number> {
     const getter = enriched.column(col) ? enriched.getter(col) : (_) => NaN;
@@ -134,52 +140,65 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         return `${innings}.${outs}`;
       }
     }
+
+    function cellFunction(val: number) {
+      let perc: PercentileResult | undefined;
+      if (props.indexes[col]) {
+        const index = props.indexes[col];
+        perc = findPercentile(index, val, order === "desc");
+      }
+
+      const scale = defaultScale;
+      const lightColor = scale.light(perc?.percentile ?? 0);
+      const darkColor = scale.dark(perc?.percentile ?? 0);
+
+      const inner = isNaN(val) ? "-" : formatValue(val);
+
+      return (
+        <div
+          className={clsx(
+            "tabular-nums text-right",
+            perc && "font-semibold dark:font-medium"
+          )}
+          style={{
+            color:
+              perc !== undefined
+                ? `light-dark(${lightColor.css()}, ${darkColor.css()})`
+                : undefined,
+          }}
+        >
+          {perc !== undefined ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>{inner}</span>
+              </TooltipTrigger>
+              <TooltipContent>
+                Better than {(perc.percentile * 100).toFixed(1)}% of qualifying
+                players
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            inner
+          )}
+        </div>
+      );
+    }
     return {
       id: col,
       header: title,
       sortDescFirst: order == "desc",
       cell: (c) => {
         const val = c.getValue();
-        let perc: PercentileResult | undefined;
-        if (props.indexes[col]) {
-          const index = props.indexes[col];
-          perc = findPercentile(index, val, order === "desc");
-        }
-
-        const scale = defaultScale;
-        const lightColor = scale.light(perc?.percentile ?? 0);
-        const darkColor = scale.dark(perc?.percentile ?? 0);
-
-        const inner = isNaN(val) ? "-" : formatValue(val);
-
-        return (
-          <div
-            className={clsx(
-              "tabular-nums text-right",
-              perc && "font-semibold dark:font-medium"
-            )}
-            style={{
-              color:
-                perc !== undefined
-                  ? `light-dark(${lightColor.css()}, ${darkColor.css()})`
-                  : undefined,
-            }}
-          >
-            {perc !== undefined ? (
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <span>{inner}</span>
-                </TooltipTrigger>
-                <TooltipContent>
-                  Better than {(perc.percentile * 100).toFixed(1)}% of
-                  qualifying players
-                </TooltipContent>
-              </Tooltip>
-            ) : (
-              inner
-            )}
-          </div>
-        );
+        return cellFunction(val);
+      },
+      footer: (c) => {
+        if (opts.footer === false) return null;
+        const sumRow = (c.table.options.meta as any).sumRow as
+          | number
+          | undefined;
+        if (sumRow === undefined) return null;
+        const val = getter(sumRow);
+        return cellFunction(val);
       },
       accessorFn: (r) => getter(r),
       meta: {
@@ -192,7 +211,10 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     if (props.position === "batting")
       return [
         // idColumn(),
-        { ...statColumn("battingOrder", "#", { order: "asc" }), maxSize: 40 },
+        {
+          ...statColumn("battingOrder", "#", { order: "asc", footer: false }),
+          maxSize: 40,
+        },
         nameColumn(),
         slotColumn(),
         statColumn("plate_appearances", "PAs"),
@@ -212,6 +234,7 @@ export default function NewStatsTable(props: NewStatsTableProps) {
         statColumn("slg", "SLG", { decimals: 3 }),
         statColumn("ops", "OPS", { decimals: 3 }),
         statColumn("ops_plus", "OPS+"),
+        statColumn("babip", "BABIP", { decimals: 3 }),
         statColumn("stolen_bases", "SB"),
         statColumn("caught_stealing", "CS", { order: "asc" }),
         statColumn("sb_success", "SB%", { decimals: 2 }),
@@ -220,8 +243,8 @@ export default function NewStatsTable(props: NewStatsTableProps) {
       return [
         nameColumn(),
         slotColumn(),
-        statColumn("appearances", "G"),
-        statColumn("starts", "GS"),
+        statColumn("appearances", "G", { footer: false }),
+        statColumn("starts", "GS", { footer: false }),
         statColumn("ip", "IP", { format: "ip" }),
         statColumn("wins", "W"),
         statColumn("losses", "L", { order: "asc" }),
@@ -248,10 +271,14 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     return [];
   }, [enriched, props.indexes, props.position]);
 
-  const data = useMemo(() => {
+  const [data, sumRow] = useMemo(() => {
     const arr: number[] = [];
-    enriched.scan((row) => arr.push(row!));
-    return arr;
+    enriched.filter((d) => d.player_id !== "sum").scan((row) => arr.push(row!));
+
+    enriched.filter((d) => d.player_id === "sum").print();
+    const sumRow = enriched.filter((d) => d.player_id === "sum").indices()[0];
+    console.log("sumRow", sumRow);
+    return [arr, sumRow];
   }, [enriched]);
 
   const [sorting, setSorting] = useState<SortingState>([
@@ -273,6 +300,9 @@ export default function NewStatsTable(props: NewStatsTableProps) {
     },
     state: {
       sorting,
+    },
+    meta: {
+      sumRow,
     },
   });
 
@@ -383,7 +413,10 @@ export default function NewStatsTable(props: NewStatsTableProps) {
             <TableRow key={footerGroup.id}>
               {footerGroup.headers.map((header) => {
                 return (
-                  <TableHead key={header.id} className="font-semibold">
+                  <TableHead
+                    key={header.id}
+                    className="font-semibold text-left"
+                  >
                     {header.isPlaceholder
                       ? null
                       : flexRender(

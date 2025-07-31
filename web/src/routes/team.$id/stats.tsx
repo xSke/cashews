@@ -210,7 +210,7 @@ function RouteComponent() {
     return leagueBattingFiltered
       ? generatePercentileIndexes(
           calculateBattingStats(leagueBattingFiltered, battingAgg),
-          ["ba", "obp", "slg", "ops", "sb_success"]
+          ["ba", "obp", "slg", "ops", "sb_success", "babip"]
         )
       : {};
   }, [leagueBattingFiltered, battingAgg]);
@@ -229,13 +229,28 @@ function RouteComponent() {
   const battingStats = useMemo(() => {
     if (!teamBattingQuery.data) return undefined;
 
-    let data = calculateBattingStats(teamBattingQuery.data, battingAgg).derive({
+    let sumTable = teamBattingQuery.data
+      .rollup(
+        Object.fromEntries(
+          battingStatFields.map((key) => [key, aq.op.sum(key)])
+        )
+      )
+      .derive({
+        player_id: aq.escape(() => "sum"),
+      })
+      .reify();
+
+    const joined = teamBattingQuery.data.concat(sumTable);
+
+    let data = calculateBattingStats(joined, battingAgg).derive({
       key: (d) => d.player_id + "/" + d.player_name,
     });
     if (currentRosterTable) {
       data = data.lookup(currentRosterTable, "key");
     }
-    data = data.derive({ current: (d) => d.position_type === "Batter" });
+    data = data.derive({
+      current: (d) => d.position_type === "Batter" || d.player_id === "sum",
+    });
 
     if (battingOrder) {
       const battingOrderTable = aq.table({
@@ -265,13 +280,28 @@ function RouteComponent() {
 
   const pitchingStats = useMemo(() => {
     if (!teamPitching.data) return undefined;
-    let data = calculatePitchingStats(teamPitching.data, pitchingAgg).derive({
+    let sumTable = teamPitching.data
+      .rollup(
+        Object.fromEntries(
+          pitchingStatFields.map((key) => [key, aq.op.sum(key)])
+        )
+      )
+      .derive({
+        player_id: aq.escape(() => "sum"),
+      })
+      .reify();
+
+    const joined = teamPitching.data.concat(sumTable);
+
+    let data = calculatePitchingStats(joined, pitchingAgg).derive({
       key: (d) => d.player_id + "/" + d.player_name,
     });
     if (currentRosterTable) {
       data = data.lookup(currentRosterTable, "key");
     }
-    data = data.derive({ current: (d) => d.position_type === "Pitcher" });
+    data = data.derive({
+      current: (d) => d.position_type === "Pitcher" || d.player_id === "sum",
+    });
     if (hideInactive) data = data.filter((d) => d.current);
     // data = data.derive({
     //   status: (d) => {
