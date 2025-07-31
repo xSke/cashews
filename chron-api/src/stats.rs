@@ -4,16 +4,22 @@ use std::{
     sync::Arc,
 };
 
-use axum::{extract::State, http::HeaderValue, response::IntoResponse};
+use axum::{
+    body::Bytes,
+    extract::State,
+    http::{self, HeaderMap, HeaderValue},
+    response::IntoResponse,
+};
 use axum_streams::{
     CsvStreamFormat, JsonArrayStreamFormat, JsonNewLineStreamFormat, StreamBodyAs,
-    StreamBodyAsOptions,
+    StreamBodyAsOptions, StreamingFormat,
 };
 use chron_base::StatKey;
 use chron_db::derived::{StatFilter, StatsQueryNew, StatsRow};
 use futures::{StreamExt, TryStreamExt, stream};
 use serde::{Deserialize, Serialize, Serializer, ser::SerializeStruct};
 use serde_qs::axum::QsQuery;
+use strum::EnumCount;
 
 use crate::{AppError, AppState, derived_api::SeasonDay};
 
@@ -194,29 +200,41 @@ pub async fn stats(
 
     let db = ctx.db.clone();
 
-    let mut stream = db.get_stats(qq.clone())?;
+    let stream = db.get_stats(qq.clone())?;
     let results = stream
         .map_ok(|row| StatOutputRow { row, q: q.clone() })
         .try_collect::<Vec<_>>()
         .await?;
-
-    // TODO: figure out some way to buffer the first few lines, check for errors, then start streaming...?
-    // for now, we just buffer everything
-    /*let s = try_stream! {
-        let mut res = db.get_stats(qq.clone())?;
-        while let Some(row) = res.try_next().await? {
-            yield StatOutputRow { row: row, q: q.clone() };
-        }
-    }
-    .inspect_err(|e| {
-        tracing::error!("error in stats query: {:?}", e);
-    })
-    .map_err(|x: anyhow::Error| axum::Error::new(x));
-
-    */
+    let is_empty = results.is_empty();
 
     let s = stream::iter(results).map(|x| -> Result<StatOutputRow, axum::Error> { Ok(x) });
     let opts = StreamBodyAsOptions::new().buffering_ready_items(1000);
+
+    // if we're outputting csv and there are no rows, we still want to output a header row
+    // so, we fake it a little bit...
+    if format == StatsFormat::Csv && is_empty {
+        let null_row = StatOutputRow {
+            row: StatsRow {
+                player: None,
+                player_name: None,
+                game: None,
+                team: None,
+                team_name: None,
+                league: None,
+                season: None,
+                day: None,
+                slot: None,
+                values: [0; StatKey::COUNT],
+            },
+            q: q,
+        };
+        return Ok(StreamBodyAs::with_options(
+            HeaderOnlyStreamFormat::new(CsvStreamFormat::new(true, b','), null_row),
+            s,
+            opts.content_type(HeaderValue::from_static("text/plain; charset=utf-8")),
+        ));
+    }
+
     Ok(match format {
         StatsFormat::Csv => {
             StreamBodyAs::with_options(
@@ -257,4 +275,62 @@ fn dedup_preserving_order<T: PartialEq + std::hash::Hash>(vec: &mut Vec<T>) {
             true
         }
     });
+}
+
+fn get_header_row<S: Serialize>(null_value: &S) -> anyhow::Result<String> {
+    let mut writer = csv::WriterBuilder::new()
+        .has_headers(true)
+        .delimiter(b',')
+        .from_writer(vec![]);
+    writer.serialize(null_value)?;
+    let row = writer.into_inner()?;
+    let row = String::from_utf8_lossy(&row);
+    if let Some((header, _)) = row.split_once("\n") {
+        Ok(header.to_string())
+    } else {
+        Err(anyhow::anyhow!("header machine broke"))
+    }
+}
+
+struct HeaderOnlyStreamFormat<S: Serialize> {
+    csv: CsvStreamFormat,
+    null_value: S,
+}
+
+impl<S: Serialize> HeaderOnlyStreamFormat<S> {
+    fn new(csv: CsvStreamFormat, null_value: S) -> HeaderOnlyStreamFormat<S> {
+        HeaderOnlyStreamFormat { csv, null_value }
+    }
+}
+
+impl<S: Serialize> StreamingFormat<S> for HeaderOnlyStreamFormat<S> {
+    fn to_bytes_stream<'a, 'b>(
+        &'a self,
+        _stream: stream::BoxStream<'b, Result<S, axum::Error>>,
+        _options: &'a StreamBodyAsOptions,
+    ) -> stream::BoxStream<'b, Result<axum::body::Bytes, axum::Error>> {
+        let header = get_header_row(&self.null_value);
+        match header {
+            Ok(string) => {
+                let bytes = Bytes::copy_from_slice(string.as_bytes());
+                Box::pin(stream::iter(std::iter::once(Ok(bytes))))
+            }
+            Err(e) => Box::pin(stream::iter(std::iter::once(Err(axum::Error::new(e))))),
+        }
+    }
+
+    fn http_response_headers(
+        &self,
+        options: &StreamBodyAsOptions,
+    ) -> Option<axum::http::HeaderMap> {
+        let mut header_map = HeaderMap::new();
+        header_map.insert(
+            http::header::CONTENT_TYPE,
+            options
+                .content_type
+                .clone()
+                .unwrap_or_else(|| http::header::HeaderValue::from_static("text/csv")),
+        );
+        Some(header_map)
+    }
 }
