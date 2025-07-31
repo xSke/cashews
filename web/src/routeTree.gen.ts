@@ -11,11 +11,9 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as TeamsRouteImport } from './routes/teams'
 import { Route as ScorigamiRouteImport } from './routes/scorigami'
-import { Route as QueryRouteImport } from './routes/query'
 import { Route as PlayersRouteImport } from './routes/players'
 import { Route as MapRouteImport } from './routes/map'
 import { Route as LeadersRouteImport } from './routes/leaders'
-import { Route as DucktestRouteImport } from './routes/ducktest'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TeamIdRouteRouteImport } from './routes/team.$id/route'
 import { Route as LeagueIdRouteRouteImport } from './routes/league.$id/route'
@@ -36,11 +34,6 @@ const ScorigamiRoute = ScorigamiRouteImport.update({
   path: '/scorigami',
   getParentRoute: () => rootRouteImport,
 } as any)
-const QueryRoute = QueryRouteImport.update({
-  id: '/query',
-  path: '/query',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const PlayersRoute = PlayersRouteImport.update({
   id: '/players',
   path: '/players',
@@ -54,11 +47,6 @@ const MapRoute = MapRouteImport.update({
 const LeadersRoute = LeadersRouteImport.update({
   id: '/leaders',
   path: '/leaders',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DucktestRoute = DucktestRouteImport.update({
-  id: '/ducktest',
-  path: '/ducktest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -109,11 +97,9 @@ const TeamIdGamesRoute = TeamIdGamesRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/ducktest': typeof DucktestRoute
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
-  '/query': typeof QueryRoute
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/league/$id': typeof LeagueIdRouteRouteWithChildren
@@ -127,11 +113,9 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/ducktest': typeof DucktestRoute
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
-  '/query': typeof QueryRoute
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/team/$id/games': typeof TeamIdGamesRoute
@@ -144,11 +128,9 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/ducktest': typeof DucktestRoute
   '/leaders': typeof LeadersRoute
   '/map': typeof MapRoute
   '/players': typeof PlayersRoute
-  '/query': typeof QueryRoute
   '/scorigami': typeof ScorigamiRoute
   '/teams': typeof TeamsRoute
   '/league/$id': typeof LeagueIdRouteRouteWithChildren
@@ -164,11 +146,9 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/ducktest'
     | '/leaders'
     | '/map'
     | '/players'
-    | '/query'
     | '/scorigami'
     | '/teams'
     | '/league/$id'
@@ -182,11 +162,9 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
-    | '/ducktest'
     | '/leaders'
     | '/map'
     | '/players'
-    | '/query'
     | '/scorigami'
     | '/teams'
     | '/team/$id/games'
@@ -198,11 +176,9 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
-    | '/ducktest'
     | '/leaders'
     | '/map'
     | '/players'
-    | '/query'
     | '/scorigami'
     | '/teams'
     | '/league/$id'
@@ -217,11 +193,9 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DucktestRoute: typeof DucktestRoute
   LeadersRoute: typeof LeadersRoute
   MapRoute: typeof MapRoute
   PlayersRoute: typeof PlayersRoute
-  QueryRoute: typeof QueryRoute
   ScorigamiRoute: typeof ScorigamiRoute
   TeamsRoute: typeof TeamsRoute
   LeagueIdRouteRoute: typeof LeagueIdRouteRouteWithChildren
@@ -244,13 +218,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ScorigamiRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/query': {
-      id: '/query'
-      path: '/query'
-      fullPath: '/query'
-      preLoaderRoute: typeof QueryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/players': {
       id: '/players'
       path: '/players'
@@ -270,13 +237,6 @@ declare module '@tanstack/react-router' {
       path: '/leaders'
       fullPath: '/leaders'
       preLoaderRoute: typeof LeadersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/ducktest': {
-      id: '/ducktest'
-      path: '/ducktest'
-      fullPath: '/ducktest'
-      preLoaderRoute: typeof DucktestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -379,11 +339,9 @@ const TeamIdRouteRouteWithChildren = TeamIdRouteRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DucktestRoute: DucktestRoute,
   LeadersRoute: LeadersRoute,
   MapRoute: MapRoute,
   PlayersRoute: PlayersRoute,
-  QueryRoute: QueryRoute,
   ScorigamiRoute: ScorigamiRoute,
   TeamsRoute: TeamsRoute,
   LeagueIdRouteRoute: LeagueIdRouteRouteWithChildren,
