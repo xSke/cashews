@@ -150,8 +150,8 @@ export default function LeadersPage(props: LeadersPageProps) {
 
   const maxPas = aq.agg(battingDt, aq.op.max("plate_appearances"));
   const maxOuts = aq.agg(pitchingDt, aq.op.max("outs"));
-  const paLimit = Math.round(Math.min(maxPas / 2, 100));
-  const outLimit = Math.round(Math.min(maxOuts / 2, 100));
+  const paLimit = Math.round(Math.min(maxPas / 2, 150));
+  const outLimit = Math.round(Math.min(maxOuts / 2, 200));
 
   const validBatters = battingDt
     .derive({
