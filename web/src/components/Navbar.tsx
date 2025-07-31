@@ -79,6 +79,7 @@ export default function Navbar() {
   const pages = [
     { text: "Teams", to: "/teams", icon: VolleyballIcon },
     { text: "Players", to: "/players", icon: PersonStandingIcon },
+    { text: "Leaders", to: "/leaders", icon: MapIcon },
     { text: "Map", to: "/map", icon: MapIcon },
   ];
 
