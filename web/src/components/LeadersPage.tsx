@@ -150,8 +150,8 @@ export default function LeadersPage(props: LeadersPageProps) {
 
   const maxPas = aq.agg(battingDt, aq.op.max("plate_appearances"));
   const maxOuts = aq.agg(pitchingDt, aq.op.max("outs"));
-  const paLimit = Math.min(maxPas / 3, 100);
-  const outLimit = Math.min(maxOuts / 3, 100);
+  const paLimit = Math.round(Math.min(maxPas / 2, 100));
+  const outLimit = Math.round(Math.min(maxOuts / 2, 100));
 
   const validBatters = battingDt
     .derive({
@@ -173,6 +173,10 @@ export default function LeadersPage(props: LeadersPageProps) {
     <div>
       <div className="container mx-auto py-4">
         <h1 className="text-xl font-semibold">Batting Leaders</h1>
+        <h2 className="text-sm">
+          (current threshold:{" "}
+          <span className="font-semibold">{paLimit} PAs</span>)
+        </h2>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 container mx-auto py-2">
           <LeadersTable
@@ -279,6 +283,10 @@ export default function LeadersPage(props: LeadersPageProps) {
       </div>
       <div>
         <h1 className="text-xl font-semibold">Pitching Leaders</h1>
+        <h2 className="text-sm">
+          (current threshold:{" "}
+          <span className="font-semibold">{formatIp(outLimit / 3)} IP</span>)
+        </h2>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 container mx-auto py-2">
           <LeadersTable
