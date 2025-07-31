@@ -415,7 +415,8 @@ export default function NewStatsTable(props: NewStatsTableProps) {
                 return (
                   <TableHead
                     key={header.id}
-                    className="font-semibold text-left"
+                    className="font-semibold text-left bg-muted"
+                    style={{ ...getCommonPinningStyles(header.column) }}
                   >
                     {header.isPlaceholder
                       ? null
