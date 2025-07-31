@@ -1,7 +1,9 @@
 import { allTeamsQuery } from "@/lib/data";
 import {
   battingStatFields,
+  calculateBattingStatReferences,
   calculateBattingStats,
+  calculatePitchingStatReferences,
   calculatePitchingStats,
   pitchingStatFields,
   statsQuery,
@@ -145,8 +147,10 @@ export default function LeadersPage(props: LeadersPageProps) {
     ],
   });
 
-  const battingDt = calculateBattingStats(battingStats.data, undefined);
-  const pitchingDt = calculatePitchingStats(pitchingStats.data, undefined);
+  const battingRef = calculateBattingStatReferences(battingStats.data);
+  const pitchingRef = calculatePitchingStatReferences(pitchingStats.data);
+  const battingDt = calculateBattingStats(battingStats.data, battingRef);
+  const pitchingDt = calculatePitchingStats(pitchingStats.data, pitchingRef);
 
   const maxPas = aq.agg(battingDt, aq.op.max("plate_appearances"));
   const maxOuts = aq.agg(pitchingDt, aq.op.max("outs"));
@@ -309,6 +313,14 @@ export default function LeadersPage(props: LeadersPageProps) {
             title="Walks and Hits per Innings Pitched (WHIP)"
             data={validPitchers.orderby("whip").slice(0, 10)}
             col="whip"
+            format={formatDecimal(2)}
+            type="pitching"
+          />
+
+          <LeadersTable
+            title="Fielding Independent Pitching (FIP)"
+            data={validPitchers.orderby("fip").slice(0, 10)}
+            col="fip"
             format={formatDecimal(2)}
             type="pitching"
           />
