@@ -132,7 +132,7 @@ impl FromStr for PageToken {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let engine = base64::engine::general_purpose::URL_SAFE;
         let data = engine.decode(s)?;
-        if data.len() <= 16 {
+        if data.len() < 9 { // 8 byte timestamp + minimum 1 byte entity id
             return Err(anyhow::anyhow!("invalid page token"));
         }
 
