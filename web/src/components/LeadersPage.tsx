@@ -302,7 +302,7 @@ export default function LeadersPage(props: LeadersPageProps) {
 
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 container mx-auto py-2">
           <LeadersTable
-            title="Earned Runs Average (ERA)"
+            title="Earned Run Average (ERA)"
             data={validPitchers.orderby("era").slice(0, 10)}
             col="era"
             format={formatDecimal(2)}
@@ -310,20 +310,21 @@ export default function LeadersPage(props: LeadersPageProps) {
           />
 
           <LeadersTable
-            title="Walks and Hits per Innings Pitched (WHIP)"
+            title="Walks and Hits per Inning Pitched (WHIP)"
             data={validPitchers.orderby("whip").slice(0, 10)}
             col="whip"
             format={formatDecimal(2)}
             type="pitching"
           />
 
-          <LeadersTable
-            title="Fielding Independent Pitching (FIP)"
-            data={validPitchers.orderby("fip").slice(0, 10)}
-            col="fip"
-            format={formatDecimal(2)}
-            type="pitching"
-          />
+          {/*disabled for now because it's broken for some reason*/}
+          {/*<LeadersTable*/}
+          {/*  title="Fielding Independent Pitching (FIP)"*/}
+          {/*  data={validPitchers.orderby("fip").slice(0, 10)}*/}
+          {/*  col="fip"*/}
+          {/*  format={formatDecimal(2)}*/}
+          {/*  type="pitching"*/}
+          {/*/>*/}
 
           <LeadersTable
             title="Strikeouts"
@@ -334,12 +335,86 @@ export default function LeadersPage(props: LeadersPageProps) {
           />
 
           <LeadersTable
-            title="Hit Batters"
-            data={validPitchers.orderby(aq.desc("hit_batters")).slice(0, 10)}
-            col="hit_batters"
-            format={formatDecimal(0)}
+              title="Walks"
+              data={validPitchers.orderby("walks").slice(0, 10)}
+              col="walks"
+              format={formatDecimal(0)}
+              type="pitching"
+          />
+
+          <LeadersTable
+              title="Hit Batters 😈"
+              data={validPitchers.orderby(aq.desc("hit_batters")).slice(0, 10)}
+              col="hit_batters"
+              format={formatDecimal(0)}
+              type="pitching"
+          />
+
+          <LeadersTable
+              title="Hits"
+              data={validPitchers.orderby("hits_allowed").slice(0, 10)}
+              col="hits_allowed"
+              format={formatDecimal(0)}
+              type="pitching"
+          />
+
+          <LeadersTable
+              title="Home Runs"
+              data={validPitchers.orderby("home_runs_allowed").slice(0, 10)}
+              col="home_runs_allowed"
+              format={formatDecimal(0)}
+              type="pitching"
+          />
+
+          <LeadersTable
+            title="Strikeouts per 9 Innings (K/9)"
+            data={validPitchers.orderby(aq.desc("k9")).slice(0, 10)}
+            col="k9"
+            format={formatDecimal(2)}
             type="pitching"
           />
+
+          <LeadersTable
+              title="Walks per 9 Innings (BB/9)"
+              data={validPitchers.orderby("bb9").slice(0, 10)}
+              col="bb9"
+              format={formatDecimal(2)}
+              type="pitching"
+          />
+
+          <LeadersTable
+              title="Hits per 9 Innings (H/9)"
+              data={validPitchers.orderby("h9").slice(0, 10)}
+              col="h9"
+              format={formatDecimal(2)}
+              type="pitching"
+          />
+
+          <LeadersTable
+              title="Home Runs per 9 Innings (HR/9)"
+              data={validPitchers.orderby("hr9").slice(0, 10)}
+              col="hr9"
+              format={formatDecimal(2)}
+              type="pitching"
+          />
+
+          {/*Disabled for now because the team emoji don't show (have to use pitchingDt for this, which doesn't have them)*/}
+          {/*<LeadersTable*/}
+          {/*    title="Saves"*/}
+          {/*    data={pitchingDt.orderby(aq.desc("saves")).slice(0, 10)}*/}
+          {/*    col="saves"*/}
+          {/*    format={formatDecimal(0)}*/}
+          {/*    type="pitching"*/}
+          {/*/>*/}
+
+          {/*<LeadersTable*/}
+          {/*    title="Blown Saves"*/}
+          {/*    data={pitchingDt.orderby(aq.desc("blown_saves")).slice(0, 10)}*/}
+          {/*    col="blown_saves"*/}
+          {/*    format={formatDecimal(0)}*/}
+          {/*    type="pitching"*/}
+          {/*/>*/}
+
         </div>
       </div>
     </div>
